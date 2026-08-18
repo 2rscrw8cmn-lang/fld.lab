@@ -1,4 +1,5 @@
 import { handleApi, type Env } from "./api";
+import { handleDrillApi } from "./drills/routes";
 
 export type HealthPayload = {
   ok: true;
@@ -28,6 +29,9 @@ const worker = {
           { status: 500 }
         );
       }
+
+      const drillResponse = await handleDrillApi(request, env.DB);
+      if (drillResponse) return drillResponse;
 
       const response = await handleApi(request, env);
       if (response) return response;
