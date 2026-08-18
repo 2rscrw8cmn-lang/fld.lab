@@ -53,7 +53,7 @@ function teamLabel(team: Team | null) {
   return [team.name, team.season_label].filter(Boolean).join(" — ");
 }
 
-export function RosterScreen({ team }: { team: Team | null }) {
+export function RosterScreen({ team, onNavigate }: { team: Team | null; onNavigate: (path: string) => void }) {
   const [rows, setRows] = useState<RosterRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -266,7 +266,7 @@ export function RosterScreen({ team }: { team: Team | null }) {
                   className={`grid min-h-12 grid-cols-[44px_minmax(0,1fr)_auto] items-center gap-2 border-b border-border px-3 last:border-b-0 sm:grid-cols-[64px_minmax(180px,1fr)_minmax(130px,.8fr)_100px] sm:gap-3 ${row.membership.active ? "" : "opacity-55"}`}
                 >
                   <span className="text-xs font-extrabold tabular-nums text-text-muted">{row.membership.jersey_number || "—"}</span>
-                  <button type="button" onClick={() => openEdit(row)} className="min-w-0 py-2 text-left">
+                  <button type="button" onClick={() => onNavigate(`/athletes/${encodeURIComponent(row.athlete.id)}`)} className="min-w-0 py-2 text-left transition-colors hover:text-[#c4b5fd]">
                     <span className="block truncate text-sm font-bold">{row.athlete.first_name} {row.athlete.last_name}</span>
                     <span className="block truncate text-[11px] text-text-muted sm:hidden">{positions(row)}{!row.membership.active ? " · Archived" : ""}</span>
                   </button>
