@@ -68,7 +68,7 @@ Never rely on:
 - a client-supplied team ID by itself
 - browser local storage as proof of authorization
 
-When authentication is implemented, the server must determine which teams the authenticated coach may access.
+For v1, fld.LAB is intentionally a single-coach application. The Worker verifies the Cloudflare Access identity and only authorizes the configured coach email. That one authenticated coach is authorized for the v1 app's teams. Multi-coach/team-role authorization requires a deliberate future data-model change.
 
 ## 5. Database access
 
@@ -83,16 +83,18 @@ Browser code must never receive:
 Normal path:
 
 ```text
-Browser → Worker /api/* → env.DB → D1
+Browser → Cloudflare Access → Worker /api/* → env.DB → D1
 ```
 
 ## 6. Secrets
 
 Local Worker secrets belong in `.dev.vars` when needed.
 
-Production secrets are managed through Cloudflare/Wrangler secret mechanisms.
+Production secrets and account-specific deployment values are managed through Cloudflare/Wrangler configuration mechanisms.
 
 Never hard-code secrets in TypeScript, JSON, test fixtures, or documentation examples.
+
+The Access issuer, AUD, and authorized coach email are deployment-specific configuration and must not be committed with real account values in this public repository.
 
 ## 7. Logging
 
@@ -107,6 +109,8 @@ Avoid production logs containing:
 
 Useful operational logging should prefer IDs, route/state, error category, and request correlation information.
 
+Authentication failures must never log the raw Access JWT.
+
 ## 8. Error handling
 
 Client-facing errors must not expose:
@@ -118,6 +122,8 @@ Client-facing errors must not expose:
 - internal authorization logic
 
 Use the structured errors in `API_CONTRACT.md`.
+
+Authentication responses use generic 401/403/503 messages and do not echo tokens or claims.
 
 ## 9. Data deletion and history
 
@@ -137,31 +143,41 @@ Use D1 Time Travel for near-term recovery and protected exports only when operat
 
 ## 11. Authentication implementation decision
 
-The specific authentication provider/mechanism is intentionally deferred until the core local workflow is working.
+The v1 authentication decision is now explicit:
 
-When selected, document:
+- **identity/access provider:** Cloudflare Access
+- **deployment scope:** the fld.LAB Worker hostname, including the current `workers.dev` deployment
+- **v1 authorization model:** one configured coach email has access to the v1 application and its teams
+- **Worker verification:** validate the `Cf-Access-Jwt-Assertion` signature, issuer, application audience, expiration/not-before timing, subject, and email before protected API routing
+- **sign-in:** Cloudflare Access; One-Time PIN is acceptable for the one-coach deployment
+- **sign-out:** `/cdn-cgi/access/logout`
+- **local development:** explicit `AUTH_MODE=development`, accepted only on localhost/loopback
+- **account recovery:** handled by the configured Cloudflare Access identity method, not by fld.LAB password storage
 
-- identity provider
-- session/token approach
-- team ownership/authorization model
-- sign-in/sign-out flow
-- account recovery
-- production deployment configuration
+Protected API requests fail closed when production authentication configuration is absent or invalid.
 
-Do not make authentication-provider assumptions throughout domain code before this decision is made.
+See `docs/AUTH.md` for deployment configuration and verification steps.
+
+This decision does **not** introduce multi-coach roles. When the product requires multiple coaches, organizations, or team sharing, add a server-side coach/team authorization model deliberately rather than broadening the v1 email allowlist.
 
 ## 12. Production readiness gate
 
+Merging authentication code is not the same as completing production verification.
+
 A build is **not approved for real youth-athlete production data** until all are true:
 
-- [ ] authentication exists
-- [ ] unauthenticated roster/result reads return 401/403
-- [ ] unauthenticated writes return 401/403
-- [ ] authorization is enforced by team scope in Worker code
-- [ ] secrets are not committed
+- [ ] Cloudflare Access is enabled on the deployed fld.LAB hostname
+- [ ] the Access Allow policy is restricted to the intended coach account
+- [ ] production auth variables are configured (`AUTH_MODE`, Access team domain, Access AUD, authorized coach email)
+- [ ] unauthenticated roster/result reads are blocked and direct protected API access without a valid JWT returns 401
+- [ ] unauthenticated writes are blocked and do not reach D1 mutation logic
+- [ ] a valid token for a non-authorized coach is rejected with 403
+- [ ] authorization is enforced by the Worker, not only the Access UI/policy
+- [ ] secrets/tokens are not committed
 - [ ] production DB/export files are not committed
 - [ ] test/preview deployments do not point at production D1 by default
 - [ ] error responses do not leak internal details
-- [ ] real-device logout/session-expiration behavior has been tested
+- [ ] real-device logout behavior has been tested
+- [ ] real-device session-expiration behavior has been tested
 
-Until then, use fictional data only.
+Until every deployment check above is verified, use fictional/sanitized data only.
