@@ -1,4 +1,5 @@
 import { handleApi, type Env } from "./api";
+import { AuthError, authenticateRequest, authErrorResponse } from "./auth";
 import { handleDrillApi } from "./drills/routes";
 import { handleResultsApi } from "./results/routes";
 import { handleSessionRosterApi } from "./sessions/roster-routes";
@@ -22,6 +23,28 @@ const worker = {
     }
 
     if (url.pathname.startsWith("/api/")) {
+      let coach;
+      try {
+        coach = await authenticateRequest(
+          request,
+          (env ?? {}) as Parameters<typeof authenticateRequest>[1],
+        );
+      } catch (error) {
+        if (error instanceof AuthError) return authErrorResponse(error);
+        console.error("Authentication failure", error instanceof Error ? error.name : "unknown");
+        return Response.json(
+          { error: { code: "auth_unavailable", message: "Authentication is temporarily unavailable." } },
+          { status: 503, headers: { "Cache-Control": "no-store" } },
+        );
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/auth/me") {
+        return Response.json(
+          { coach: { email: coach.email, provider: coach.provider } },
+          { headers: { "Cache-Control": "no-store" } },
+        );
+      }
+
       if (!env?.DB) {
         return Response.json(
           {
