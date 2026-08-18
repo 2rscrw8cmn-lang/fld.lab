@@ -1,19 +1,15 @@
+import { handleApi, type Env } from "./api";
+
 export type HealthPayload = {
-  status: "ok";
-  service: "fld-lab";
-  timestamp: string;
+  ok: true;
 };
 
-export function createHealthPayload(now = new Date()): HealthPayload {
-  return {
-    status: "ok",
-    service: "fld-lab",
-    timestamp: now.toISOString()
-  };
+export function createHealthPayload(): HealthPayload {
+  return { ok: true };
 }
 
 const worker = {
-  async fetch(request: Request): Promise<Response> {
+  async fetch(request: Request, env?: Env): Promise<Response> {
     const url = new URL(request.url);
 
     if (request.method === "GET" && url.pathname === "/api/health") {
@@ -21,10 +17,25 @@ const worker = {
     }
 
     if (url.pathname.startsWith("/api/")) {
+      if (!env?.DB) {
+        return Response.json(
+          {
+            error: {
+              code: "internal_error",
+              message: "Database binding is unavailable."
+            }
+          },
+          { status: 500 }
+        );
+      }
+
+      const response = await handleApi(request, env);
+      if (response) return response;
+
       return Response.json(
         {
           error: {
-            code: "NOT_FOUND",
+            code: "not_found",
             message: "API route not found"
           }
         },
