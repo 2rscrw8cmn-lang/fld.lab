@@ -11,6 +11,7 @@
     {
       "binding": "DB",
       "database_name": "fld-lab-prod",
+      "database_id": "90d8782a-40a1-4202-a9bb-9316fef9ce64",
       "migrations_dir": "migrations"
     }
   ]
