@@ -27,6 +27,19 @@ CREATE UNIQUE INDEX idx_drills_slug ON drills(slug);
 CREATE INDEX idx_drills_active_category ON drills(active, category, name);
 CREATE INDEX idx_drill_versions_drill_version ON drill_versions(drill_id, version DESC);
 
+-- Keep immutable definitions immutable even if later application code accidentally tries to rewrite them.
+CREATE TRIGGER prevent_drill_version_update
+BEFORE UPDATE ON drill_versions
+BEGIN
+  SELECT RAISE(ABORT, 'drill versions are immutable');
+END;
+
+CREATE TRIGGER prevent_drill_version_delete
+BEFORE DELETE ON drill_versions
+BEGIN
+  SELECT RAISE(ABORT, 'drill versions are immutable');
+END;
+
 -- SQLite allows this circular relationship only after both tables exist.
 -- Keep the current-version pointer nullable during the initial insert, then set it in the same D1 batch.
 CREATE TRIGGER validate_drills_current_version_update
