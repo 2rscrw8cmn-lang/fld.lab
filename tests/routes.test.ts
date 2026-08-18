@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
 import { describe, expect, it } from "vitest";
 
 import { APP_ROUTES, getRoute } from "../src/app/routes";
@@ -19,20 +22,39 @@ describe("application scaffold", () => {
     expect(getRoute("/not-a-route").path).toBe("/");
   });
 
-  it("creates a stable health payload", () => {
-    expect(createHealthPayload(new Date("2026-08-18T12:00:00.000Z"))).toEqual({
-      status: "ok",
-      service: "fld-lab",
-      timestamp: "2026-08-18T12:00:00.000Z"
-    });
+  it("creates the documented health payload", () => {
+    expect(createHealthPayload()).toEqual({ ok: true });
   });
 
-  it("serves the Worker health endpoint", async () => {
+  it("serves the Worker health endpoint without requiring D1", async () => {
     const response = await worker.fetch(new Request("https://fld-lab.test/api/health"));
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toMatchObject({
-      status: "ok",
-      service: "fld-lab"
-    });
+    await expect(response.json()).resolves.toEqual({ ok: true });
+  });
+});
+
+describe("Phase 1 roster migration", () => {
+  const migrationPath = fileURLToPath(new URL("../migrations/0001_initial_roster.sql", import.meta.url));
+  const migration = readFileSync(migrationPath, "utf8");
+
+  it("creates the three roster-owned tables", () => {
+    expect(migration).toContain("CREATE TABLE teams");
+    expect(migration).toContain("CREATE TABLE athletes");
+    expect(migration).toContain("CREATE TABLE team_memberships");
+  });
+
+  it("keeps jersey and positions on membership instead of athlete identity", () => {
+    const athleteTable = migration.split("CREATE TABLE athletes (")[1].split("CREATE TABLE team_memberships")[0];
+    const membershipTable = migration.split("CREATE TABLE team_memberships (")[1];
+
+    expect(athleteTable).not.toContain("jersey_number");
+    expect(athleteTable).not.toContain("primary_position");
+    expect(membershipTable).toContain("jersey_number TEXT");
+    expect(membershipTable).toContain("primary_position TEXT");
+    expect(membershipTable).toContain("secondary_position TEXT");
+  });
+
+  it("prevents duplicate team membership for one athlete", () => {
+    expect(migration).toContain("UNIQUE (team_id, athlete_id)");
   });
 });
