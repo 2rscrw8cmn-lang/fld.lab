@@ -77,6 +77,8 @@ function parseAttempt(body: JsonObject): AttemptInput | null {
   const note = nullableString(body.note);
   const measurements = parseMeasurements(body.measurements);
 
+  const elapsedValid = elapsed_ms === null || (typeof elapsed_ms === "number" && Number.isInteger(elapsed_ms));
+
   if (
     !client_attempt_id ||
     !athlete_id ||
@@ -84,8 +86,7 @@ function parseAttempt(body: JsonObject): AttemptInput | null {
     !Number.isInteger(attempt_number) ||
     started_at === undefined ||
     stopped_at === undefined ||
-    typeof elapsed_ms !== "number" ||
-    !Number.isInteger(elapsed_ms) ||
+    !elapsedValid ||
     typeof valid !== "boolean" ||
     note === undefined ||
     !measurements
@@ -99,7 +100,7 @@ function parseAttempt(body: JsonObject): AttemptInput | null {
     attempt_number,
     started_at,
     stopped_at,
-    elapsed_ms,
+    elapsed_ms: elapsed_ms as number | null,
     valid,
     note,
     measurements,
