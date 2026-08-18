@@ -537,7 +537,7 @@ export function TrainScreen({ team, onNavigate }: { team: Team | null; onNavigat
               {failedWrites.length ? `${failedWrites.length} unsaved` : "Saving"}
             </div>
           )}
-          <Button variant="secondary" className="min-h-9 px-3 text-xs" disabled={capture.mode === "running" || sessionAction} onClick={() => void abandonSession()}>Abandon</Button>
+          <Button variant="destructive" className="min-h-9 px-3 text-xs" disabled={capture.mode === "running" || sessionAction} onClick={() => void abandonSession()}>Abandon</Button>
         </div>
       </div>
 
@@ -560,7 +560,7 @@ export function TrainScreen({ team, onNavigate }: { team: Team | null; onNavigat
                   <span className="ml-2 text-text-muted">Attempt {write.payload.attempt_number} · {attemptSummary(write.payload, session.drill_definition)}</span>
                   {write.error && <div className="truncate text-[11px] text-danger">{write.error}</div>}
                 </div>
-                <Button variant="secondary" className="min-h-8 shrink-0 px-3 text-xs" onClick={() => retryWrite(write)}>Retry</Button>
+                <Button variant="warning" className="min-h-8 shrink-0 px-3 text-xs" onClick={() => retryWrite(write)}>Retry</Button>
               </div>
             );
           })}
@@ -628,7 +628,7 @@ export function TrainScreen({ team, onNavigate }: { team: Team | null; onNavigat
                   {failedWrites.length ? "Retry failed results before finishing." : "Waiting for saved results to finish syncing."}
                 </div>
               ) : (
-                <Button size="lg" className="mt-6 min-h-[56px] min-w-[220px] text-base font-extrabold" disabled={sessionAction} onClick={() => void finishSession()}>
+                <Button variant="success" size="lg" className="mt-6 min-h-[56px] min-w-[220px] text-base font-extrabold" disabled={sessionAction} onClick={() => void finishSession()}>
                   {sessionAction ? "Finishing…" : "Finish Session"}
                 </Button>
               )}
@@ -695,7 +695,7 @@ export function TrainScreen({ team, onNavigate }: { team: Team | null; onNavigat
                             <Flag size={22} /> Split {nextSplit.label}
                           </Button>
                         )}
-                        <Button size="lg" className="min-h-[88px] bg-danger text-lg font-extrabold hover:bg-danger/90 sm:min-h-[100px]" onClick={stopTimer}>
+                        <Button variant="destructive" size="lg" className="min-h-[88px] text-lg font-extrabold sm:min-h-[100px]" onClick={stopTimer}>
                           <CircleStop size={23} /> Stop
                         </Button>
                       </div>
