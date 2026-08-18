@@ -2,6 +2,7 @@
 
 :root {
   --background: #0f172a;
+  --sidebar: #0c1425;
   --surface: #141e32;
   --surface-elevated: #19243a;
   --border: #2a3650;
@@ -18,6 +19,7 @@
 
 @theme inline {
   --color-background: var(--background);
+  --color-sidebar: var(--sidebar);
   --color-surface: var(--surface);
   --color-surface-elevated: var(--surface-elevated);
   --color-border: var(--border);
@@ -48,6 +50,7 @@ body {
   min-width: 320px;
   min-height: 100vh;
   margin: 0;
+  overflow-x: hidden;
   background: var(--background);
   color: var(--text-primary);
   font-family: var(--font-sans);
@@ -55,12 +58,25 @@ body {
 }
 
 button,
-a {
+a,
+select {
   -webkit-tap-highlight-color: transparent;
 }
 
+button:focus:not(:focus-visible),
+a:focus:not(:focus-visible),
+select:focus:not(:focus-visible) {
+  outline: none;
+}
+
 button:focus-visible,
-a:focus-visible {
+a:focus-visible,
+select:focus-visible {
   outline: 2px solid var(--accent-hover);
   outline-offset: 2px;
+}
+
+button,
+select {
+  font: inherit;
 }
