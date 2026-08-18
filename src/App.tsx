@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { getRoute } from "@/app/routes";
 import { AppShell } from "@/components/app-shell";
 import { RoutePlaceholder } from "@/components/route-placeholder";
+import { DataScreen } from "@/features/data/data-screen";
 import { DrillLibraryScreen } from "@/features/drills/drill-library-screen";
 import { HomeScreen } from "@/features/home/home-screen";
 import { RosterScreen } from "@/features/roster/roster-screen";
@@ -103,6 +104,7 @@ export default function App() {
         : <FirstTeamSetup onCreated={handleTeamCreated} />;
   }
   if (activePath === "/train") screen = <TrainRoute team={activeTeam} onNavigate={navigate} />;
+  if (activePath === "/data") screen = <DataScreen team={activeTeam} />;
   if (activePath === "/drills") screen = <DrillLibraryScreen />;
 
   return (
