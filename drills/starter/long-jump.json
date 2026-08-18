@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "slug": "long-jump",
+  "name": "Long Jump",
+  "category": "Explosive",
+  "icon": "jump",
+  "description": "Measure the athlete's maximum valid jump distance.",
+  "instructions": "Measure from the takeoff line to the nearest landing mark and record the distance in inches.",
+  "measurement": {
+    "type": "distance",
+    "unit": "in",
+    "direction": "higher"
+  },
+  "attempts": {
+    "count": 3,
+    "result": "best"
+  },
+  "timer": {
+    "enabled": false,
+    "splits": []
+  },
+  "equipment": ["Measuring tape", "Takeoff marker"],
+  "tags": ["jump", "explosive", "distance"],
+  "positions": ["ALL"]
+}
