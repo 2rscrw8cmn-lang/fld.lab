@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "slug": "quick-catch-10",
+  "name": "Quick Catch",
+  "category": "Skills",
+  "icon": "catch",
+  "description": "Track successful catches across 10 receiving attempts.",
+  "instructions": "Deliver 10 catchable passes at a consistent distance and record completed catches.",
+  "measurement": {
+    "type": "successes_attempts",
+    "unit": "count",
+    "direction": "higher",
+    "total_attempts": 10
+  },
+  "attempts": {
+    "count": 1,
+    "result": "latest"
+  },
+  "timer": {
+    "enabled": false,
+    "splits": []
+  },
+  "equipment": ["Football"],
+  "tags": ["receiving", "hands"],
+  "positions": ["WR", "RB", "C"]
+}
