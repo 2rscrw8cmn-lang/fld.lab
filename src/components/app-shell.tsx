@@ -91,9 +91,17 @@ export function AppShell({
   return (
     <div className="min-h-screen bg-background text-text-primary md:grid md:grid-cols-[188px_minmax(0,1fr)]">
       <aside className="hidden min-h-screen border-r border-border bg-sidebar px-3 py-[18px] md:flex md:flex-col">
-        <div className="px-2.5 pb-7 pt-0.5 text-xl font-extrabold tracking-[-0.04em]" aria-label="fld.LAB">
-          fld<span className="text-accent">.</span><span className="tracking-wide">LAB</span>
-        </div>
+        <a
+          href="/"
+          onClick={(event) => {
+            event.preventDefault();
+            onNavigate("/");
+          }}
+          className="flex px-2.5 pb-7 pt-0.5 transition-opacity hover:opacity-90"
+          aria-label="fld.LAB home"
+        >
+          <img src="/brand/fld-lab-horizontal-dark.svg" alt="fld.LAB" className="h-auto w-[118px]" />
+        </a>
 
         <nav className="grid gap-1" aria-label="Primary navigation">
           {APP_ROUTES.filter((route) => route.path !== "/settings").map((route) => (
