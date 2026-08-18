@@ -65,6 +65,13 @@ export async function listTeams(): Promise<Team[]> {
   return data.teams;
 }
 
+export async function createTeam(input: { name: string; age_group: string | null; season_label: string | null }): Promise<Team> {
+  return api<Team>("/api/teams", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
 export async function getRoster(teamId: string, includeInactive = false): Promise<RosterRow[]> {
   const suffix = includeInactive ? "?include_inactive=true" : "";
   const data = await api<{ roster: RosterRow[] }>(`/api/teams/${encodeURIComponent(teamId)}/roster${suffix}`);
