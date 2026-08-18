@@ -3,6 +3,7 @@
   "name": "fld-lab",
   "compatibility_date": "2026-08-18",
   "main": "./worker/index.ts",
+  "keep_vars": true,
   "assets": {
     "not_found_handling": "single-page-application",
     "run_worker_first": ["/api/*"]
