@@ -1,4 +1,5 @@
-import type { ComponentType, ReactNode } from "react";
+import type { ReactNode } from "react";
+import type { LucideIcon } from "lucide-react";
 import {
   BarChart3,
   Dumbbell,
@@ -12,8 +13,6 @@ import {
 import { APP_ROUTES } from "@/app/routes";
 import { cn } from "@/lib/utils";
 
-type IconComponent = ComponentType<{ className?: string; size?: number; strokeWidth?: number; "aria-hidden"?: boolean }>;
-
 type AppShellProps = {
   pathname: string;
   team: string;
@@ -22,7 +21,7 @@ type AppShellProps = {
   children: ReactNode;
 };
 
-const routeIcons: Record<string, IconComponent> = {
+const routeIcons: Record<string, LucideIcon> = {
   "/": Home,
   "/roster": UsersRound,
   "/train": Timer,
