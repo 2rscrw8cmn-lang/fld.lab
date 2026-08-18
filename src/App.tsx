@@ -68,7 +68,7 @@ export default function App() {
   const activeTeam = useMemo(() => teams.find((team) => team.id === teamId) ?? null, [teamId, teams]);
 
   let screen = <RoutePlaceholder route={route} />;
-  if (activePath === "/") screen = <HomeScreen onNavigate={navigate} />;
+  if (activePath === "/") screen = <HomeScreen onNavigate={navigate} team={activeTeam} />;
   if (activePath === "/roster") screen = <RosterScreen team={activeTeam} />;
 
   return (
