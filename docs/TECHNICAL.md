@@ -2,32 +2,31 @@
 
 ## 1. Architecture goal
 
-Keep the application small, understandable, and easy to extend with AI-assisted coding.
+Keep fld.LAB small, understandable, field-reliable, and easy to extend with AI-assisted coding.
 
-The product does not need a large distributed architecture. Prefer one web application, one API layer, and one relational database.
+Prefer one web app, one Worker API, and one relational database.
 
-## 2. Proposed stack
+## 2. Stack
 
-### Front end
+### Frontend
+
 - React
 - TypeScript
 - Vite
 - Tailwind CSS
 - shadcn/ui
-- Lucide icons
+- Lucide
 - Recharts
 
 ### Cloudflare
-- Cloudflare Workers
-- Cloudflare Static Assets
-- Cloudflare D1
-- Wrangler / Cloudflare Vite plugin
 
-Cloudflare's current Vite integration supports React SPAs, static assets, and a Worker API in the same application. D1 provides the SQL persistence layer through Worker bindings.
+- Workers
+- Static Assets
+- D1
+- Wrangler
+- Cloudflare Vite plugin
 
 ## 3. Application shape
-
-Prefer a single repository and deployment unit.
 
 ```text
 Browser / iPad / Phone
@@ -46,14 +45,18 @@ Browser / iPad / Phone
               └── D1
 ```
 
-Do not introduce a separate backend service unless a concrete requirement demands it.
+Do not introduce a separate backend service without a concrete requirement.
 
 ## 4. Suggested repository structure
 
 ```text
 /
+├── AGENTS.md
 ├── docs/
+├── schemas/
+├── migrations/
 ├── public/
+├── scripts/
 ├── src/
 │   ├── app/
 │   ├── components/
@@ -74,45 +77,52 @@ Do not introduce a separate backend service unless a concrete requirement demand
 │   ├── routes/
 │   ├── db/
 │   └── services/
-├── migrations/
 ├── vite.config.ts
 ├── wrangler.jsonc
 └── package.json
 ```
 
-Exact structure may change during scaffolding, but keep domain logic grouped and avoid a large generic `utils` dumping ground.
+Exact generated structure may vary. Keep domain logic grouped and avoid a generic `utils` dumping ground.
 
-## 5. Timing architecture
+## 5. Contract ownership
+
+Do not redefine product/data contracts in implementation code.
+
+Use:
+
+- `PRODUCT.md` — product behavior
+- `UX_FLOWS.md` — interaction/state behavior
+- `DATA_MODEL.md` — entity ownership
+- `API_CONTRACT.md` — Worker routes/request/response shapes
+- `DRILL_SPEC.md` + JSON Schema — drill format
+- `DESIGN_SYSTEM.md` — UI rules
+
+This document describes architecture, not alternate contracts.
+
+## 6. Timing architecture
 
 ### Critical rule
 
-**The network must never be in the timing path.**
+**The network is never in the timing path.**
 
-Start, split, and stop happen entirely in the browser. The API receives the finished attempt after timing has completed.
+Start, split, and stop happen entirely in browser state. The Worker receives the completed attempt afterward.
 
-### Timer implementation
+### Clock
 
 Do not calculate elapsed time by counting `setInterval` ticks.
 
-Use a monotonic browser clock such as `performance.now()`:
+Use a monotonic browser clock:
 
-```text
-startTimestamp = performance.now()
-currentElapsed = performance.now() - startTimestamp
+```ts
+const startTimestamp = performance.now()
+const elapsedMs = performance.now() - startTimestamp
 ```
 
-The animation/update loop is only responsible for rendering the current value. If the UI skips frames, the underlying elapsed calculation remains correct.
+Animation/render loops only update what the coach sees. Skipped frames must not change elapsed calculation.
 
-Split values should store elapsed milliseconds from the original start timestamp.
+Split values are elapsed milliseconds from the same original Start timestamp.
 
-Final authoritative timed result:
-- integer milliseconds
-- client-generated after Stop
-- persisted to D1 after the run
-
-### Timer UI state
-
-Suggested state machine:
+### Timer states
 
 ```text
 READY
@@ -120,236 +130,272 @@ READY
 RUNNING
   ├── split → RUNNING
   ↓ stop
-STOPPED
-  ├── save → SAVED / NEXT ATHLETE
+STOPPED_REVIEW
+  ├── save → local commit + next/stay
   ├── redo → READY
-  └── edit → STOPPED
+  └── edit → STOPPED_REVIEW
 ```
 
-Avoid timer behavior spread across multiple components. Keep stopwatch state in one focused training module.
+`UX_FLOWS.md` defines user-visible behavior.
 
-## 6. Athlete switching
+Keep stopwatch state in one focused training module rather than distributing it across unrelated components.
 
-The active session should load its athlete queue into client state.
+## 7. Athlete queue
+
+An active session loads its athlete queue into client state.
 
 Switching athletes must not require a network request.
 
-The client should already know:
+Client queue should know at least:
+
 - athlete ID
+- membership/display context
 - display name
 - jersey number
 - queue order
-- completion status
-- previous/best result when available
+- skipped/completion state
+- saved attempt count
+- previous/PB context when available
 
-Network writes can update completion/result state after capture without blocking the next athlete transition.
+While a timer is running, direct athlete switching is disabled to prevent misassignment.
 
-## 7. Save behavior
+## 8. Save behavior
 
-For field usability:
+Field flow:
 
-1. Coach stops or enters the result.
-2. Result exists immediately in local application state.
-3. `Save + Next` advances immediately.
-4. Persist result through the API.
-5. Show a subtle retry/error state if persistence fails.
+1. coach captures/stops result
+2. result exists in local attempt state
+3. coach reviews it
+4. `Save + Next` commits it to local session state
+5. UI advances immediately
+6. Worker persistence happens asynchronously
+7. save status becomes pending/saved/failed
 
-Do not make the coach wait on a loading spinner between athletes under normal conditions.
+A failed write must remain associated with the original session/athlete/attempt and remain retryable.
 
-### MVP network guardrail
+Do not show a blocking spinner between athletes under normal conditions.
 
-The stopwatch must function without connectivity, but a full offline-first synchronization system is not required for the initial build.
+### Idempotency
 
-A reasonable MVP is:
-- keep unsaved/failed results in local state
-- visibly mark save failures
-- allow retry
-- do not silently discard a result
+Attempt persistence uses a stable `client_attempt_id` as defined in `API_CONTRACT.md` so retries do not duplicate results.
 
-Full offline session persistence can be added later if actual field use requires it.
+## 9. Connectivity guardrail
 
-## 8. API principles
+Full offline-first synchronization across browser restarts is not required for the initial MVP.
 
-Use a small resource-oriented Worker API.
+Minimum behavior:
 
-Possible routes:
+- timing works without connectivity
+- captured result remains in local client state
+- failed writes are visible
+- retry is available
+- browser-leave warning is used when practical for running/unsaved work
+- no silent result loss
+
+If field testing proves browser-restart persistence is necessary, add it deliberately later.
+
+## 10. API
+
+The canonical Worker contract is `API_CONTRACT.md`.
+
+Phase 1 core routes include:
 
 ```text
+GET    /api/health
 GET    /api/teams
 POST   /api/teams
-
-GET    /api/teams/:teamId/athletes
-POST   /api/teams/:teamId/athletes
+PATCH  /api/teams/:teamId
+GET    /api/teams/:teamId/roster
+POST   /api/teams/:teamId/roster
 PATCH  /api/athletes/:athleteId
-
-GET    /api/drills
-POST   /api/drills/import
-GET    /api/drills/:drillId
-
-POST   /api/sessions
-GET    /api/sessions/:sessionId
-PATCH  /api/sessions/:sessionId
-
-POST   /api/sessions/:sessionId/attempts
-PATCH  /api/attempts/:attemptId
-
-GET    /api/athletes/:athleteId/results
-GET    /api/drills/:drillId/leaderboard
+PATCH  /api/team-memberships/:membershipId
 ```
 
-This is a starting contract, not a requirement to create every route before it is needed.
+Later phases add drill/session/result endpoints exactly as documented there.
 
-## 9. D1 rules
+Do not create alternate routes merely because a component wants a different shape. Use server view models where needed while preserving resource ownership.
 
-- schema changes go through migrations
-- use foreign keys where supported/appropriate
-- use stable generated IDs; never use names as keys
+## 11. D1 rules
+
+- all schema changes use migrations
+- use stable generated IDs
+- use foreign keys/constraints where appropriate
 - store timestamps consistently
-- store timed values as integer milliseconds
-- archive historical entities instead of casually deleting them
-- keep DrillVersion records immutable once used
+- store elapsed time as integer milliseconds
+- archive entities with history
+- used DrillVersion records are immutable
+- Team is season-specific for MVP
+- Athlete owns identity
+- TeamMembership owns jersey number/positions
+- timed splits are Measurement rows
+- there is no separate splits table
 
-Avoid introducing an ORM until it clearly reduces complexity. Direct typed SQL or a lightweight query layer may be sufficient for this scale.
+Avoid an ORM until it clearly reduces complexity. Direct typed SQL or a lightweight query layer is sufficient initially.
 
-## 10. Drill import architecture
+See `DATA_MODEL.md` and `CLOUDFLARE.md`.
 
-Import flow:
+## 12. Drill import architecture
 
 ```text
 JSON file
    ↓
-parse
+client parse/validation for UX
    ↓
-validate schema
+Worker parse
    ↓
-normalize
+JSON Schema validation
    ↓
-compare slug/current version
+semantic validation
    ↓
-create Drill or DrillVersion
+find Drill by slug
    ↓
-make version current
+create/reuse DrillVersion
+   ↓
+set current version
 ```
 
-Validation must happen server-side even if the browser validates first.
+Rules:
 
-The imported definition is declarative data. Never evaluate executable code from a drill file.
+- server validation is authoritative
+- imported files are declarative data only
+- never evaluate executable code from a drill file
+- same slug identifies the same drill concept
+- used versions are immutable
 
-## 11. UI component strategy
+## 13. UI component strategy
 
-Prefer existing primitives over custom components whenever possible.
+Prefer existing primitives for:
 
-Use standard components for:
 - buttons
 - dialogs/sheets
 - inputs
 - menus
-- select controls
+- selects
 - tables
 - tabs
 - badges
 - tooltips
 
 Custom effort should concentrate on:
+
 - `AthleteSwitcher`
 - `DrillRunner`
 - `Stopwatch`
 - `SplitControls`
 - measurement input renderers
 - compact result rows
-- performance charts
+- progress charts
 
-## 12. Responsive strategy
+Follow `DESIGN_SYSTEM.md`.
+
+## 14. Responsive strategy
 
 ### iPad landscape
-Primary target.
+
+Primary target:
+
 - persistent side navigation
 - compact tables
-- two-column content where useful
+- two-column content where it improves scanning
 - large Train interaction area
 
 ### Phone
+
 - collapse navigation
-- reduce nonessential metadata
-- preserve compact 44–52 px roster rows
+- reduce secondary metadata
+- keep roster rows dense
 - keep Train controls large
-- avoid horizontal table dependence
+- avoid horizontal-table dependence
 
-Do not build separate tablet and phone applications. Use responsive layouts around the same domain components.
+Use one responsive application, not separate tablet/phone apps.
 
-## 13. State management
+## 15. Client state
 
-Start with React's built-in state patterns and a query/cache layer only if needed.
+Start with React built-in state patterns.
 
-Do not add a global state library merely because one exists.
+Do not add a global state library just because one exists.
 
-Potential shared client state:
+Shared client concepts may include:
+
 - current team
 - current session
+- athlete queue
 - active athlete
-- unsaved attempt state
+- current attempt
+- pending/failed attempt writes
 
-Server data should remain server data rather than being duplicated into a complex global store.
+Server data should remain server data rather than being copied into a complex global store.
 
-## 14. Charts
+Add a query/cache library only if it materially simplifies real server-state requirements.
 
-Use charts only when they communicate change over time or comparison clearly.
+## 16. Charts
 
-Initial chart needs:
+Charts exist to communicate progress, not decorate screens.
+
+Initial needs:
+
 - athlete result trend
 - optional team average trend
 
-Leaderboards should normally be tables/lists rather than charts.
+Leaderboards are normally tables/lists.
 
-## 15. Authentication
+## 17. Security boundary
 
-Authentication is intentionally TBD until the ownership/access model is confirmed.
+Authentication mechanism is deferred, but production access requirements are not.
 
-Do not block the core data model on a sophisticated role system.
+Local development may use fictional data without auth.
 
-Likely eventual model:
-- authenticated coach
-- coach has access to one or more teams
-- athletes do not need accounts initially
+Before real athlete data is available on an internet deployment, enforce `SECURITY.md`:
 
-## 16. Testing priorities
+- authenticated access
+- server-side team authorization
+- protected reads/writes
+
+Do not spread provider-specific authentication assumptions through domain code before the auth mechanism is selected.
+
+## 18. Testing priorities
 
 Highest-value automated tests:
 
 1. timer elapsed/split calculation
-2. drill JSON validation
+2. drill JSON Schema + semantic validation
 3. drill versioning/import behavior
-4. PB/leaderboard direction (`higher` vs `lower`)
-5. session Save + Next behavior
-6. result persistence/retry handling
-7. responsive roster behavior at phone/tablet widths
+4. higher/lower result direction
+5. athlete queue + Save + Next behavior
+6. `client_attempt_id` idempotent persistence
+7. failed save/retry behavior
+8. roster identity vs membership ownership
+9. responsive roster behavior
 
-Do not pursue arbitrary coverage percentages at the expense of these critical workflows.
+Do not chase arbitrary coverage percentages at the expense of these workflows.
 
-## 17. Implementation guardrails
+## 19. Implementation guardrails
 
-- No framework rewrite without a concrete need.
-- No microservices.
-- No custom design system before the product proves it needs one.
-- No one-off page per drill.
-- No server-timed stopwatch.
-- No optimistic flow that can silently lose athlete results.
-- No unnecessary youth-athlete PII.
-- No analytical complexity on Home.
-- No feature should slow down switching from one athlete to the next.
+- no framework rewrite without concrete need
+- no microservices
+- no custom design system separate from documented tokens/components
+- no page component per drill
+- no server-timed stopwatch
+- no silent optimistic result loss
+- no unnecessary youth-athlete PII
+- no analytics-heavy Home
+- no separate splits table
+- no jersey/position fields on Athlete for MVP
+- no feature that slows switching athletes
 
-## 18. First build sequence
-
-Recommended order:
+## 20. First build sequence
 
 1. scaffold React + TypeScript + Cloudflare Worker
 2. establish D1 + migrations
-3. build shell/navigation/responsive layout
-4. build roster table + Add Athlete
-5. define and import drill schema
-6. build DrillRunner + stopwatch
-7. build training session / athlete queue
-8. persist attempts/results
-9. build athlete history + PBs
-10. build basic Data page charts/leaderboards
-11. field-test on a real iPad/phone before adding more features
+3. build shell/navigation
+4. build team/roster data layer
+5. build roster UI
+6. build drill schema/import
+7. build DrillRunner + stopwatch
+8. build session/athlete queue
+9. persist attempts/results
+10. build history/PBs
+11. build Data charts/leaderboards
+12. field-test on real iPad/phone before adding more features
+
+Follow `BUILD_PLAN.md` and current GitHub issues for phase scope.
