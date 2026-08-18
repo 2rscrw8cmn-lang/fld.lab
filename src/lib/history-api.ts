@@ -1,3 +1,4 @@
+import { apiRequest } from "@/lib/api";
 import type { ResultMetric } from "@/lib/results-api";
 
 export type SessionSummary = {
@@ -43,34 +44,19 @@ export type SessionResultContext = {
   }>;
 };
 
-async function read<T>(url: string): Promise<T> {
-  const response = await fetch(url, { headers: { Accept: "application/json" } });
-  if (!response.ok) {
-    let message = "Could not load history.";
-    try {
-      const body = await response.json() as { error?: { message?: string } };
-      message = body.error?.message ?? message;
-    } catch {
-      // Keep generic message for non-JSON failures.
-    }
-    throw new Error(message);
-  }
-  return response.json() as Promise<T>;
-}
-
 export async function listTeamSessions(teamId: string, limit = 12): Promise<SessionSummary[]> {
-  const data = await read<{ sessions: SessionSummary[] }>(
+  const data = await apiRequest<{ sessions: SessionSummary[] }>(
     `/api/teams/${encodeURIComponent(teamId)}/sessions?limit=${encodeURIComponent(String(limit))}`,
   );
   return data.sessions;
 }
 
 export async function getTeamDrillTrend(teamId: string, drillId: string): Promise<TeamDrillTrend> {
-  return read<TeamDrillTrend>(
+  return apiRequest<TeamDrillTrend>(
     `/api/teams/${encodeURIComponent(teamId)}/drills/${encodeURIComponent(drillId)}/trend`,
   );
 }
 
 export async function getSessionResultContext(sessionId: string): Promise<SessionResultContext> {
-  return read<SessionResultContext>(`/api/sessions/${encodeURIComponent(sessionId)}/result-context`);
+  return apiRequest<SessionResultContext>(`/api/sessions/${encodeURIComponent(sessionId)}/result-context`);
 }
