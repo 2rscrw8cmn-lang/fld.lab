@@ -57,6 +57,12 @@ function decodeBase64Url(value: string): Uint8Array {
   return Uint8Array.from(binary, (char) => char.charCodeAt(0));
 }
 
+function asArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  const copy = new Uint8Array(bytes.byteLength);
+  copy.set(bytes);
+  return copy.buffer;
+}
+
 function decodeJsonPart<T>(value: string): T {
   const bytes = decodeBase64Url(value);
   return JSON.parse(new TextDecoder().decode(bytes)) as T;
@@ -72,10 +78,10 @@ function audMatches(actual: unknown, expected: string) {
     : Array.isArray(actual) && actual.some((value) => value === expected);
 }
 
-async function loadJwks(teamDomain: string): Promise<JsonWebKeyWithKid[]> {
+async function loadJwks(teamDomain: string, forceRefresh = false): Promise<JsonWebKeyWithKid[]> {
   const cacheKey = `${teamDomain}/cdn-cgi/access/certs`;
   const cached = jwksCache.get(cacheKey);
-  if (cached && cached.expiresAt > Date.now()) return cached.keys;
+  if (!forceRefresh && cached && cached.expiresAt > Date.now()) return cached.keys;
 
   const response = await fetch(cacheKey, { headers: { Accept: "application/json" } });
   if (!response.ok) throw new AuthError(503, "auth_unavailable", "Authentication is temporarily unavailable.");
@@ -112,12 +118,13 @@ async function verifyJwtSignature(token: string, teamDomain: string): Promise<Jw
     throw new AuthError(401, "unauthorized", "Authentication is required.");
   }
 
-  const keys = await loadJwks(teamDomain);
-  const jwk = keys.find((candidate) => candidate.kid === header.kid);
+  let keys = await loadJwks(teamDomain);
+  let jwk = keys.find((candidate) => candidate.kid === header.kid);
   if (!jwk) {
-    jwksCache.delete(`${teamDomain}/cdn-cgi/access/certs`);
-    throw new AuthError(401, "unauthorized", "Authentication is required.");
+    keys = await loadJwks(teamDomain, true);
+    jwk = keys.find((candidate) => candidate.kid === header.kid);
   }
+  if (!jwk) throw new AuthError(401, "unauthorized", "Authentication is required.");
 
   let cryptoKey: CryptoKey;
   try {
@@ -135,8 +142,8 @@ async function verifyJwtSignature(token: string, teamDomain: string): Promise<Jw
   const valid = await crypto.subtle.verify(
     "RSASSA-PKCS1-v1_5",
     cryptoKey,
-    decodeBase64Url(parts[2]),
-    new TextEncoder().encode(`${parts[0]}.${parts[1]}`),
+    asArrayBuffer(decodeBase64Url(parts[2])),
+    asArrayBuffer(new TextEncoder().encode(`${parts[0]}.${parts[1]}`)),
   );
 
   if (!valid) throw new AuthError(401, "unauthorized", "Authentication is required.");
