@@ -66,9 +66,9 @@ describe("Cloudflare Access authentication", () => {
       .rejects.toMatchObject({ status: 503, code: "auth_unavailable" });
   });
 
-  it("accepts a valid Access JWT for the configured coach", async () => {
+  it("accepts a valid Access JWT for any configured coach", async () => {
     const teamDomain = `https://team-${crypto.randomUUID()}.cloudflareaccess.com`;
-    const { token, jwk } = await signedToken({ teamDomain });
+    const { token, jwk } = await signedToken({ teamDomain, email: "second@example.com" });
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({ keys: [jwk] })));
 
     const coach = await authenticateRequest(
@@ -77,18 +77,18 @@ describe("Cloudflare Access authentication", () => {
         AUTH_MODE: "access",
         ACCESS_TEAM_DOMAIN: teamDomain,
         ACCESS_AUD: "fld-lab-aud",
-        AUTHORIZED_COACH_EMAIL: "coach@example.com",
+        AUTHORIZED_COACH_EMAILS: "coach@example.com, SECOND@example.com",
       },
     );
 
     expect(coach).toEqual({
       subject: "access-user-123",
-      email: "coach@example.com",
+      email: "second@example.com",
       provider: "cloudflare-access",
     });
   });
 
-  it("rejects a valid Access JWT for a different coach email", async () => {
+  it("rejects a valid Access JWT for an email outside the configured coach list", async () => {
     const teamDomain = `https://team-${crypto.randomUUID()}.cloudflareaccess.com`;
     const { token, jwk } = await signedToken({ teamDomain, email: "other@example.com" });
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({ keys: [jwk] })));
@@ -99,7 +99,7 @@ describe("Cloudflare Access authentication", () => {
         AUTH_MODE: "access",
         ACCESS_TEAM_DOMAIN: teamDomain,
         ACCESS_AUD: "fld-lab-aud",
-        AUTHORIZED_COACH_EMAIL: "coach@example.com",
+        AUTHORIZED_COACH_EMAILS: "coach@example.com,second@example.com",
       },
     )).rejects.toMatchObject({ status: 403, code: "forbidden" } satisfies Partial<AuthError>);
   });
@@ -115,7 +115,7 @@ describe("Cloudflare Access authentication", () => {
         AUTH_MODE: "access",
         ACCESS_TEAM_DOMAIN: wrongAudienceDomain,
         ACCESS_AUD: "fld-lab-aud",
-        AUTHORIZED_COACH_EMAIL: "coach@example.com",
+        AUTHORIZED_COACH_EMAILS: "coach@example.com",
       },
     )).rejects.toMatchObject({ status: 401, code: "unauthorized" });
 
@@ -129,7 +129,7 @@ describe("Cloudflare Access authentication", () => {
         AUTH_MODE: "access",
         ACCESS_TEAM_DOMAIN: expiredDomain,
         ACCESS_AUD: "fld-lab-aud",
-        AUTHORIZED_COACH_EMAIL: "coach@example.com",
+        AUTHORIZED_COACH_EMAILS: "coach@example.com",
       },
     )).rejects.toMatchObject({ status: 401, code: "unauthorized" });
   });
