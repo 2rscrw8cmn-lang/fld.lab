@@ -5,7 +5,6 @@ const CORE_ASSETS = [
   "/manifest.webmanifest",
   "/brand/fld-lab-horizontal-dark.svg",
   "/brand/fld-lab-stacked-dark.svg",
-  "/icons/fld-lab-180.png",
   "/icons/fld-lab-192.png",
   "/icons/fld-lab-512.png",
 ];
