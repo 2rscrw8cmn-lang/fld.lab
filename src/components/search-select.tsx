@@ -1,5 +1,5 @@
 import { Check, ChevronDown, Search } from "lucide-react";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 
 import { cn } from "@/lib/utils";
@@ -78,7 +78,7 @@ export function SearchSelect({
     const gap = 4;
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
-    const width = Math.min(rect.width, Math.max(220, viewportWidth - margin * 2));
+    const width = Math.min(Math.max(rect.width, 220), Math.max(220, viewportWidth - margin * 2));
     const left = Math.min(Math.max(margin, rect.left), Math.max(margin, viewportWidth - width - margin));
     const below = viewportHeight - rect.bottom - margin;
     const above = rect.top - margin;
@@ -103,7 +103,7 @@ export function SearchSelect({
       const insideMenu = menuRef.current?.contains(target);
       if (!insideRoot && !insideMenu) closeMenu(false);
     };
-    const handleKey = (event: KeyboardEvent) => {
+    const handleKey = (event: globalThis.KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
         closeMenu(true);
@@ -164,7 +164,7 @@ export function SearchSelect({
     closeMenu(true);
   };
 
-  const handleOptionKey = (event: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
+  const handleOptionKey = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
     if (event.key === "ArrowDown") {
       event.preventDefault();
       focusOption(index + 1);
