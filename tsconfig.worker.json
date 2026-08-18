@@ -5,10 +5,11 @@
     "lib": ["ES2022", "WebWorker"],
     "module": "ESNext",
     "moduleResolution": "Bundler",
+    "resolveJsonModule": true,
     "skipLibCheck": true,
     "strict": true,
     "noEmit": true,
     "verbatimModuleSyntax": true
   },
-  "include": ["worker"]
+  "include": ["worker", "schemas/**/*.json"]
 }
