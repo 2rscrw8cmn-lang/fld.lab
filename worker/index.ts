@@ -3,6 +3,7 @@ import { handleDrillApi } from "./drills/routes";
 import { handleResultsApi } from "./results/routes";
 import { handleSessionRosterApi } from "./sessions/roster-routes";
 import { handleSessionApi } from "./sessions/routes";
+import { handleTeamAdminApi } from "./teams/admin-routes";
 
 export type HealthPayload = {
   ok: true;
@@ -44,6 +45,9 @@ const worker = {
 
       const sessionResponse = await handleSessionApi(request, env.DB);
       if (sessionResponse) return sessionResponse;
+
+      const teamAdminResponse = await handleTeamAdminApi(request, env.DB);
+      if (teamAdminResponse) return teamAdminResponse;
 
       const response = await handleApi(request, env);
       if (response) return response;
