@@ -32,6 +32,79 @@ export type RosterRow = {
   membership: TeamMembership;
 };
 
+export type MeasurementType =
+  | "time"
+  | "successes_attempts"
+  | "distance"
+  | "count"
+  | "rating"
+  | "custom_numeric";
+
+export type DrillDefinition = {
+  schema_version: 1;
+  slug: string;
+  name: string;
+  category: string;
+  icon?: string;
+  description?: string;
+  instructions?: string;
+  measurement: {
+    type: MeasurementType;
+    direction: "lower" | "higher" | "none";
+    unit?: string;
+    total_attempts?: number;
+    min?: number;
+    max?: number;
+    step?: number;
+    fields?: Array<{ key: string; label: string; unit: string }>;
+  };
+  attempts: {
+    count: number;
+    result: "best" | "average" | "latest" | "total";
+  };
+  timer?: {
+    enabled: boolean;
+    splits: Array<{ key: string; label: string }>;
+  };
+  equipment?: string[];
+  tags?: string[];
+  positions?: string[];
+  setup?: {
+    distance_yards?: number;
+    notes?: string;
+  };
+};
+
+export type Drill = {
+  id: string;
+  slug: string;
+  name: string;
+  category: string;
+  icon: string | null;
+  measurement_type: MeasurementType;
+  active: boolean;
+  current_version_id: string;
+  current_version: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type DrillDetail = {
+  drill: Drill;
+  version: {
+    id: string;
+    drill_id: string;
+    version: number;
+    definition: DrillDefinition;
+    created_at: string;
+  };
+};
+
+export type DrillImportResult = DrillDetail & {
+  created: boolean;
+  version_created: boolean;
+};
+
 export class ApiError extends Error {
   constructor(message: string, public status: number, public fields?: Record<string, string>) {
     super(message);
@@ -112,5 +185,21 @@ export async function patchMembership(
   return api<TeamMembership>(`/api/team-memberships/${encodeURIComponent(membershipId)}`, {
     method: "PATCH",
     body: JSON.stringify(patch),
+  });
+}
+
+export async function listDrills(): Promise<Drill[]> {
+  const data = await api<{ drills: Drill[] }>("/api/drills");
+  return data.drills;
+}
+
+export async function getDrill(drillId: string): Promise<DrillDetail> {
+  return api<DrillDetail>(`/api/drills/${encodeURIComponent(drillId)}`);
+}
+
+export async function importDrill(definition: unknown): Promise<DrillImportResult> {
+  return api<DrillImportResult>("/api/drills/import", {
+    method: "POST",
+    body: JSON.stringify(definition),
   });
 }
