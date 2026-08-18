@@ -1,5 +1,6 @@
 import { handleApi, type Env } from "./api";
 import { handleDrillApi } from "./drills/routes";
+import { handleResultsApi } from "./results/routes";
 import { handleSessionRosterApi } from "./sessions/roster-routes";
 import { handleSessionApi } from "./sessions/routes";
 
@@ -31,6 +32,9 @@ const worker = {
           { status: 500 }
         );
       }
+
+      const resultsResponse = await handleResultsApi(request, env.DB);
+      if (resultsResponse) return resultsResponse;
 
       const drillResponse = await handleDrillApi(request, env.DB);
       if (drillResponse) return drillResponse;
