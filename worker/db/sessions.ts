@@ -1,6 +1,7 @@
 import type { D1Database } from "@cloudflare/workers-types";
 
 import type { DrillDefinition } from "../drills/definition";
+import { validateAttemptAgainstDefinition } from "../sessions/attempt-validation";
 import { getDrill } from "./drills";
 import { getRoster } from "./repository";
 
@@ -83,7 +84,7 @@ export type AttemptInput = {
   attempt_number: number;
   started_at?: string | null;
   stopped_at?: string | null;
-  elapsed_ms: number;
+  elapsed_ms: number | null;
   valid: boolean;
   note?: string | null;
   measurements: MeasurementInput[];
@@ -241,12 +242,6 @@ export async function createSession(db: D1Database, teamId: string, drillId: str
   }
 
   const drillDetail = await getDrill(db, drillId);
-  if (drillDetail.version.definition.measurement.type !== "time") {
-    throw new TrainingSessionError("validation_error", "Phase 3A supports timed drills only.", {
-      drill_id: "Choose a drill with measurement.type = time",
-    });
-  }
-
   const roster = await getRoster(db, teamId);
   if (!roster.length) {
     throw new TrainingSessionError("conflict", "Add at least one active athlete before starting a session.");
@@ -312,41 +307,6 @@ function normalizeAttempt(input: AttemptInput) {
   };
 }
 
-function validateTimedAttempt(definition: DrillDefinition, input: AttemptInput): Record<string, string> {
-  const fields: Record<string, string> = {};
-  if (definition.measurement.type !== "time") {
-    fields.drill = "Session drill is not timed";
-    return fields;
-  }
-  if (!Number.isInteger(input.attempt_number) || input.attempt_number < 1 || input.attempt_number > definition.attempts.count) {
-    fields.attempt_number = `Must be between 1 and ${definition.attempts.count}`;
-  }
-  if (!Number.isInteger(input.elapsed_ms) || input.elapsed_ms <= 0) fields.elapsed_ms = "Must be a positive integer millisecond value";
-
-  const seen = new Set<string>();
-  const configuredSplits = new Set((definition.timer?.splits ?? []).map((split) => split.key));
-  let totalTimeCount = 0;
-  for (const [index, measurement] of input.measurements.entries()) {
-    if (seen.has(measurement.key)) fields[`measurements.${index}.key`] = "Measurement keys must be unique";
-    seen.add(measurement.key);
-    if (measurement.key === "total_time") {
-      totalTimeCount += 1;
-      if (measurement.unit !== "ms") fields[`measurements.${index}.unit`] = "Timed values use ms";
-      if (measurement.value_numeric !== input.elapsed_ms) fields[`measurements.${index}.value_numeric`] = "Must equal elapsed_ms";
-      continue;
-    }
-    if (!configuredSplits.has(measurement.key)) fields[`measurements.${index}.key`] = "Unknown split key";
-    if (measurement.unit !== "ms") fields[`measurements.${index}.unit`] = "Timed splits use ms";
-    if (!Number.isInteger(measurement.value_numeric) || (measurement.value_numeric ?? 0) <= 0) {
-      fields[`measurements.${index}.value_numeric`] = "Split must be a positive integer millisecond value";
-    } else if ((measurement.value_numeric ?? 0) > input.elapsed_ms) {
-      fields[`measurements.${index}.value_numeric`] = "Split cannot exceed total time";
-    }
-  }
-  if (totalTimeCount !== 1) fields.measurements = "Exactly one total_time measurement is required";
-  return fields;
-}
-
 async function getAttempt(db: D1Database, attemptId: string): Promise<PersistedAttempt> {
   const row = await db.prepare("SELECT * FROM attempts WHERE id = ?").bind(attemptId).first<AttemptDbRow>();
   if (!row) throw new TrainingSessionError("not_found", "Attempt not found.");
@@ -373,7 +333,7 @@ export async function persistAttempt(
   if (!queueRow) throw new TrainingSessionError("validation_error", "Athlete is not part of this session.", { athlete_id: "Not in session queue" });
   if (queueRow.status === "skipped") throw new TrainingSessionError("conflict", "Unskip the athlete before saving an attempt.");
 
-  const fields = validateTimedAttempt(definition, input);
+  const fields = validateAttemptAgainstDefinition(definition, input);
   if (Object.keys(fields).length) throw new TrainingSessionError("validation_error", "One or more attempt fields are invalid.", fields);
 
   const requestJson = JSON.stringify(normalizeAttempt(input));

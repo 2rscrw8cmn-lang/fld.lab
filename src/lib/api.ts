@@ -178,7 +178,7 @@ export type AttemptPayload = {
   attempt_number: number;
   started_at: string | null;
   stopped_at: string | null;
-  elapsed_ms: number;
+  elapsed_ms: number | null;
   valid: boolean;
   note: string | null;
   measurements: AttemptMeasurement[];

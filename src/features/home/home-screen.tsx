@@ -50,11 +50,7 @@ export function HomeScreen({ onNavigate, team }: { onNavigate: (path: string) =>
     setDrillLoading(true);
 
     listDrills()
-      .then(async (drills) => {
-        const firstTimed = drills.find((drill) => drill.measurement_type === "time");
-        if (!firstTimed) return null;
-        return getDrill(firstTimed.id);
-      })
+      .then(async (drills) => drills[0] ? getDrill(drills[0].id) : null)
       .then((detail) => { if (!cancelled) setQuickDrill(detail); })
       .catch(() => { if (!cancelled) setQuickDrill(null); })
       .finally(() => { if (!cancelled) setDrillLoading(false); });
@@ -103,8 +99,8 @@ export function HomeScreen({ onNavigate, team }: { onNavigate: (path: string) =>
                   <Activity aria-hidden={true} size={19} />
                 </span>
                 <div>
-                  <div className="text-base font-extrabold">No timed drills configured</div>
-                  <p className="mt-1 max-w-md text-xs leading-5 text-text-muted">Open the Drill Library and import a timed drill definition.</p>
+                  <div className="text-base font-extrabold">No drills configured</div>
+                  <p className="mt-1 max-w-md text-xs leading-5 text-text-muted">Open the Drill Library and import a drill definition to start training.</p>
                 </div>
               </div>
             )}
