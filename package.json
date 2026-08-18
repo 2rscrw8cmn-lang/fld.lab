@@ -19,6 +19,7 @@
     "db:seed:local": "wrangler d1 execute fld-lab-prod --local --file=./scripts/seed.local.sql"
   },
   "dependencies": {
+    "ajv": "^8.17.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.28.0",

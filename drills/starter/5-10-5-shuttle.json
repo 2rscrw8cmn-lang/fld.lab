@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "slug": "5-10-5-shuttle",
+  "name": "5-10-5 Shuttle",
+  "category": "Agility",
+  "icon": "shuttle",
+  "description": "Measure lateral change-of-direction speed using the 5-10-5 shuttle pattern.",
+  "instructions": "Start at the center cone, touch one outside line, cross to the opposite outside line, then finish through center.",
+  "measurement": {
+    "type": "time",
+    "unit": "ms",
+    "direction": "lower"
+  },
+  "attempts": {
+    "count": 2,
+    "result": "best"
+  },
+  "timer": {
+    "enabled": true,
+    "splits": []
+  },
+  "equipment": ["3 cones"],
+  "tags": ["agility", "change-of-direction"],
+  "positions": ["ALL"]
+}
