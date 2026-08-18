@@ -68,7 +68,8 @@ function numericValue(
 }
 
 function validateTime(definition: DrillDefinition, input: AttemptForValidation, fields: Record<string, string>) {
-  if (!Number.isInteger(input.elapsed_ms) || (input.elapsed_ms ?? 0) <= 0) {
+  const elapsedMs = input.elapsed_ms;
+  if (typeof elapsedMs !== "number" || !Number.isInteger(elapsedMs) || elapsedMs <= 0) {
     fields.elapsed_ms = "Must be a positive integer millisecond value";
     return;
   }
@@ -81,7 +82,7 @@ function validateTime(definition: DrillDefinition, input: AttemptForValidation, 
       totalTimeCount += 1;
       if (measurement.label !== "Total Time") fields[`measurements.${index}.label`] = "Must be Total Time";
       if (measurement.unit !== "ms") fields[`measurements.${index}.unit`] = "Timed values use ms";
-      if (measurement.value_numeric !== input.elapsed_ms) fields[`measurements.${index}.value_numeric`] = "Must equal elapsed_ms";
+      if (measurement.value_numeric !== elapsedMs) fields[`measurements.${index}.value_numeric`] = "Must equal elapsed_ms";
       return;
     }
 
@@ -94,7 +95,7 @@ function validateTime(definition: DrillDefinition, input: AttemptForValidation, 
     if (measurement.unit !== "ms") fields[`measurements.${index}.unit`] = "Timed splits use ms";
     if (!Number.isInteger(measurement.value_numeric) || (measurement.value_numeric ?? 0) <= 0) {
       fields[`measurements.${index}.value_numeric`] = "Split must be a positive integer millisecond value";
-    } else if ((measurement.value_numeric ?? 0) > input.elapsed_ms) {
+    } else if ((measurement.value_numeric ?? 0) > elapsedMs) {
       fields[`measurements.${index}.value_numeric`] = "Split cannot exceed total time";
     }
   });
