@@ -11,6 +11,8 @@ const buttonVariants = cva(
         default: "bg-accent text-accent-foreground hover:bg-accent-hover",
         secondary: "border border-border bg-surface-elevated text-text-primary hover:bg-surface",
         ghost: "text-text-secondary hover:bg-surface hover:text-text-primary",
+        success: "bg-emerald-500 text-slate-950 hover:bg-emerald-400",
+        warning: "bg-amber-400 text-slate-950 hover:bg-amber-300",
         destructive: "bg-danger text-white hover:opacity-90"
       },
       size: {
