@@ -55,16 +55,53 @@ Athlete history, personal bests, trends, drill leaderboards, and team comparison
 - shadcn/ui primitives
 - Recharts for progress charts
 
-## Proposed stack
+## Stack
 
 - React + TypeScript
-- Vite
+- Vite + Cloudflare Vite plugin
 - Cloudflare Workers + Static Assets
-- Cloudflare D1
+- Cloudflare D1 beginning in Phase 1 Issue #3
 - Tailwind CSS
-- shadcn/ui
+- shadcn/ui foundation
 - Lucide
-- Recharts
+- Recharts later for progress charts
+
+## Local development
+
+Requirements:
+
+- Node.js 22.12+
+- npm
+
+Install and start the app:
+
+```bash
+npm install
+npm run dev
+```
+
+The Vite dev server runs the React SPA with the Cloudflare Worker integration. The initial Worker health route is:
+
+```text
+GET /api/health
+```
+
+Useful checks:
+
+```bash
+npm run typecheck
+npm test
+npm run build
+npm run preview
+```
+
+Deployment is intentionally handled by Wrangler rather than Cloudflare Pages:
+
+```bash
+npm run deploy
+```
+
+Do not add a D1 database ID until Issue #3 establishes the database and binding.
 
 ## Documentation
 
@@ -103,6 +140,4 @@ Athlete history, personal bests, trends, drill leaderboards, and team comparison
 
 ## Current status
 
-Planning/foundation complete enough to begin Phase 1 implementation.
-
-Start with GitHub Issue #1 and follow `docs/BUILD_PLAN.md`.
+Phase 1 Issue #1 scaffold is in progress. The production Home layout is intentionally deferred to Issue #2, using the approved coded wireframe as the visual reference.
