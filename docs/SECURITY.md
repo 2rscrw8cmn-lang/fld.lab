@@ -68,7 +68,7 @@ Never rely on:
 - a client-supplied team ID by itself
 - browser local storage as proof of authorization
 
-For v1, fld.LAB is intentionally a single-coach application. The Worker verifies the Cloudflare Access identity and only authorizes the configured coach email. That one authenticated coach is authorized for the v1 app's teams. Multi-coach/team-role authorization requires a deliberate future data-model change.
+For v1, fld.LAB uses a small explicit trusted-coach allowlist. The Worker verifies the Cloudflare Access identity and authorizes only emails listed in the production configuration. Those authenticated coaches are authorized for the v1 app's teams. Fine-grained team roles, invitations, and organization-level authorization require a deliberate future data-model change.
 
 ## 5. Database access
 
@@ -94,7 +94,7 @@ Production secrets and account-specific deployment values are managed through Cl
 
 Never hard-code secrets in TypeScript, JSON, test fixtures, or documentation examples.
 
-The Access issuer, AUD, and authorized coach email are deployment-specific configuration and must not be committed with real account values in this public repository.
+The Access issuer, AUD, and authorized coach email allowlist are deployment-specific configuration and must not be committed with real account values in this public repository.
 
 ## 7. Logging
 
@@ -147,9 +147,9 @@ The v1 authentication decision is now explicit:
 
 - **identity/access provider:** Cloudflare Access
 - **deployment scope:** the fld.LAB Worker hostname, including the current `workers.dev` deployment
-- **v1 authorization model:** one configured coach email has access to the v1 application and its teams
+- **v1 authorization model:** a small explicit allowlist of trusted coach emails has access to the v1 application and its teams
 - **Worker verification:** validate the `Cf-Access-Jwt-Assertion` signature, issuer, application audience, expiration/not-before timing, subject, and email before protected API routing
-- **sign-in:** Cloudflare Access; One-Time PIN is acceptable for the one-coach deployment
+- **sign-in:** Cloudflare Access; One-Time PIN is acceptable for the small trusted-coach deployment
 - **sign-out:** `/cdn-cgi/access/logout`
 - **local development:** explicit `AUTH_MODE=development`, accepted only on localhost/loopback
 - **account recovery:** handled by the configured Cloudflare Access identity method, not by fld.LAB password storage
@@ -158,7 +158,7 @@ Protected API requests fail closed when production authentication configuration 
 
 See `docs/AUTH.md` for deployment configuration and verification steps.
 
-This decision does **not** introduce multi-coach roles. When the product requires multiple coaches, organizations, or team sharing, add a server-side coach/team authorization model deliberately rather than broadening the v1 email allowlist.
+This decision does **not** introduce per-team coach roles. When the product requires organizations, team invitations, or different permissions by coach, add a server-side coach/team authorization model deliberately rather than relying on a larger shared allowlist.
 
 ## 12. Production readiness gate
 
@@ -167,11 +167,12 @@ Merging authentication code is not the same as completing production verificatio
 A build is **not approved for real youth-athlete production data** until all are true:
 
 - [ ] Cloudflare Access is enabled on the deployed fld.LAB hostname
-- [ ] the Access Allow policy is restricted to the intended coach account
-- [ ] production auth variables are configured (`AUTH_MODE`, Access team domain, Access AUD, authorized coach email)
+- [ ] the Access Allow policy is restricted to the intended coach accounts
+- [ ] production auth variables are configured (`AUTH_MODE`, Access team domain, Access AUD, authorized coach email allowlist)
 - [ ] unauthenticated roster/result reads are blocked and direct protected API access without a valid JWT returns 401
 - [ ] unauthenticated writes are blocked and do not reach D1 mutation logic
 - [ ] a valid token for a non-authorized coach is rejected with 403
+- [ ] each intended coach can authenticate successfully
 - [ ] authorization is enforced by the Worker, not only the Access UI/policy
 - [ ] secrets/tokens are not committed
 - [ ] production DB/export files are not committed
