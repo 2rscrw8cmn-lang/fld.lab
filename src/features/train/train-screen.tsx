@@ -13,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 
+import { SearchSelect } from "@/components/search-select";
 import { Button } from "@/components/ui/button";
 import { buildManualResult, initialManualValues, type ManualValues } from "@/features/train/manual-result";
 import { ManualResultInput } from "@/features/train/manual-result-input";
@@ -602,20 +603,19 @@ export function TrainScreen({ team, onNavigate }: { team: Team | null; onNavigat
 
         <main className="min-w-0 overflow-hidden rounded-xl border border-border bg-surface">
           <div className="border-b border-border p-3 md:hidden">
-            <label className="block text-[10px] font-bold uppercase tracking-[0.08em] text-text-muted" htmlFor="train-athlete">Athlete</label>
-            <select
-              id="train-athlete"
-              disabled={capture.mode !== "ready"}
+            <SearchSelect
+              label="Athlete"
               value={activeAthleteId}
-              onChange={(event) => selectAthlete(event.target.value)}
-              className="mt-1 min-h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-bold text-text-primary"
-            >
-              {session.athletes.map((athlete) => (
-                <option key={athlete.id} value={athlete.athlete_id}>
-                  {athlete.membership.jersey_number ? `#${athlete.membership.jersey_number} ` : ""}{athleteName(athlete)}{athlete.status === "skipped" ? " — skipped" : ""}
-                </option>
-              ))}
-            </select>
+              options={session.athletes.map((athlete) => ({
+                value: athlete.athlete_id,
+                label: `${athlete.membership.jersey_number ? `#${athlete.membership.jersey_number} ` : ""}${athleteName(athlete)}`,
+                meta: `${athletePositions(athlete)}${athlete.status === "skipped" ? " · skipped" : ""}`,
+              }))}
+              onChange={selectAthlete}
+              placeholder="Choose athlete"
+              searchPlaceholder="Search athletes…"
+              disabled={capture.mode !== "ready"}
+            />
           </div>
 
           {sessionComplete ? (

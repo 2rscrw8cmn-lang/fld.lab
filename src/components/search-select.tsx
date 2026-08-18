@@ -1,6 +1,8 @@
 import { Check, ChevronDown, Search } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { cn } from "@/lib/utils";
+
 export type SearchSelectOption = {
   value: string;
   label: string;
@@ -15,6 +17,10 @@ export function SearchSelect({
   placeholder,
   searchPlaceholder = "Search…",
   disabled = false,
+  hideLabel = false,
+  searchable,
+  className,
+  triggerClassName,
 }: {
   label: string;
   value: string;
@@ -23,11 +29,16 @@ export function SearchSelect({
   placeholder: string;
   searchPlaceholder?: string;
   disabled?: boolean;
+  hideLabel?: boolean;
+  searchable?: boolean;
+  className?: string;
+  triggerClassName?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const rootRef = useRef<HTMLDivElement | null>(null);
   const selected = options.find((option) => option.value === value) ?? null;
+  const shouldSearch = searchable ?? options.length > 5;
 
   useEffect(() => {
     if (!open) return;
@@ -49,6 +60,10 @@ export function SearchSelect({
     if (!open) setQuery("");
   }, [open]);
 
+  useEffect(() => {
+    if (disabled && open) setOpen(false);
+  }, [disabled, open]);
+
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     if (!normalized) return options;
@@ -56,16 +71,20 @@ export function SearchSelect({
   }, [options, query]);
 
   return (
-    <label className="block">
-      <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.08em] text-text-muted">{label}</span>
+    <div className={cn("block", className)}>
+      <span className={hideLabel ? "sr-only" : "mb-1.5 block text-[10px] font-bold uppercase tracking-[0.08em] text-text-muted"}>{label}</span>
       <div ref={rootRef} className="relative">
         <button
           type="button"
           disabled={disabled}
           aria-haspopup="listbox"
           aria-expanded={open}
+          aria-label={`${label}: ${selected?.label ?? placeholder}`}
           onClick={() => setOpen((current) => !current)}
-          className="flex min-h-11 w-full items-center justify-between gap-3 rounded-md border border-border bg-background px-3 text-left text-sm font-bold text-text-primary outline-none transition-colors hover:border-[rgba(124,58,237,0.65)] focus:border-accent focus:ring-2 focus:ring-[rgba(124,58,237,0.32)] disabled:cursor-not-allowed disabled:opacity-50"
+          className={cn(
+            "flex min-h-11 w-full items-center justify-between gap-3 rounded-md border border-border bg-background px-3 text-left text-sm font-bold text-text-primary outline-none transition-colors hover:border-[rgba(124,58,237,0.65)] focus:border-accent focus:ring-2 focus:ring-[rgba(124,58,237,0.32)] disabled:cursor-not-allowed disabled:opacity-50",
+            triggerClassName,
+          )}
         >
           <span className="min-w-0 truncate">{selected?.label ?? placeholder}</span>
           <ChevronDown aria-hidden={true} size={16} className={`shrink-0 text-text-muted transition-transform ${open ? "rotate-180" : ""}`} />
@@ -73,7 +92,7 @@ export function SearchSelect({
 
         {open && !disabled && (
           <div className="absolute left-0 right-0 z-[70] mt-1 overflow-hidden rounded-lg border border-border bg-surface shadow-2xl">
-            {options.length > 5 && (
+            {shouldSearch && (
               <div className="border-b border-border p-2">
                 <div className="flex min-h-10 items-center gap-2 rounded-md border border-border bg-background px-2.5">
                   <Search aria-hidden={true} size={15} className="text-text-muted" />
@@ -87,7 +106,7 @@ export function SearchSelect({
                 </div>
               </div>
             )}
-            <div role="listbox" className="max-h-[280px] overflow-y-auto p-1">
+            <div role="listbox" aria-label={label} className="max-h-[280px] overflow-y-auto p-1">
               {!filtered.length ? (
                 <div className="px-3 py-4 text-center text-xs text-text-muted">No matches.</div>
               ) : filtered.map((option) => {
@@ -116,6 +135,6 @@ export function SearchSelect({
           </div>
         )}
       </div>
-    </label>
+    </div>
   );
 }

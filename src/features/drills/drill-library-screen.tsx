@@ -25,6 +25,7 @@ import {
   Zap,
 } from "lucide-react";
 
+import { SearchSelect } from "@/components/search-select";
 import { Button } from "@/components/ui/button";
 import {
   ApiError,
@@ -183,31 +184,32 @@ export function DrillLibraryScreen() {
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Search drills"
-              className="min-h-10 w-full rounded-md border border-border bg-background pl-9 pr-3 text-xs text-text-primary outline-none transition-colors placeholder:text-text-muted focus:border-accent"
+              className="min-h-11 w-full rounded-md border border-border bg-background pl-9 pr-3 text-xs text-text-primary outline-none transition-colors placeholder:text-text-muted focus:border-accent"
             />
           </label>
-          <label>
-            <span className="sr-only">Filter by category</span>
-            <select
-              value={category}
-              onChange={(event) => setCategory(event.target.value)}
-              className="min-h-10 w-full rounded-md border border-border bg-background px-3 text-xs text-text-primary outline-none focus:border-accent"
-            >
-              <option value="all">All categories</option>
-              {categories.map((value) => <option key={value} value={value}>{value}</option>)}
-            </select>
-          </label>
-          <label>
-            <span className="sr-only">Filter by measurement type</span>
-            <select
-              value={measurementType}
-              onChange={(event) => setMeasurementType(event.target.value)}
-              className="min-h-10 w-full rounded-md border border-border bg-background px-3 text-xs text-text-primary outline-none focus:border-accent"
-            >
-              <option value="all">All measurements</option>
-              {Object.entries(measurementLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-            </select>
-          </label>
+          <SearchSelect
+            label="Filter by category"
+            hideLabel
+            value={category}
+            options={[{ value: "all", label: "All categories" }, ...categories.map((value) => ({ value, label: value }))]}
+            onChange={setCategory}
+            placeholder="All categories"
+            searchable={false}
+            triggerClassName="text-xs font-semibold"
+          />
+          <SearchSelect
+            label="Filter by measurement type"
+            hideLabel
+            value={measurementType}
+            options={[
+              { value: "all", label: "All measurements" },
+              ...Object.entries(measurementLabels).map(([value, label]) => ({ value, label })),
+            ]}
+            onChange={setMeasurementType}
+            placeholder="All measurements"
+            searchable={false}
+            triggerClassName="text-xs font-semibold"
+          />
         </div>
 
         {loading ? (
