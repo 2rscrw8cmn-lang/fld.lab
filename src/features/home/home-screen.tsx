@@ -1,5 +1,7 @@
 import { ChevronRight } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
+
 const roster = [
   { number: "12", name: "Emma Johnson", position: "WR / DB" },
   { number: "7", name: "Mia Carter", position: "QB / DB" },
@@ -42,20 +44,21 @@ export function HomeScreen({ onNavigate }: { onNavigate: (path: string) => void 
             </div>
 
             <div>
-              <button
+              <Button
                 type="button"
+                size="lg"
                 onClick={() => onNavigate("/train")}
-                className="min-h-[60px] w-full rounded-[9px] bg-accent px-4 text-base font-extrabold text-accent-foreground transition-colors hover:bg-accent-hover"
+                className="min-h-[60px] w-full rounded-[9px] text-base font-extrabold"
               >
                 Start Session
-              </button>
+              </Button>
               <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                <button type="button" onClick={() => onNavigate("/train")} className="min-h-10 rounded-lg border border-border bg-surface-elevated px-3 text-[11px] font-bold transition-colors hover:border-[#455572]">
+                <Button type="button" variant="secondary" onClick={() => onNavigate("/train")} className="min-h-10 text-[11px] font-bold">
                   Resume Last Session
-                </button>
-                <button type="button" onClick={() => onNavigate("/drills")} className="min-h-10 rounded-lg border border-border bg-surface-elevated px-3 text-[11px] font-bold transition-colors hover:border-[#455572]">
+                </Button>
+                <Button type="button" variant="secondary" onClick={() => onNavigate("/drills")} className="min-h-10 text-[11px] font-bold">
                   Open Drill Library
-                </button>
+                </Button>
               </div>
             </div>
           </div>
