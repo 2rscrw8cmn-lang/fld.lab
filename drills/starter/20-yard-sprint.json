@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "slug": "20-yard-sprint",
+  "name": "20-Yard Sprint",
+  "category": "Speed",
+  "icon": "sprint",
+  "description": "Measure acceleration and sprint speed over 20 yards.",
+  "instructions": "Athlete starts behind the line and runs through the 20-yard mark.",
+  "measurement": {
+    "type": "time",
+    "unit": "ms",
+    "direction": "lower"
+  },
+  "attempts": {
+    "count": 2,
+    "result": "best"
+  },
+  "timer": {
+    "enabled": true,
+    "splits": [
+      {
+        "key": "split_10yd",
+        "label": "10 yd"
+      }
+    ]
+  },
+  "equipment": ["2 cones"],
+  "tags": ["speed", "acceleration"],
+  "positions": ["ALL"],
+  "setup": {
+    "distance_yards": 20
+  }
+}
