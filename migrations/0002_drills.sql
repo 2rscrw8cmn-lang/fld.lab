@@ -42,14 +42,15 @@ END;
 
 -- SQLite allows this circular relationship only after both tables exist.
 -- Keep the current-version pointer nullable during the initial insert, then set it in the same D1 batch.
+-- Parenthesize CASE because D1's remote SQL parser can otherwise mistake CASE END for the trigger END.
 CREATE TRIGGER validate_drills_current_version_update
 BEFORE UPDATE OF current_version_id ON drills
 WHEN NEW.current_version_id IS NOT NULL
 BEGIN
-  SELECT CASE
+  SELECT (CASE
     WHEN NOT EXISTS (
       SELECT 1 FROM drill_versions
       WHERE id = NEW.current_version_id AND drill_id = NEW.id
     ) THEN RAISE(ABORT, 'current_version_id must belong to drill')
-  END;
+  END);
 END;
