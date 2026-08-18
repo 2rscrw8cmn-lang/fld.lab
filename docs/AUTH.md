@@ -9,14 +9,14 @@ See also:
 
 ## 1. v1 authentication decision
 
-fld.LAB v1 uses **Cloudflare Access** in front of the deployed Worker and authorizes **one coach email**.
+fld.LAB v1 uses **Cloudflare Access** in front of the deployed Worker and authorizes a **small explicit coach email allowlist**.
 
-This matches the current MVP data model: one coach operates multiple teams. Multi-coach roles, team sharing, and organization membership are intentionally deferred until the product requires them.
+This matches the current MVP data model: trusted coaches operate the same v1 app and its teams. Fine-grained team roles, invitations, and organization membership are intentionally deferred until the product requires them.
 
 Security is enforced twice:
 
 1. Cloudflare Access protects the deployed application URL.
-2. The Worker independently validates the signed Access JWT on every protected `/api/*` request.
+2. The Worker independently validates the signed Access JWT on every protected `/api/*` request and checks the verified email against the configured coach allowlist.
 
 The Worker does not trust a client-supplied email, local storage value, hidden route, or Cloudflare header that has not been cryptographically verified.
 
@@ -54,8 +54,10 @@ Production requires all four variables:
 AUTH_MODE=access
 ACCESS_TEAM_DOMAIN=https://<team-name>.cloudflareaccess.com
 ACCESS_AUD=<Cloudflare Access application audience tag>
-AUTHORIZED_COACH_EMAIL=<coach email allowed to operate fld.LAB>
+AUTHORIZED_COACH_EMAILS=coach1@example.com,coach2@example.com
 ```
+
+`AUTHORIZED_COACH_EMAILS` is a comma-separated allowlist. Whitespace and email case are normalized by the Worker.
 
 Do not commit account-specific values to this public repository.
 
@@ -67,17 +69,17 @@ In Cloudflare:
 
 1. Open **Workers & Pages**.
 2. Open the `fld-lab` Worker.
-3. Go to **Settings → Domains & Routes**.
-4. For the `workers.dev` route, enable **Cloudflare Access**.
-5. Open **Manage Cloudflare Access** for the generated application.
-6. Configure an **Allow** policy for the same email used in `AUTHORIZED_COACH_EMAIL`.
-7. Do not add a broad email-domain or everyone rule for v1.
+3. Go to **Settings → Domains & Routes** or the Worker **Access** tab.
+4. Protect **All traffic** for the Worker if production and previews should both require authentication.
+5. Attach the dedicated reusable fld.LAB Allow policy.
+6. Keep that policy limited to the same coach emails listed in `AUTHORIZED_COACH_EMAILS`.
+7. Do not reuse an unrelated application policy unless those users truly need both applications.
 
 Cloudflare Access is deny-by-default once the application/policy is configured; only the explicit Allow policy should reach fld.LAB.
 
 ## 5. Authentication method
 
-For a one-coach deployment, Cloudflare Access One-Time PIN is acceptable and avoids fld.LAB storing passwords.
+Cloudflare Access One-Time PIN is acceptable for this small trusted-coach deployment and avoids fld.LAB storing passwords.
 
 The coach signs in through Cloudflare Access. fld.LAB never receives or stores the PIN.
 
@@ -125,7 +127,7 @@ The Worker:
 - verifies `aud`
 - verifies expiration / not-before timing
 - requires `sub` and `email`
-- compares the verified email to `AUTHORIZED_COACH_EMAIL`
+- compares the verified email to the comma-separated `AUTHORIZED_COACH_EMAILS` allowlist
 
 JWKS are cached in Worker memory for a bounded period. Access rotates signing keys; the application never commits a signing key.
 
@@ -193,22 +195,22 @@ POST /api/teams
 
 Expected: blocked/401. The request must not reach D1 mutation logic.
 
-### Wrong coach
+### Non-allowed coach
 
-Attempt sign-in with an email that is not in the Access Allow policy and not equal to `AUTHORIZED_COACH_EMAIL`.
+Attempt sign-in with an email that is not in the Access Allow policy and not listed in `AUTHORIZED_COACH_EMAILS`.
 
 Expected: no application access. Even if a valid Access JWT from that Access application reached the Worker, the Worker returns 403.
 
-### Valid coach
+### Allowed coaches
 
-With the authorized coach account:
+For each configured coach account:
 
 - Home loads
 - roster loads
 - Data loads
-- a fictional athlete can be created
-- a fictional training result can be saved
 - Settings shows the verified coach email
+
+At least one allowed coach should also verify that a fictional athlete can be created and a fictional training result can be saved.
 
 ### Logout
 
@@ -235,10 +237,10 @@ Merging the auth code does **not** by itself approve real athlete data.
 The production gate is complete only after:
 
 - Access is enabled on the deployed hostname
-- the Allow policy is restricted to the intended coach
+- the Allow policy is restricted to the intended coach accounts
 - all required Worker variables are configured
 - anonymous read/write verification passes
-- wrong-coach verification passes
+- non-allowed-coach verification passes
 - logout and session-expiration behavior are tested on a real device
 - `SECURITY.md` production checklist is completed
 
