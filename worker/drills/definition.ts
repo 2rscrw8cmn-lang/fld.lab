@@ -1,4 +1,5 @@
-import Ajv2020, { type ErrorObject } from "ajv/dist/2020";
+import Ajv2020 from "ajv/dist/2020.js";
+import type { ErrorObject } from "ajv";
 
 import drillDefinitionSchema from "../../schemas/drill-definition.schema.json";
 
