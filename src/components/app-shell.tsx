@@ -19,6 +19,7 @@ type AppShellProps = {
   teams: Team[];
   teamId: string;
   teamsLoading: boolean;
+  teamSwitchDisabled?: boolean;
   onTeamChange: (teamId: string) => void;
   onNavigate: (path: string) => void;
   children: ReactNode;
@@ -71,7 +72,16 @@ function formatTeam(team: Team) {
   return [team.name, team.season_label].filter(Boolean).join(" — ");
 }
 
-export function AppShell({ pathname, teams, teamId, teamsLoading, onTeamChange, onNavigate, children }: AppShellProps) {
+export function AppShell({
+  pathname,
+  teams,
+  teamId,
+  teamsLoading,
+  teamSwitchDisabled = false,
+  onTeamChange,
+  onNavigate,
+  children,
+}: AppShellProps) {
   const dateLabel = new Intl.DateTimeFormat(undefined, {
     weekday: "long",
     month: "short",
@@ -104,11 +114,11 @@ export function AppShell({ pathname, teams, teamId, teamsLoading, onTeamChange, 
 
       <main className="min-w-0 pb-[74px] md:pb-0">
         <header className="flex min-h-[60px] items-center justify-between gap-3 border-b border-border px-4 md:min-h-16 md:px-7">
-          <label className="min-w-0">
+          <label className="min-w-0" title={teamSwitchDisabled ? "Finish or abandon the active session before switching teams." : undefined}>
             <span className="sr-only">Current team</span>
             <select
               value={teamId}
-              disabled={teamsLoading || teams.length === 0}
+              disabled={teamsLoading || teams.length === 0 || teamSwitchDisabled}
               onChange={(event) => onTeamChange(event.target.value)}
               className="h-[38px] max-w-[220px] rounded-lg border border-border bg-surface px-3 pr-8 text-sm font-semibold text-text-primary outline-none disabled:cursor-not-allowed disabled:text-text-muted focus-visible:ring-2 focus-visible:ring-accent md:max-w-[270px]"
             >

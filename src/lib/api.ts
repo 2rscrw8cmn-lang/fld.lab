@@ -105,6 +105,85 @@ export type DrillImportResult = DrillDetail & {
   version_created: boolean;
 };
 
+export type TrainingSession = {
+  id: string;
+  team_id: string;
+  drill_id: string;
+  drill_version_id: string;
+  started_at: string;
+  completed_at: string | null;
+  status: "active" | "completed" | "abandoned";
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type SessionAthlete = {
+  id: string;
+  session_id: string;
+  athlete_id: string;
+  order_index: number;
+  status: "pending" | "active" | "complete" | "skipped";
+  athlete: {
+    id: string;
+    first_name: string;
+    last_name: string;
+  };
+  membership: {
+    jersey_number: string | null;
+    primary_position: string | null;
+    secondary_position: string | null;
+  };
+};
+
+export type AttemptMeasurement = {
+  id?: string;
+  attempt_id?: string;
+  key: string;
+  label: string;
+  value_numeric: number | null;
+  value_text?: string | null;
+  unit: string | null;
+  sequence: number;
+  created_at?: string;
+};
+
+export type PersistedAttempt = {
+  id: string;
+  client_attempt_id: string;
+  session_id: string;
+  athlete_id: string;
+  attempt_number: number;
+  started_at: string | null;
+  stopped_at: string | null;
+  elapsed_ms: number | null;
+  valid: boolean;
+  note: string | null;
+  created_at: string;
+  updated_at: string;
+  measurements: AttemptMeasurement[];
+};
+
+export type SessionDetail = {
+  session: TrainingSession;
+  drill_definition: DrillDefinition;
+  athletes: SessionAthlete[];
+  attempts: PersistedAttempt[];
+};
+
+export type AttemptPayload = {
+  client_attempt_id: string;
+  athlete_id: string;
+  attempt_number: number;
+  started_at: string | null;
+  stopped_at: string | null;
+  elapsed_ms: number;
+  valid: boolean;
+  note: string | null;
+  measurements: AttemptMeasurement[];
+};
+
 export class ApiError extends Error {
   constructor(message: string, public status: number, public fields?: Record<string, string>) {
     super(message);
@@ -201,5 +280,49 @@ export async function importDrill(definition: unknown): Promise<DrillImportResul
   return api<DrillImportResult>("/api/drills/import", {
     method: "POST",
     body: JSON.stringify(definition),
+  });
+}
+
+export async function getActiveSession(teamId: string): Promise<SessionDetail | null> {
+  const data = await api<{ session: SessionDetail | null }>(`/api/teams/${encodeURIComponent(teamId)}/active-session`);
+  return data.session;
+}
+
+export async function createTrainingSession(teamId: string, drillId: string): Promise<SessionDetail> {
+  return api<SessionDetail>("/api/sessions", {
+    method: "POST",
+    body: JSON.stringify({ team_id: teamId, drill_id: drillId }),
+  });
+}
+
+export async function getTrainingSession(sessionId: string): Promise<SessionDetail> {
+  return api<SessionDetail>(`/api/sessions/${encodeURIComponent(sessionId)}`);
+}
+
+export async function persistTrainingAttempt(sessionId: string, payload: AttemptPayload): Promise<PersistedAttempt> {
+  return api<PersistedAttempt>(`/api/sessions/${encodeURIComponent(sessionId)}/attempts`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function patchSessionAthlete(
+  sessionId: string,
+  athleteId: string,
+  status: "skipped" | "pending",
+): Promise<{ athlete_id: string; status: SessionAthlete["status"] }> {
+  return api<{ athlete_id: string; status: SessionAthlete["status"] }>(
+    `/api/sessions/${encodeURIComponent(sessionId)}/athletes/${encodeURIComponent(athleteId)}`,
+    { method: "PATCH", body: JSON.stringify({ status }) },
+  );
+}
+
+export async function patchTrainingSession(
+  sessionId: string,
+  status: "completed" | "abandoned",
+): Promise<TrainingSession> {
+  return api<TrainingSession>(`/api/sessions/${encodeURIComponent(sessionId)}`, {
+    method: "PATCH",
+    body: JSON.stringify({ status }),
   });
 }

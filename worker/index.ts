@@ -1,5 +1,6 @@
 import { handleApi, type Env } from "./api";
 import { handleDrillApi } from "./drills/routes";
+import { handleSessionApi } from "./sessions/routes";
 
 export type HealthPayload = {
   ok: true;
@@ -32,6 +33,9 @@ const worker = {
 
       const drillResponse = await handleDrillApi(request, env.DB);
       if (drillResponse) return drillResponse;
+
+      const sessionResponse = await handleSessionApi(request, env.DB);
+      if (sessionResponse) return sessionResponse;
 
       const response = await handleApi(request, env);
       if (response) return response;

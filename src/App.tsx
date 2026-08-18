@@ -7,7 +7,8 @@ import { DrillLibraryScreen } from "@/features/drills/drill-library-screen";
 import { HomeScreen } from "@/features/home/home-screen";
 import { RosterScreen } from "@/features/roster/roster-screen";
 import { FirstTeamSetup } from "@/features/teams/first-team-setup";
-import { listTeams, type Team } from "@/lib/api";
+import { TrainScreen } from "@/features/train/train-screen";
+import { getActiveSession, listTeams, type Team } from "@/lib/api";
 
 const TEAM_STORAGE_KEY = "fld-lab:last-team-id";
 
@@ -16,6 +17,7 @@ export default function App() {
   const [teams, setTeams] = useState<Team[]>([]);
   const [teamsLoading, setTeamsLoading] = useState(true);
   const [teamId, setTeamId] = useState("");
+  const [activeSessionLock, setActiveSessionLock] = useState(false);
 
   useEffect(() => {
     const handlePopState = () => setPathname(window.location.pathname);
@@ -53,6 +55,21 @@ export default function App() {
     return () => { cancelled = true; };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    if (!teamId) {
+      setActiveSessionLock(false);
+      return;
+    }
+
+    if (pathname === "/train") setActiveSessionLock(true);
+    getActiveSession(teamId)
+      .then((active) => { if (!cancelled && pathname !== "/train") setActiveSessionLock(Boolean(active)); })
+      .catch(() => { if (!cancelled && pathname !== "/train") setActiveSessionLock(false); });
+
+    return () => { cancelled = true; };
+  }, [pathname, teamId]);
+
   const navigate = (path: string) => {
     if (path === pathname) return;
     window.history.pushState({}, "", path);
@@ -61,6 +78,7 @@ export default function App() {
   };
 
   const selectTeam = (nextTeamId: string) => {
+    if (activeSessionLock) return;
     setTeamId(nextTeamId);
     if (nextTeamId) window.localStorage.setItem(TEAM_STORAGE_KEY, nextTeamId);
   };
@@ -84,6 +102,7 @@ export default function App() {
         ? <RosterScreen team={activeTeam} />
         : <FirstTeamSetup onCreated={handleTeamCreated} />;
   }
+  if (activePath === "/train") screen = <TrainScreen team={activeTeam} onNavigate={navigate} />;
   if (activePath === "/drills") screen = <DrillLibraryScreen />;
 
   return (
@@ -92,6 +111,7 @@ export default function App() {
       teams={teams}
       teamId={teamId}
       teamsLoading={teamsLoading}
+      teamSwitchDisabled={activeSessionLock}
       onTeamChange={selectTeam}
       onNavigate={navigate}
     >
