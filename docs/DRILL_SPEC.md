@@ -2,15 +2,23 @@
 
 ## 1. Purpose
 
-Drills should be configuration, not one-off application features.
+Drills are configuration, not one-off application features.
 
-A coach can request a new drill, a JSON definition can be generated, and fld.LAB can import it without requiring a new custom screen for every drill.
+A coach can request a new drill, a JSON definition can be generated, and fld.LAB can import it without requiring a custom screen for that drill.
 
-The reusable `DrillRunner` should render the field UI from this definition.
+The reusable `DrillRunner` renders the field UI from the definition.
 
-## 2. Version
+Machine validation for v1 lives at:
 
-Initial format version:
+```text
+schemas/drill-definition.schema.json
+```
+
+This document explains the semantic behavior. Keep both files aligned when the format changes.
+
+## 2. Schema version
+
+Initial format:
 
 ```json
 {
@@ -18,9 +26,21 @@ Initial format version:
 }
 ```
 
-Every imported file must include `schema_version` so the application can validate and migrate future formats safely.
+Unknown schema versions must be rejected until explicitly supported.
 
-## 3. Core definition
+## 3. Canonical timed type
+
+The canonical timed measurement type is:
+
+```json
+"type": "time"
+```
+
+Do **not** use `timed`.
+
+Internally, all timed values are integer milliseconds (`ms`).
+
+## 4. Complete timed example
 
 ```json
 {
@@ -28,6 +48,7 @@ Every imported file must include `schema_version` so the application can validat
   "slug": "20-yard-sprint",
   "name": "20-Yard Sprint",
   "category": "Speed",
+  "icon": "sprint",
   "description": "Measure acceleration and sprint speed over 20 yards.",
   "instructions": "Athlete starts behind the line and runs through the 20-yard mark.",
   "measurement": {
@@ -47,30 +68,88 @@ Every imported file must include `schema_version` so the application can validat
         "label": "10 yd"
       }
     ]
+  },
+  "equipment": ["2 cones"],
+  "tags": ["speed", "acceleration"],
+  "positions": ["ALL"],
+  "setup": {
+    "distance_yards": 20
   }
 }
 ```
 
-## 4. Required top-level fields
+## 5. Top-level fields
 
-| Field | Type | Required | Notes |
-|---|---|---:|---|
-| `schema_version` | integer | yes | Initial value `1` |
-| `slug` | string | yes | Stable machine identifier |
-| `name` | string | yes | Coach-facing name |
-| `category` | string | yes | Speed, Agility, Skills, Defense, etc. |
-| `description` | string | no | Short summary |
-| `instructions` | string | no | Setup/execution guidance |
-| `measurement` | object | yes | Primary result definition |
-| `attempts` | object | yes | Number of attempts and aggregation |
-| `timer` | object | conditional | Required when timer behavior is needed |
+| Field | Required | Purpose |
+|---|---:|---|
+| `schema_version` | yes | format version; v1 = `1` |
+| `slug` | yes | stable machine identity |
+| `name` | yes | coach-facing name |
+| `category` | yes | grouping/filtering label |
+| `icon` | no | approved icon-registry key |
+| `description` | no | short summary |
+| `instructions` | no | setup/execution guidance |
+| `measurement` | yes | primary result definition |
+| `attempts` | yes | attempt count + aggregation |
+| `timer` | required for `time` | stopwatch/split behavior |
+| `equipment` | no | equipment list |
+| `tags` | no | filter/search metadata |
+| `positions` | no | relevant positions; `ALL` allowed |
+| `setup` | no | supported structured setup metadata |
 
-## 5. Measurement types
+For schema version 1, unknown top-level behavior fields are rejected rather than silently accepted.
 
-Initial supported values for `measurement.type`:
+## 6. Slug
+
+`slug` is the stable imported-drill identity.
+
+Examples:
+
+```text
+20-yard-sprint
+5-10-5-shuttle
+quick-catch-10
+```
+
+Changing display name/category does not create a new drill identity if the slug remains the same.
+
+A truly separate drill requires a separate slug.
+
+## 7. Icon
+
+`icon` is decorative metadata only.
+
+It must reference the approved registry in `DESIGN_SYSTEM.md`.
+
+Rules:
+
+- missing icon does not invalidate the drill
+- unknown icon key does not invalidate otherwise valid drill behavior
+- app falls back to a generic/category icon
+- drill files never contain raw SVG or executable icon code
+
+## 8. Measurement direction
+
+Allowed:
+
+```text
+lower
+higher
+none
+```
+
+Direction controls PB/leaderboard comparison.
+
+Examples:
+
+- sprint time → `lower`
+- catches → `higher`
+- jump distance → `higher`
+- unranked measurement → `none`
+
+## 9. Measurement types
 
 ### `time`
-Timed result.
 
 ```json
 {
@@ -80,10 +159,9 @@ Timed result.
 }
 ```
 
-Internally store time in milliseconds. Display formatting may show seconds and hundredths.
+Requires `timer.enabled=true`.
 
 ### `successes_attempts`
-Used for catching, flag pulling, accuracy, snaps, etc.
 
 ```json
 {
@@ -94,7 +172,7 @@ Used for catching, flag pulling, accuracy, snaps, etc.
 }
 ```
 
-The app can display both `8 / 10` and `80%` without storing the percentage as the authoritative value.
+Store successes and attempts as authoritative values. Percentage is derived.
 
 ### `distance`
 
@@ -106,7 +184,7 @@ The app can display both `8 / 10` and `80%` without storing the percentage as th
 }
 ```
 
-Prefer a single normalized storage unit; format for display as needed.
+Prefer one normalized storage unit per drill.
 
 ### `count`
 
@@ -132,7 +210,6 @@ Prefer a single normalized storage unit; format for display as needed.
 ```
 
 ### `custom_numeric`
-For future drills that need named numeric fields.
 
 ```json
 {
@@ -148,24 +225,9 @@ For future drills that need named numeric fields.
 }
 ```
 
-Use this sparingly. Prefer first-class measurement types when a pattern becomes common.
+Use sparingly. When a repeated pattern becomes common, add a deliberate first-class measurement type in a new schema change.
 
-## 6. Direction
-
-`measurement.direction` controls comparisons, PB calculations, and leaderboard order.
-
-Allowed values:
-- `lower`
-- `higher`
-- `none`
-
-Examples:
-- sprint time → `lower`
-- catches → `higher`
-- broad jump → `higher`
-- subjective notes-only drill → `none`
-
-## 7. Attempts
+## 10. Attempts
 
 ```json
 {
@@ -176,15 +238,20 @@ Examples:
 }
 ```
 
-Initial supported `result` values:
-- `best`
-- `average`
-- `latest`
-- `total`
+Supported aggregation values:
 
-The runner should still retain every individual attempt even when one aggregated value is presented as the drill result.
+```text
+best
+average
+latest
+total
+```
 
-## 8. Timer configuration
+Every individual attempt remains stored even when the UI presents an aggregate result.
+
+`UX_FLOWS.md` defines athlete queue behavior across multiple attempts.
+
+## 11. Timer and splits
 
 ```json
 {
@@ -205,57 +272,18 @@ The runner should still retain every individual attempt even when one aggregated
 ```
 
 Rules:
-- `timer.enabled` determines whether the stopwatch UI appears.
-- Split buttons appear in definition order.
-- A split records elapsed time from the original start, not time since the prior split.
-- The final Stop action records total elapsed time.
-- A drill may have no splits.
 
-## 9. Optional metadata
+- `time` measurement requires the timer
+- split buttons render in definition order
+- each split captures elapsed milliseconds from original Start
+- final Stop captures total elapsed time
+- a drill may define zero splits
+- splits persist as `Measurement` rows using their configured keys
+- there is no separate `splits` database table in MVP
 
-Future-safe optional metadata may include:
+## 12. Examples
 
-```json
-{
-  "equipment": ["4 cones", "measuring tape"],
-  "tags": ["speed", "acceleration"],
-  "positions": ["ALL"],
-  "setup": {
-    "distance_yards": 20
-  }
-}
-```
-
-These fields should not be required to run a drill unless explicitly defined by a later schema version.
-
-## 10. Import behavior
-
-When a JSON file is imported:
-
-1. Parse JSON.
-2. Validate `schema_version`.
-3. Validate required fields and supported enum values.
-4. Reject unknown/invalid required behavior with a clear error.
-5. Find an existing Drill by `slug`.
-6. If none exists, create a new Drill + DrillVersion.
-7. If it exists and the definition differs, create a new DrillVersion.
-8. Set the new version as current.
-9. Never rewrite the definition attached to historical sessions.
-
-## 11. Duplicate handling
-
-The `slug` is the stable identity.
-
-Example:
-
-- existing: `20-yard-sprint`, version 1
-- imported updated definition: `20-yard-sprint`, version 2
-
-This is an update, not a second drill.
-
-If the coach wants a truly separate drill, it needs a distinct slug.
-
-## 12. Example: catching drill
+### Quick Catch
 
 ```json
 {
@@ -263,7 +291,8 @@ If the coach wants a truly separate drill, it needs a distinct slug.
   "slug": "quick-catch-10",
   "name": "Quick Catch",
   "category": "Skills",
-  "description": "Track successful catches across 10 rapid receiving attempts.",
+  "icon": "catch",
+  "description": "Track successful catches across 10 receiving attempts.",
   "measurement": {
     "type": "successes_attempts",
     "unit": "count",
@@ -281,7 +310,7 @@ If the coach wants a truly separate drill, it needs a distinct slug.
 }
 ```
 
-## 13. Example: 5-10-5 shuttle
+### 5-10-5 Shuttle
 
 ```json
 {
@@ -289,7 +318,7 @@ If the coach wants a truly separate drill, it needs a distinct slug.
   "slug": "5-10-5-shuttle",
   "name": "5-10-5 Shuttle",
   "category": "Agility",
-  "description": "Change-of-direction test using two five-yard direction changes.",
+  "icon": "shuttle",
   "measurement": {
     "type": "time",
     "unit": "ms",
@@ -307,9 +336,37 @@ If the coach wants a truly separate drill, it needs a distinct slug.
 }
 ```
 
-## 14. UX implication
+## 13. Import behavior
 
-The application should not contain individual pages such as:
+Server-side import flow:
+
+1. parse JSON
+2. validate against `schemas/drill-definition.schema.json`
+3. validate semantic rules
+4. locate existing Drill by `slug`
+5. create new Drill + DrillVersion when slug is new
+6. create new DrillVersion when definition changed
+7. make new version current
+8. never rewrite a definition referenced by historical sessions
+
+Client validation may provide earlier feedback but is not authoritative.
+
+## 14. Duplicate/version handling
+
+Example:
+
+```text
+20-yard-sprint v1
+20-yard-sprint v2
+```
+
+Same slug + changed definition = new version of the same drill.
+
+Same slug + identical current definition may return the existing version instead of generating a duplicate.
+
+## 15. Renderer architecture
+
+Do not create:
 
 ```text
 TwentyYardSprintScreen
@@ -317,7 +374,7 @@ CatchingScreen
 BroadJumpScreen
 ```
 
-Instead it should contain reusable primitives such as:
+Prefer reusable primitives:
 
 ```text
 DrillRunner
@@ -327,14 +384,23 @@ SuccessAttemptInput
 DistanceInput
 CountInput
 RatingInput
+CustomNumericInput
 AttemptNavigator
 AthleteSwitcher
 ```
 
-The drill definition chooses which primitives are rendered.
+The definition selects which behavior is rendered.
 
-## 15. Guardrail
+## 16. Schema changes
 
-Do not make the JSON format capable of arbitrary code execution or arbitrary UI composition. It is a declarative drill definition, not a scripting language.
+Do not add ad hoc fields to production drill JSON.
 
-If a future requested drill cannot be represented cleanly, extend the schema deliberately rather than adding ad hoc fields.
+If a requested drill cannot be represented cleanly:
+
+1. decide whether the new behavior is broadly reusable
+2. update this specification
+3. update `schemas/drill-definition.schema.json`
+4. add validator tests
+5. decide whether `schema_version` must increase
+
+The drill format is declarative configuration, not a scripting language.
