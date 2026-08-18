@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { getRoute } from "@/app/routes";
 import { AppShell } from "@/components/app-shell";
 import { RoutePlaceholder } from "@/components/route-placeholder";
+import { AthleteProfileScreen } from "@/features/athletes/athlete-profile-screen";
 import { DataScreen } from "@/features/data/data-screen";
 import { DrillLibraryScreen } from "@/features/drills/drill-library-screen";
 import { HomeScreen } from "@/features/home/home-screen";
@@ -90,22 +91,30 @@ export default function App() {
     window.localStorage.setItem(TEAM_STORAGE_KEY, team.id);
   };
 
+  const athleteMatch = pathname.match(/^\/athletes\/([^/]+)$/);
+  const athleteId = athleteMatch ? decodeURIComponent(athleteMatch[1]) : null;
   const route = getRoute(pathname);
-  const activePath = route.path;
+  const activePath = athleteId ? "/roster" : route.path;
   const activeTeam = useMemo(() => teams.find((team) => team.id === teamId) ?? null, [teamId, teams]);
 
   let screen = <RoutePlaceholder route={route} />;
-  if (activePath === "/") screen = <HomeScreen onNavigate={navigate} team={activeTeam} />;
-  if (activePath === "/roster") {
+  if (athleteId) {
+    screen = <AthleteProfileScreen team={activeTeam} athleteId={athleteId} onNavigate={navigate} />;
+  } else if (activePath === "/") {
+    screen = <HomeScreen onNavigate={navigate} team={activeTeam} />;
+  } else if (activePath === "/roster") {
     screen = teamsLoading
-      ? <RosterScreen team={null} />
+      ? <RosterScreen team={null} onNavigate={navigate} />
       : activeTeam
-        ? <RosterScreen team={activeTeam} />
+        ? <RosterScreen team={activeTeam} onNavigate={navigate} />
         : <FirstTeamSetup onCreated={handleTeamCreated} />;
+  } else if (activePath === "/train") {
+    screen = <TrainRoute team={activeTeam} onNavigate={navigate} />;
+  } else if (activePath === "/data") {
+    screen = <DataScreen team={activeTeam} />;
+  } else if (activePath === "/drills") {
+    screen = <DrillLibraryScreen />;
   }
-  if (activePath === "/train") screen = <TrainRoute team={activeTeam} onNavigate={navigate} />;
-  if (activePath === "/data") screen = <DataScreen team={activeTeam} />;
-  if (activePath === "/drills") screen = <DrillLibraryScreen />;
 
   return (
     <AppShell
