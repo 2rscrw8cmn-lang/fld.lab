@@ -7,7 +7,7 @@ import { DrillLibraryScreen } from "@/features/drills/drill-library-screen";
 import { HomeScreen } from "@/features/home/home-screen";
 import { RosterScreen } from "@/features/roster/roster-screen";
 import { FirstTeamSetup } from "@/features/teams/first-team-setup";
-import { TrainScreen } from "@/features/train/train-screen";
+import { TrainRoute } from "@/features/train/train-route";
 import { getActiveSession, listTeams, type Team } from "@/lib/api";
 
 const TEAM_STORAGE_KEY = "fld-lab:last-team-id";
@@ -102,7 +102,7 @@ export default function App() {
         ? <RosterScreen team={activeTeam} />
         : <FirstTeamSetup onCreated={handleTeamCreated} />;
   }
-  if (activePath === "/train") screen = <TrainScreen team={activeTeam} onNavigate={navigate} />;
+  if (activePath === "/train") screen = <TrainRoute team={activeTeam} onNavigate={navigate} />;
   if (activePath === "/drills") screen = <DrillLibraryScreen />;
 
   return (
