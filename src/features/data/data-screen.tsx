@@ -180,7 +180,16 @@ export function DataScreen({ team }: { team: Team | null }) {
       {error && (
         <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-danger/40 bg-danger/10 p-3 text-sm text-text-secondary">
           <span>{error}</span>
-          <Button variant="secondary" className="min-h-8 px-3 text-xs" onClick={() => void (loadingBase ? loadBase() : loadResults())}>Retry</Button>
+          <Button
+            variant="secondary"
+            className="min-h-8 px-3 text-xs"
+            onClick={() => {
+              void loadBase();
+              void loadResults();
+            }}
+          >
+            Retry
+          </Button>
         </div>
       )}
 
