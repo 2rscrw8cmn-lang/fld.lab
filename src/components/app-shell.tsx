@@ -11,12 +11,15 @@ import {
 } from "lucide-react";
 
 import { APP_ROUTES } from "@/app/routes";
+import type { Team } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 type AppShellProps = {
   pathname: string;
-  team: string;
-  onTeamChange: (team: string) => void;
+  teams: Team[];
+  teamId: string;
+  teamsLoading: boolean;
+  onTeamChange: (teamId: string) => void;
   onNavigate: (path: string) => void;
   children: ReactNode;
 };
@@ -64,7 +67,11 @@ function NavItem({
   );
 }
 
-export function AppShell({ pathname, team, onTeamChange, onNavigate, children }: AppShellProps) {
+function formatTeam(team: Team) {
+  return [team.name, team.season_label].filter(Boolean).join(" — ");
+}
+
+export function AppShell({ pathname, teams, teamId, teamsLoading, onTeamChange, onNavigate, children }: AppShellProps) {
   const dateLabel = new Intl.DateTimeFormat(undefined, {
     weekday: "long",
     month: "short",
@@ -91,12 +98,7 @@ export function AppShell({ pathname, team, onTeamChange, onNavigate, children }:
         </nav>
 
         <nav className="mt-auto" aria-label="Application settings">
-          <NavItem
-            path="/settings"
-            label="Settings"
-            active={pathname === "/settings"}
-            onNavigate={onNavigate}
-          />
+          <NavItem path="/settings" label="Settings" active={pathname === "/settings"} onNavigate={onNavigate} />
         </nav>
       </aside>
 
@@ -105,12 +107,16 @@ export function AppShell({ pathname, team, onTeamChange, onNavigate, children }:
           <label className="min-w-0">
             <span className="sr-only">Current team</span>
             <select
-              value={team}
+              value={teamId}
+              disabled={teamsLoading || teams.length === 0}
               onChange={(event) => onTeamChange(event.target.value)}
-              className="h-[38px] max-w-[220px] rounded-lg border border-border bg-surface px-3 pr-8 text-sm font-semibold text-text-primary outline-none focus-visible:ring-2 focus-visible:ring-accent md:max-w-[270px]"
+              className="h-[38px] max-w-[220px] rounded-lg border border-border bg-surface px-3 pr-8 text-sm font-semibold text-text-primary outline-none disabled:cursor-not-allowed disabled:text-text-muted focus-visible:ring-2 focus-visible:ring-accent md:max-w-[270px]"
             >
-              <option>U10 Purple — Fall 2026</option>
-              <option>U10 White — Fall 2026</option>
+              {teams.length === 0 ? (
+                <option value="">{teamsLoading ? "Loading teams…" : "No active teams"}</option>
+              ) : (
+                teams.map((team) => <option key={team.id} value={team.id}>{formatTeam(team)}</option>)
+              )}
             </select>
           </label>
 
@@ -131,14 +137,10 @@ export function AppShell({ pathname, team, onTeamChange, onNavigate, children }:
         {children}
       </main>
 
-      <nav
-        className="fixed inset-x-0 bottom-0 z-30 grid h-[64px] grid-cols-5 border-t border-border bg-sidebar/95 px-1 backdrop-blur md:hidden"
-        aria-label="Mobile navigation"
-      >
+      <nav className="fixed inset-x-0 bottom-0 z-30 grid h-[64px] grid-cols-5 border-t border-border bg-sidebar/95 px-1 backdrop-blur md:hidden" aria-label="Mobile navigation">
         {mobileRoutes.map((route) => {
           const Icon = routeIcons[route.path] ?? Dumbbell;
           const active = pathname === route.path;
-
           return (
             <a
               key={route.path}

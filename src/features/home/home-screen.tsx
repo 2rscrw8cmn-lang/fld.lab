@@ -1,14 +1,8 @@
+import { useEffect, useState } from "react";
 import { ChevronRight } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-
-const roster = [
-  { number: "12", name: "Emma Johnson", position: "WR / DB" },
-  { number: "7", name: "Mia Carter", position: "QB / DB" },
-  { number: "3", name: "Ava Smith", position: "C / WR" },
-  { number: "18", name: "Zoey Davis", position: "WR" },
-  { number: "4", name: "Nora Reed", position: "DB" },
-];
+import { getRoster, type RosterRow, type Team } from "@/lib/api";
 
 const sessions = [
   { drill: "20-Yard Sprint", when: "Yesterday · 5:42 PM", athletes: "9 athletes", status: "Completed" },
@@ -16,7 +10,30 @@ const sessions = [
   { drill: "5-10-5 Shuttle", when: "Aug 11 · 5:51 PM", athletes: "8 athletes", status: "Completed" },
 ];
 
-export function HomeScreen({ onNavigate }: { onNavigate: (path: string) => void }) {
+function positionLabel(row: RosterRow) {
+  return [row.membership.primary_position, row.membership.secondary_position].filter(Boolean).join(" / ") || "—";
+}
+
+export function HomeScreen({ onNavigate, team }: { onNavigate: (path: string) => void; team: Team | null }) {
+  const [roster, setRoster] = useState<RosterRow[]>([]);
+  const [rosterLoading, setRosterLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!team) {
+      setRoster([]);
+      return;
+    }
+
+    setRosterLoading(true);
+    getRoster(team.id)
+      .then((rows) => { if (!cancelled) setRoster(rows.slice(0, 5)); })
+      .catch(() => { if (!cancelled) setRoster([]); })
+      .finally(() => { if (!cancelled) setRosterLoading(false); });
+
+    return () => { cancelled = true; };
+  }, [team]);
+
   return (
     <section className="mx-auto max-w-[1160px] px-4 pb-7 pt-[18px] md:px-7 md:pt-[22px]">
       <div className="mb-[13px] md:mb-[15px]">
@@ -28,9 +45,7 @@ export function HomeScreen({ onNavigate }: { onNavigate: (path: string) => void 
         <section className="flex min-h-[272px] flex-col overflow-hidden rounded-[11px] border border-border bg-surface min-[781px]:min-h-[286px]" aria-labelledby="quick-start-title">
           <div className="flex min-h-[46px] items-center justify-between gap-3 border-b border-border px-[15px]">
             <h2 id="quick-start-title" className="text-[13px] font-bold">Quick Start</h2>
-            <button type="button" onClick={() => onNavigate("/drills")} className="min-h-10 px-1 text-[11px] font-bold text-text-muted transition-colors hover:text-text-primary">
-              Change drill
-            </button>
+            <button type="button" onClick={() => onNavigate("/drills")} className="min-h-10 px-1 text-[11px] font-bold text-text-muted transition-colors hover:text-text-primary">Change drill</button>
           </div>
 
           <div className="flex flex-1 flex-col justify-between gap-5 p-[17px] sm:p-5">
@@ -44,21 +59,10 @@ export function HomeScreen({ onNavigate }: { onNavigate: (path: string) => void 
             </div>
 
             <div>
-              <Button
-                type="button"
-                size="lg"
-                onClick={() => onNavigate("/train")}
-                className="min-h-[60px] w-full rounded-[9px] text-base font-extrabold"
-              >
-                Start Session
-              </Button>
+              <Button type="button" size="lg" onClick={() => onNavigate("/train")} disabled={!team} className="min-h-[60px] w-full rounded-[9px] text-base font-extrabold">Start Session</Button>
               <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                <Button type="button" variant="secondary" onClick={() => onNavigate("/train")} className="min-h-10 text-[11px] font-bold">
-                  Resume Last Session
-                </Button>
-                <Button type="button" variant="secondary" onClick={() => onNavigate("/drills")} className="min-h-10 text-[11px] font-bold">
-                  Open Drill Library
-                </Button>
+                <Button type="button" variant="secondary" onClick={() => onNavigate("/train")} className="min-h-10 text-[11px] font-bold">Resume Last Session</Button>
+                <Button type="button" variant="secondary" onClick={() => onNavigate("/drills")} className="min-h-10 text-[11px] font-bold">Open Drill Library</Button>
               </div>
             </div>
           </div>
@@ -67,23 +71,29 @@ export function HomeScreen({ onNavigate }: { onNavigate: (path: string) => void 
         <section className="overflow-hidden rounded-[11px] border border-border bg-surface" aria-labelledby="roster-snapshot-title">
           <div className="flex min-h-[46px] items-center justify-between gap-3 border-b border-border px-[15px]">
             <h2 id="roster-snapshot-title" className="text-[13px] font-bold">Roster Snapshot</h2>
-            <button type="button" onClick={() => onNavigate("/roster")} className="min-h-10 px-1 text-[11px] font-bold text-text-muted transition-colors hover:text-text-primary">
-              View roster
-            </button>
+            <button type="button" onClick={() => onNavigate("/roster")} className="min-h-10 px-1 text-[11px] font-bold text-text-muted transition-colors hover:text-text-primary">View roster</button>
           </div>
           <div>
-            {roster.map((athlete) => (
-              <button
-                key={athlete.number}
-                type="button"
-                onClick={() => onNavigate("/roster")}
-                className="grid min-h-[46px] w-full grid-cols-[34px_minmax(0,1fr)_auto] items-center gap-2 border-b border-border px-[13px] text-left last:border-b-0 hover:bg-surface-elevated"
-              >
-                <span className="text-[11px] font-extrabold tabular-nums text-text-muted">{athlete.number}</span>
-                <span className="truncate text-xs font-bold">{athlete.name}</span>
-                <span className="text-[10px] font-bold text-text-muted">{athlete.position}</span>
-              </button>
-            ))}
+            {rosterLoading ? (
+              [0, 1, 2, 3, 4].map((item) => <div key={item} className="h-[46px] animate-pulse border-b border-border bg-surface-elevated/35 last:border-b-0" />)
+            ) : !team ? (
+              <div className="p-4 text-xs text-text-muted">Select or create a team to build a roster.</div>
+            ) : roster.length === 0 ? (
+              <button type="button" onClick={() => onNavigate("/roster")} className="w-full p-4 text-left text-xs text-text-muted hover:bg-surface-elevated">No active athletes yet. Add the first athlete →</button>
+            ) : (
+              roster.map((row) => (
+                <button
+                  key={row.membership.id}
+                  type="button"
+                  onClick={() => onNavigate("/roster")}
+                  className="grid min-h-[46px] w-full grid-cols-[34px_minmax(0,1fr)_auto] items-center gap-2 border-b border-border px-[13px] text-left last:border-b-0 hover:bg-surface-elevated"
+                >
+                  <span className="text-[11px] font-extrabold tabular-nums text-text-muted">{row.membership.jersey_number || "—"}</span>
+                  <span className="truncate text-xs font-bold">{row.athlete.first_name} {row.athlete.last_name}</span>
+                  <span className="text-[10px] font-bold text-text-muted">{positionLabel(row)}</span>
+                </button>
+              ))
+            )}
           </div>
         </section>
       </div>
@@ -91,9 +101,7 @@ export function HomeScreen({ onNavigate }: { onNavigate: (path: string) => void 
       <section className="mt-3 overflow-hidden rounded-[11px] border border-border bg-surface md:mt-3.5" aria-labelledby="recent-sessions-title">
         <div className="flex min-h-[46px] items-center justify-between gap-3 border-b border-border px-[15px]">
           <h2 id="recent-sessions-title" className="text-[13px] font-bold">Recent Sessions</h2>
-          <button type="button" onClick={() => onNavigate("/data")} className="min-h-10 px-1 text-[11px] font-bold text-text-muted transition-colors hover:text-text-primary">
-            View all
-          </button>
+          <button type="button" onClick={() => onNavigate("/data")} className="min-h-10 px-1 text-[11px] font-bold text-text-muted transition-colors hover:text-text-primary">View all</button>
         </div>
         <div>
           {sessions.map((session) => (
