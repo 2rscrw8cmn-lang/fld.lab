@@ -184,20 +184,33 @@ export type AttemptPayload = {
   measurements: AttemptMeasurement[];
 };
 
+export type CurrentCoach = {
+  email: string;
+  provider: "cloudflare-access" | "development";
+};
+
 export class ApiError extends Error {
   constructor(message: string, public status: number, public fields?: Record<string, string>) {
     super(message);
   }
 }
 
-async function api<T>(input: RequestInfo | URL, init?: RequestInit): Promise<T> {
+export async function apiRequest<T>(input: RequestInfo | URL, init?: RequestInit): Promise<T> {
+  const headers = new Headers(init?.headers);
+  if (!headers.has("Accept")) headers.set("Accept", "application/json");
+  if (init?.body !== undefined && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
+  headers.set("X-Requested-With", "XMLHttpRequest");
+
   const response = await fetch(input, {
     ...init,
-    headers: { Accept: "application/json", "Content-Type": "application/json", ...init?.headers },
+    credentials: "same-origin",
+    headers,
   });
 
   if (!response.ok) {
-    let message = "Request failed.";
+    let message = response.status === 401
+      ? "Your fld.LAB session has expired. Refresh to sign in again."
+      : "Request failed.";
     let fields: Record<string, string> | undefined;
     try {
       const body = await response.json() as { error?: { message?: string; fields?: Record<string, string> } };
@@ -212,13 +225,18 @@ async function api<T>(input: RequestInfo | URL, init?: RequestInit): Promise<T> 
   return response.json() as Promise<T>;
 }
 
+export async function getCurrentCoach(): Promise<CurrentCoach> {
+  const data = await apiRequest<{ coach: CurrentCoach }>("/api/auth/me");
+  return data.coach;
+}
+
 export async function listTeams(): Promise<Team[]> {
-  const data = await api<{ teams: Team[] }>("/api/teams");
+  const data = await apiRequest<{ teams: Team[] }>("/api/teams");
   return data.teams;
 }
 
 export async function createTeam(input: { name: string; age_group: string | null; season_label: string | null }): Promise<Team> {
-  return api<Team>("/api/teams", {
+  return apiRequest<Team>("/api/teams", {
     method: "POST",
     body: JSON.stringify(input),
   });
@@ -226,7 +244,7 @@ export async function createTeam(input: { name: string; age_group: string | null
 
 export async function getRoster(teamId: string, includeInactive = false): Promise<RosterRow[]> {
   const suffix = includeInactive ? "?include_inactive=true" : "";
-  const data = await api<{ roster: RosterRow[] }>(`/api/teams/${encodeURIComponent(teamId)}/roster${suffix}`);
+  const data = await apiRequest<{ roster: RosterRow[] }>(`/api/teams/${encodeURIComponent(teamId)}/roster${suffix}`);
   return data.roster;
 }
 
@@ -244,14 +262,14 @@ export type MembershipFormInput = {
 };
 
 export async function createRosterMember(teamId: string, athlete: AthleteFormInput, membership: MembershipFormInput) {
-  return api<RosterRow>(`/api/teams/${encodeURIComponent(teamId)}/roster`, {
+  return apiRequest<RosterRow>(`/api/teams/${encodeURIComponent(teamId)}/roster`, {
     method: "POST",
     body: JSON.stringify({ athlete, membership }),
   });
 }
 
 export async function patchAthlete(athleteId: string, patch: Partial<AthleteFormInput> & { status?: "active" | "inactive" }) {
-  return api<Athlete>(`/api/athletes/${encodeURIComponent(athleteId)}`, {
+  return apiRequest<Athlete>(`/api/athletes/${encodeURIComponent(athleteId)}`, {
     method: "PATCH",
     body: JSON.stringify(patch),
   });
@@ -261,46 +279,46 @@ export async function patchMembership(
   membershipId: string,
   patch: Partial<MembershipFormInput> & { active?: boolean },
 ) {
-  return api<TeamMembership>(`/api/team-memberships/${encodeURIComponent(membershipId)}`, {
+  return apiRequest<TeamMembership>(`/api/team-memberships/${encodeURIComponent(membershipId)}`, {
     method: "PATCH",
     body: JSON.stringify(patch),
   });
 }
 
 export async function listDrills(): Promise<Drill[]> {
-  const data = await api<{ drills: Drill[] }>("/api/drills");
+  const data = await apiRequest<{ drills: Drill[] }>("/api/drills");
   return data.drills;
 }
 
 export async function getDrill(drillId: string): Promise<DrillDetail> {
-  return api<DrillDetail>(`/api/drills/${encodeURIComponent(drillId)}`);
+  return apiRequest<DrillDetail>(`/api/drills/${encodeURIComponent(drillId)}`);
 }
 
 export async function importDrill(definition: unknown): Promise<DrillImportResult> {
-  return api<DrillImportResult>("/api/drills/import", {
+  return apiRequest<DrillImportResult>("/api/drills/import", {
     method: "POST",
     body: JSON.stringify(definition),
   });
 }
 
 export async function getActiveSession(teamId: string): Promise<SessionDetail | null> {
-  const data = await api<{ session: SessionDetail | null }>(`/api/teams/${encodeURIComponent(teamId)}/active-session`);
+  const data = await apiRequest<{ session: SessionDetail | null }>(`/api/teams/${encodeURIComponent(teamId)}/active-session`);
   return data.session;
 }
 
 export async function createTrainingSession(teamId: string, drillId: string): Promise<SessionDetail> {
-  return api<SessionDetail>("/api/sessions", {
+  return apiRequest<SessionDetail>("/api/sessions", {
     method: "POST",
     body: JSON.stringify({ team_id: teamId, drill_id: drillId }),
   });
 }
 
 export async function getTrainingSession(sessionId: string): Promise<SessionDetail> {
-  return api<SessionDetail>(`/api/sessions/${encodeURIComponent(sessionId)}`);
+  return apiRequest<SessionDetail>(`/api/sessions/${encodeURIComponent(sessionId)}`);
 }
 
 export async function persistTrainingAttempt(sessionId: string, payload: AttemptPayload): Promise<PersistedAttempt> {
-  return api<PersistedAttempt>(`/api/sessions/${encodeURIComponent(sessionId)}/attempts`, {
+  return apiRequest<PersistedAttempt>(`/api/sessions/${encodeURIComponent(sessionId)}/attempts`, {
     method: "POST",
     body: JSON.stringify(payload),
   });
@@ -311,7 +329,7 @@ export async function patchSessionAthlete(
   athleteId: string,
   status: "skipped" | "pending",
 ): Promise<{ athlete_id: string; status: SessionAthlete["status"] }> {
-  return api<{ athlete_id: string; status: SessionAthlete["status"] }>(
+  return apiRequest<{ athlete_id: string; status: SessionAthlete["status"] }>(
     `/api/sessions/${encodeURIComponent(sessionId)}/athletes/${encodeURIComponent(athleteId)}`,
     { method: "PATCH", body: JSON.stringify({ status }) },
   );
@@ -321,7 +339,7 @@ export async function patchTrainingSession(
   sessionId: string,
   status: "completed" | "abandoned",
 ): Promise<TrainingSession> {
-  return api<TrainingSession>(`/api/sessions/${encodeURIComponent(sessionId)}`, {
+  return apiRequest<TrainingSession>(`/api/sessions/${encodeURIComponent(sessionId)}`, {
     method: "PATCH",
     body: JSON.stringify({ status }),
   });
