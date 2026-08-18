@@ -176,7 +176,7 @@ export default function App() {
       teams={teams}
       teamId={teamId}
       teamsLoading={teamsLoading}
-      teamSwitchDisabled={activeSessionLock}
+      teamSwitchDisabled={activeSessionLock || Boolean(trainStartDrillId)}
       onTeamChange={selectTeam}
       onNavigate={navigate}
     >
