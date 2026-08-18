@@ -12,6 +12,7 @@ import {
 
 import { APP_ROUTES } from "@/app/routes";
 import { NetworkStatus } from "@/components/network-status";
+import { SearchSelect } from "@/components/search-select";
 import type { Team } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -123,21 +124,22 @@ export function AppShell({
 
       <main className="min-w-0 pb-[calc(74px+env(safe-area-inset-bottom))] md:pb-0">
         <header className="flex min-h-[60px] items-center justify-between gap-3 border-b border-border px-4 md:min-h-16 md:px-7">
-          <label className="min-w-0" title={teamSwitchDisabled ? "Finish or abandon the active session before switching teams." : undefined}>
-            <span className="sr-only">Current team</span>
-            <select
+          <div
+            className="w-[min(220px,52vw)] md:w-[270px]"
+            title={teamSwitchDisabled ? "Finish or abandon the active session before switching teams." : undefined}
+          >
+            <SearchSelect
+              label="Current team"
+              hideLabel
               value={teamId}
+              options={teams.map((team) => ({ value: team.id, label: formatTeam(team) }))}
+              onChange={onTeamChange}
+              placeholder={teamsLoading ? "Loading teams…" : "No active teams"}
+              searchPlaceholder="Search teams…"
               disabled={teamsLoading || teams.length === 0 || teamSwitchDisabled}
-              onChange={(event) => onTeamChange(event.target.value)}
-              className="h-11 max-w-[220px] rounded-lg border border-border bg-surface px-3 pr-8 text-sm font-semibold text-text-primary outline-none disabled:cursor-not-allowed disabled:text-text-muted focus-visible:ring-2 focus-visible:ring-accent md:max-w-[270px]"
-            >
-              {teams.length === 0 ? (
-                <option value="">{teamsLoading ? "Loading teams…" : "No active teams"}</option>
-              ) : (
-                teams.map((team) => <option key={team.id} value={team.id}>{formatTeam(team)}</option>)
-              )}
-            </select>
-          </label>
+              triggerClassName="bg-surface text-sm font-semibold"
+            />
+          </div>
 
           <div className="flex items-center gap-4 text-xs text-text-muted">
             <span className="hidden sm:inline">{dateLabel}</span>
