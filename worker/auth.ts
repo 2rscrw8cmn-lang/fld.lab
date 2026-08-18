@@ -2,7 +2,7 @@ type AuthConfig = {
   AUTH_MODE?: string;
   ACCESS_TEAM_DOMAIN?: string;
   ACCESS_AUD?: string;
-  AUTHORIZED_COACH_EMAIL?: string;
+  AUTHORIZED_COACH_EMAILS?: string;
 };
 
 export type AuthenticatedCoach = {
@@ -70,6 +70,11 @@ function decodeJsonPart<T>(value: string): T {
 
 function normalizeTeamDomain(value: string) {
   return value.trim().replace(/\/$/, "");
+}
+
+function parseAuthorizedEmails(value: string | undefined) {
+  if (!value) return [];
+  return [...new Set(value.split(",").map((email) => email.trim().toLowerCase()).filter(Boolean))];
 }
 
 function audMatches(actual: unknown, expected: string) {
@@ -188,8 +193,8 @@ export async function authenticateRequest(request: Request, env: AuthConfig): Pr
 
   const rawTeamDomain = env.ACCESS_TEAM_DOMAIN?.trim();
   const audience = env.ACCESS_AUD?.trim();
-  const authorizedEmail = env.AUTHORIZED_COACH_EMAIL?.trim().toLowerCase();
-  if (!rawTeamDomain || !audience || !authorizedEmail) {
+  const authorizedEmails = parseAuthorizedEmails(env.AUTHORIZED_COACH_EMAILS);
+  if (!rawTeamDomain || !audience || !authorizedEmails.length) {
     throw new AuthError(503, "auth_unavailable", "Authentication is not configured for this deployment.");
   }
 
@@ -211,7 +216,7 @@ export async function authenticateRequest(request: Request, env: AuthConfig): Pr
   validateClaims(payload, teamDomain, audience, Math.floor(Date.now() / 1000));
 
   const email = (payload.email as string).trim().toLowerCase();
-  if (email !== authorizedEmail) {
+  if (!authorizedEmails.includes(email)) {
     throw new AuthError(403, "forbidden", "This account is not authorized for fld.LAB.");
   }
 
