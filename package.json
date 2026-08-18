@@ -13,7 +13,10 @@
     "deploy": "npm run build && wrangler deploy",
     "typecheck": "tsc -b --pretty false",
     "test": "vitest run --config vitest.config.ts",
-    "cf-typegen": "wrangler types"
+    "cf-typegen": "wrangler types",
+    "db:migrate:local": "wrangler d1 migrations apply fld-lab-prod --local",
+    "db:migrate:remote": "wrangler d1 migrations apply fld-lab-prod --remote",
+    "db:seed:local": "wrangler d1 execute fld-lab-prod --local --file=./scripts/seed.local.sql"
   },
   "dependencies": {
     "class-variance-authority": "^0.7.1",
@@ -25,6 +28,7 @@
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.50.0",
+    "@cloudflare/workers-types": "^5.20260731.1",
     "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^24.0.0",
     "@types/react": "^19.2.0",
