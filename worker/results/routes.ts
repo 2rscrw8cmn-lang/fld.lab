@@ -1,5 +1,6 @@
 import type { D1Database } from "@cloudflare/workers-types";
 
+import { getSessionResultContext, getTeamDrillTrend, listTeamSessions } from "../db/history";
 import { getAthleteResults, getDrillLeaderboard } from "../db/results";
 import { RepositoryError } from "../db/repository";
 
@@ -46,6 +47,32 @@ export async function handleResultsApi(request: Request, db: D1Database): Promis
       const teamId = searchParams.get("team_id")?.trim();
       if (!teamId) return errorResponse("validation_error", "team_id is required.", 400, { team_id: "Required" });
       return Response.json(await getDrillLeaderboard(db, decodeURIComponent(leaderboardMatch[1]), teamId));
+    }
+
+    const teamSessionsMatch = pathname.match(/^\/api\/teams\/([^/]+)\/sessions$/);
+    if (teamSessionsMatch) {
+      const rawLimit = searchParams.get("limit");
+      const parsedLimit = rawLimit ? Number.parseInt(rawLimit, 10) : 12;
+      if (!Number.isInteger(parsedLimit) || parsedLimit < 1 || parsedLimit > 50) {
+        return errorResponse("validation_error", "limit must be an integer between 1 and 50.", 400, { limit: "Invalid limit" });
+      }
+      return Response.json({ sessions: await listTeamSessions(db, decodeURIComponent(teamSessionsMatch[1]), parsedLimit) });
+    }
+
+    const teamTrendMatch = pathname.match(/^\/api\/teams\/([^/]+)\/drills\/([^/]+)\/trend$/);
+    if (teamTrendMatch) {
+      return Response.json(
+        await getTeamDrillTrend(
+          db,
+          decodeURIComponent(teamTrendMatch[1]),
+          decodeURIComponent(teamTrendMatch[2]),
+        ),
+      );
+    }
+
+    const sessionContextMatch = pathname.match(/^\/api\/sessions\/([^/]+)\/result-context$/);
+    if (sessionContextMatch) {
+      return Response.json(await getSessionResultContext(db, decodeURIComponent(sessionContextMatch[1])));
     }
 
     return null;

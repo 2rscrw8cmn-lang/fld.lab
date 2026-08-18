@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Activity, ChevronRight } from "lucide-react";
+import { Activity, ChevronRight, Clock3 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -12,9 +12,19 @@ import {
   type SessionDetail,
   type Team,
 } from "@/lib/api";
+import { listTeamSessions, type SessionSummary } from "@/lib/history-api";
 
 function positionLabel(row: RosterRow) {
   return [row.membership.primary_position, row.membership.secondary_position].filter(Boolean).join(" / ") || "—";
+}
+
+function formatSessionTime(value: string) {
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(value));
 }
 
 export function HomeScreen({ onNavigate, team }: { onNavigate: (path: string) => void; team: Team | null }) {
@@ -22,6 +32,7 @@ export function HomeScreen({ onNavigate, team }: { onNavigate: (path: string) =>
   const [rosterLoading, setRosterLoading] = useState(false);
   const [quickDrill, setQuickDrill] = useState<DrillDetail | null>(null);
   const [activeSession, setActiveSession] = useState<SessionDetail | null>(null);
+  const [recentSessions, setRecentSessions] = useState<SessionSummary[]>([]);
   const [drillLoading, setDrillLoading] = useState(true);
 
   useEffect(() => {
@@ -29,18 +40,25 @@ export function HomeScreen({ onNavigate, team }: { onNavigate: (path: string) =>
     if (!team) {
       setRoster([]);
       setActiveSession(null);
+      setRecentSessions([]);
       return;
     }
 
     setRosterLoading(true);
-    getRoster(team.id)
-      .then((rows) => { if (!cancelled) setRoster(rows.slice(0, 5)); })
-      .catch(() => { if (!cancelled) setRoster([]); })
+    Promise.all([getRoster(team.id), getActiveSession(team.id), listTeamSessions(team.id, 6)])
+      .then(([rows, detail, sessions]) => {
+        if (cancelled) return;
+        setRoster(rows.slice(0, 5));
+        setActiveSession(detail);
+        setRecentSessions(sessions.filter((session) => session.status !== "active").slice(0, 3));
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setRoster([]);
+        setActiveSession(null);
+        setRecentSessions([]);
+      })
       .finally(() => { if (!cancelled) setRosterLoading(false); });
-
-    getActiveSession(team.id)
-      .then((detail) => { if (!cancelled) setActiveSession(detail); })
-      .catch(() => { if (!cancelled) setActiveSession(null); });
 
     return () => { cancelled = true; };
   }, [team]);
@@ -152,17 +170,36 @@ export function HomeScreen({ onNavigate, team }: { onNavigate: (path: string) =>
           <h2 id="recent-sessions-title" className="text-[13px] font-bold">Recent Sessions</h2>
           <button type="button" onClick={() => onNavigate("/data")} className="min-h-10 px-1 text-[11px] font-bold text-text-muted transition-colors hover:text-text-primary">View all</button>
         </div>
-        <button
-          type="button"
-          onClick={() => onNavigate("/train")}
-          className="grid min-h-[64px] w-full grid-cols-[minmax(0,1fr)_18px] items-center gap-3 px-[15px] text-left hover:bg-surface-elevated"
-        >
-          <span>
-            <span className="block text-xs font-bold">{activeSession ? "Training session in progress" : "No completed sessions recorded yet."}</span>
-            <span className="mt-0.5 block text-[11px] text-text-muted">{activeSession ? "Resume the active session to continue capturing results." : "Completed sessions will appear here after training."}</span>
-          </span>
-          <ChevronRight aria-hidden={true} size={15} className="text-text-muted" />
-        </button>
+        {!team ? (
+          <div className="p-4 text-xs text-text-muted">Select a team to see session history.</div>
+        ) : recentSessions.length === 0 ? (
+          <div className="grid min-h-[64px] grid-cols-[34px_minmax(0,1fr)] items-center gap-3 px-[15px]">
+            <span className="flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background text-text-muted"><Clock3 size={15} /></span>
+            <span>
+              <span className="block text-xs font-bold">No completed sessions recorded yet.</span>
+              <span className="mt-0.5 block text-[11px] text-text-muted">Completed and abandoned sessions will appear here after training.</span>
+            </span>
+          </div>
+        ) : (
+          recentSessions.map((session) => (
+            <button
+              key={session.id}
+              type="button"
+              onClick={() => onNavigate("/data")}
+              className="grid min-h-[60px] w-full grid-cols-[minmax(0,1fr)_auto_18px] items-center gap-3 border-b border-border px-[15px] text-left last:border-b-0 hover:bg-surface-elevated"
+            >
+              <span className="min-w-0">
+                <span className="flex items-center gap-2">
+                  <span className="truncate text-xs font-bold">{session.drill_name}</span>
+                  {session.status === "abandoned" && <span className="rounded-full border border-border bg-background px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-[0.06em] text-text-muted">Abandoned</span>}
+                </span>
+                <span className="mt-0.5 block text-[10px] text-text-muted">{formatSessionTime(session.started_at)} · {session.attempt_count} saved attempt{session.attempt_count === 1 ? "" : "s"}</span>
+              </span>
+              <span className="text-right text-[10px] text-text-muted"><strong className="block text-xs text-text-secondary">{session.completed_count} complete</strong>{session.skipped_count ? `${session.skipped_count} skipped` : `${session.athlete_count} athletes`}</span>
+              <ChevronRight aria-hidden={true} size={15} className="text-text-muted" />
+            </button>
+          ))
+        )}
       </section>
     </section>
   );

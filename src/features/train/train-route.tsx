@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { UserPlus } from "lucide-react";
+import { History, UserPlus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { TrainScreen } from "@/features/train/train-screen";
 import { getActiveSession, getRoster, type RosterRow, type SessionDetail, type Team } from "@/lib/api";
+import { getSessionResultContext, type SessionResultContext } from "@/lib/history-api";
+import { formatResult } from "@/lib/results-api";
 
 async function addAthletesToSession(sessionId: string, athleteIds: string[]): Promise<SessionDetail> {
   const response = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/athletes`, {
@@ -29,6 +31,7 @@ async function addAthletesToSession(sessionId: string, athleteIds: string[]): Pr
 export function TrainRoute({ team, onNavigate }: { team: Team | null; onNavigate: (path: string) => void }) {
   const [roster, setRoster] = useState<RosterRow[]>([]);
   const [activeSession, setActiveSession] = useState<SessionDetail | null>(null);
+  const [resultContext, setResultContext] = useState<SessionResultContext | null>(null);
   const [adding, setAdding] = useState(false);
   const [syncError, setSyncError] = useState("");
   const [trainRevision, setTrainRevision] = useState(0);
@@ -38,22 +41,41 @@ export function TrainRoute({ team, onNavigate }: { team: Team | null; onNavigate
     if (!team) {
       setRoster([]);
       setActiveSession(null);
+      setResultContext(null);
       return;
     }
 
-    Promise.all([getRoster(team.id), getActiveSession(team.id)])
-      .then(([rows, session]) => {
+    const refresh = async () => {
+      try {
+        const [rows, session] = await Promise.all([getRoster(team.id), getActiveSession(team.id)]);
         if (cancelled) return;
         setRoster(rows);
         setActiveSession(session);
         setSyncError("");
-      })
-      .catch((error) => {
+      } catch (error) {
         if (!cancelled) setSyncError(error instanceof Error ? error.message : "Could not check the current roster.");
-      });
+      }
+    };
 
-    return () => { cancelled = true; };
+    void refresh();
+    const interval = window.setInterval(() => void refresh(), 5000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
   }, [team?.id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!activeSession) {
+      setResultContext(null);
+      return;
+    }
+    getSessionResultContext(activeSession.session.id)
+      .then((context) => { if (!cancelled) setResultContext(context); })
+      .catch(() => { if (!cancelled) setResultContext(null); });
+    return () => { cancelled = true; };
+  }, [activeSession?.session.id]);
 
   const missingRosterRows = useMemo(() => {
     if (!activeSession) return [];
@@ -71,7 +93,6 @@ export function TrainRoute({ team, onNavigate }: { team: Team | null; onNavigate
         missingRosterRows.map((row) => row.athlete.id),
       );
       setActiveSession(refreshed);
-      // Remount Train so its local queue is rebuilt from the refreshed session snapshot.
       setTrainRevision((current) => current + 1);
     } catch (error) {
       setSyncError(error instanceof Error ? error.message : "Could not add athletes to this session.");
@@ -84,9 +105,37 @@ export function TrainRoute({ team, onNavigate }: { team: Team | null; onNavigate
   const notice = names.length === 1
     ? `${names[0]} is on the roster but not in this session yet.`
     : `${names.length} roster athletes are not in this session yet.`;
+  const contextRows = activeSession && resultContext
+    ? activeSession.athletes.map((athlete) => ({
+        athlete,
+        context: resultContext.athletes.find((row) => row.athlete_id === athlete.athlete_id) ?? null,
+      }))
+    : [];
+  const hasPriorResults = contextRows.some((row) => (row.context?.result_count ?? 0) > 0);
 
   return (
     <>
+      {activeSession && resultContext?.metric && hasPriorResults && (
+        <section className="mx-auto max-w-[1180px] px-3 pt-2 sm:px-4 md:px-6 md:pt-3" aria-label="Prior results for this drill">
+          <div className="flex items-center gap-2 overflow-x-auto rounded-lg border border-border bg-surface px-2 py-2">
+            <span className="flex shrink-0 items-center gap-1.5 px-1 text-[10px] font-bold uppercase tracking-[0.08em] text-text-muted">
+              <History size={14} /> Prior
+            </span>
+            {contextRows.map(({ athlete, context }) => (
+              <div key={athlete.athlete_id} className="flex min-h-9 shrink-0 items-center gap-2 rounded-md border border-border bg-background px-2.5 text-[10px]">
+                <strong className="text-text-secondary">{athlete.membership.jersey_number ? `#${athlete.membership.jersey_number} ` : ""}{athlete.athlete.first_name}</strong>
+                {(context?.result_count ?? 0) > 0 ? (
+                  <>
+                    <span className="text-text-muted">PB <b className="text-text-primary">{formatResult(context?.pb ?? null, resultContext.metric)}</b></span>
+                    <span className="text-text-muted">Last <b className="text-text-primary">{formatResult(context?.latest ?? null, resultContext.metric)}</b></span>
+                  </>
+                ) : <span className="text-text-muted">No prior result</span>}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       <TrainScreen key={`${team?.id ?? "no-team"}-${trainRevision}`} team={team} onNavigate={onNavigate} />
 
       {activeSession && missingRosterRows.length > 0 && (
@@ -97,7 +146,7 @@ export function TrainRoute({ team, onNavigate }: { team: Team | null; onNavigate
             </span>
             <div className="min-w-0 flex-1">
               <div className="text-sm font-extrabold">{missingRosterRows.length === 1 ? "New athlete available" : "New athletes available"}</div>
-              <p className="mt-0.5 text-xs leading-5 text-text-muted">{notice} Add between attempts to include {missingRosterRows.length === 1 ? "them" : "them"} in this drill.</p>
+              <p className="mt-0.5 text-xs leading-5 text-text-muted">{notice} Add between attempts to include them in this drill.</p>
               {syncError && <p className="mt-1 text-xs text-danger">{syncError}</p>}
             </div>
           </div>
