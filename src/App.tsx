@@ -5,6 +5,7 @@ import { AppShell } from "@/components/app-shell";
 import { RoutePlaceholder } from "@/components/route-placeholder";
 import { HomeScreen } from "@/features/home/home-screen";
 import { RosterScreen } from "@/features/roster/roster-screen";
+import { FirstTeamSetup } from "@/features/teams/first-team-setup";
 import { listTeams, type Team } from "@/lib/api";
 
 const TEAM_STORAGE_KEY = "fld-lab:last-team-id";
@@ -63,13 +64,25 @@ export default function App() {
     if (nextTeamId) window.localStorage.setItem(TEAM_STORAGE_KEY, nextTeamId);
   };
 
+  const handleTeamCreated = (team: Team) => {
+    setTeams((current) => [...current, team]);
+    setTeamId(team.id);
+    window.localStorage.setItem(TEAM_STORAGE_KEY, team.id);
+  };
+
   const route = getRoute(pathname);
   const activePath = route.path;
   const activeTeam = useMemo(() => teams.find((team) => team.id === teamId) ?? null, [teamId, teams]);
 
   let screen = <RoutePlaceholder route={route} />;
   if (activePath === "/") screen = <HomeScreen onNavigate={navigate} team={activeTeam} />;
-  if (activePath === "/roster") screen = <RosterScreen team={activeTeam} />;
+  if (activePath === "/roster") {
+    screen = teamsLoading
+      ? <RosterScreen team={null} />
+      : activeTeam
+        ? <RosterScreen team={activeTeam} />
+        : <FirstTeamSetup onCreated={handleTeamCreated} />;
+  }
 
   return (
     <AppShell
