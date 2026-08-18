@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "slug": "high-jump",
+  "name": "High Jump",
+  "category": "Explosive",
+  "icon": "jump",
+  "description": "Measure the athlete's maximum cleared jump height.",
+  "instructions": "Raise the bar between attempts and record the highest valid cleared height in inches.",
+  "measurement": {
+    "type": "distance",
+    "unit": "in",
+    "direction": "higher"
+  },
+  "attempts": {
+    "count": 3,
+    "result": "best"
+  },
+  "timer": {
+    "enabled": false,
+    "splits": []
+  },
+  "equipment": ["High jump bar and standards", "Measuring tape"],
+  "tags": ["jump", "explosive"],
+  "positions": ["ALL"]
+}

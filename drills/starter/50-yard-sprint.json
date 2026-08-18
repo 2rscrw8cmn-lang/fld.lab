@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "slug": "50-yard-sprint",
+  "name": "50-Yard Sprint",
+  "category": "Speed",
+  "icon": "sprint",
+  "description": "Measure sprint speed over 50 yards.",
+  "instructions": "Athlete starts behind the line and runs through the 50-yard finish line.",
+  "measurement": {
+    "type": "time",
+    "unit": "ms",
+    "direction": "lower"
+  },
+  "attempts": {
+    "count": 2,
+    "result": "best"
+  },
+  "timer": {
+    "enabled": true,
+    "splits": []
+  },
+  "equipment": ["2 cones"],
+  "tags": ["speed", "sprint"],
+  "positions": ["ALL"],
+  "setup": {
+    "distance_yards": 50
+  }
+}

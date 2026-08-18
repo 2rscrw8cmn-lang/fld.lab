@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "slug": "t-drill",
+  "name": "T Drill",
+  "category": "Agility",
+  "icon": "agility",
+  "description": "Measure multidirectional agility through a T-shaped cone course.",
+  "instructions": "Sprint forward to the center cone, shuffle to one side, shuffle across to the opposite side, return to center, then backpedal through the start line.",
+  "measurement": {
+    "type": "time",
+    "unit": "ms",
+    "direction": "lower"
+  },
+  "attempts": {
+    "count": 2,
+    "result": "best"
+  },
+  "timer": {
+    "enabled": true,
+    "splits": []
+  },
+  "equipment": ["4 cones"],
+  "tags": ["agility", "change-of-direction"],
+  "positions": ["ALL"]
+}
