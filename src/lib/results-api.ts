@@ -1,4 +1,4 @@
-import type { DrillDefinition, MeasurementType, PersistedAttempt } from "@/lib/api";
+import { apiRequest, type DrillDefinition, type MeasurementType, type PersistedAttempt } from "@/lib/api";
 
 export type ResultMetric = {
   type: MeasurementType;
@@ -172,21 +172,6 @@ export function formatResult(value: number | null, metric: ResultMetric | null) 
   return metric.unit && metric.unit !== "count" ? `${number} ${metric.unit}` : number;
 }
 
-async function read<T>(url: string): Promise<T> {
-  const response = await fetch(url, { headers: { Accept: "application/json" } });
-  if (!response.ok) {
-    let message = "Could not load results.";
-    try {
-      const body = await response.json() as { error?: { message?: string } };
-      message = body.error?.message ?? message;
-    } catch {
-      // Keep generic message for non-JSON failures.
-    }
-    throw new Error(message);
-  }
-  return response.json() as Promise<T>;
-}
-
 export async function getAthleteResults(
   athleteId: string,
   filters: { teamId?: string; drillId?: string; from?: string; to?: string } = {},
@@ -197,11 +182,11 @@ export async function getAthleteResults(
   if (filters.from) params.set("from", filters.from);
   if (filters.to) params.set("to", filters.to);
   const suffix = params.size ? `?${params.toString()}` : "";
-  return read<AthleteResults>(`/api/athletes/${encodeURIComponent(athleteId)}/results${suffix}`);
+  return apiRequest<AthleteResults>(`/api/athletes/${encodeURIComponent(athleteId)}/results${suffix}`);
 }
 
 export async function getDrillLeaderboard(drillId: string, teamId: string): Promise<DrillLeaderboard> {
-  return read<DrillLeaderboard>(
+  return apiRequest<DrillLeaderboard>(
     `/api/drills/${encodeURIComponent(drillId)}/leaderboard?team_id=${encodeURIComponent(teamId)}`,
   );
 }

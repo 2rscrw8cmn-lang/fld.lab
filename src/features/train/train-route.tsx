@@ -3,29 +3,15 @@ import { History, UserPlus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { TrainScreen } from "@/features/train/train-screen";
-import { getActiveSession, getRoster, type RosterRow, type SessionDetail, type Team } from "@/lib/api";
+import { apiRequest, getActiveSession, getRoster, type RosterRow, type SessionDetail, type Team } from "@/lib/api";
 import { getSessionResultContext, type SessionResultContext } from "@/lib/history-api";
 import { formatResult } from "@/lib/results-api";
 
 async function addAthletesToSession(sessionId: string, athleteIds: string[]): Promise<SessionDetail> {
-  const response = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/athletes`, {
+  return apiRequest<SessionDetail>(`/api/sessions/${encodeURIComponent(sessionId)}/athletes`, {
     method: "POST",
-    headers: { Accept: "application/json", "Content-Type": "application/json" },
     body: JSON.stringify({ athlete_ids: athleteIds }),
   });
-
-  if (!response.ok) {
-    let message = "Could not add athletes to the session.";
-    try {
-      const body = await response.json() as { error?: { message?: string } };
-      message = body.error?.message ?? message;
-    } catch {
-      // Keep the generic message when the API did not return JSON.
-    }
-    throw new Error(message);
-  }
-
-  return response.json() as Promise<SessionDetail>;
 }
 
 export function TrainRoute({

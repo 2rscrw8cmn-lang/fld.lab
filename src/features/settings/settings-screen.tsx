@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import {
   Archive,
   Check,
+  LogOut,
   Pencil,
   Plus,
   RefreshCw,
@@ -12,7 +13,7 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { createTeam, type Team } from "@/lib/api";
+import { createTeam, getCurrentCoach, type CurrentCoach, type Team } from "@/lib/api";
 import { listAllTeams, patchTeam } from "@/lib/team-admin-api";
 
 type SettingsScreenProps = {
@@ -50,6 +51,9 @@ export function SettingsScreen({
   onTeamCreated,
   onTeamUpdated,
 }: SettingsScreenProps) {
+  const [coach, setCoach] = useState<CurrentCoach | null>(null);
+  const [coachLoading, setCoachLoading] = useState(true);
+  const [coachError, setCoachError] = useState("");
   const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -58,6 +62,19 @@ export function SettingsScreen({
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [updatingId, setUpdatingId] = useState("");
+
+  const loadCoach = async () => {
+    setCoachLoading(true);
+    setCoachError("");
+    try {
+      setCoach(await getCurrentCoach());
+    } catch (error) {
+      setCoach(null);
+      setCoachError(error instanceof Error ? error.message : "Could not verify the signed-in coach.");
+    } finally {
+      setCoachLoading(false);
+    }
+  };
 
   const load = async () => {
     setLoading(true);
@@ -71,7 +88,10 @@ export function SettingsScreen({
     }
   };
 
-  useEffect(() => { void load(); }, []);
+  useEffect(() => {
+    void loadCoach();
+    void load();
+  }, []);
 
   const openCreate = () => {
     setEditor(null);
@@ -166,17 +186,49 @@ export function SettingsScreen({
               <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl border border-[rgba(124,58,237,0.36)] bg-[rgba(124,58,237,0.12)] text-[#c4b5fd]">
                 <UserRound size={22} aria-hidden="true" />
               </div>
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <div className="font-extrabold">Coach</div>
-                <div className="mt-1 inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-2 py-1 text-[10px] font-bold text-text-muted">
-                  <ShieldCheck size={12} aria-hidden="true" />
-                  Account setup pending
-                </div>
+                {coachLoading ? (
+                  <div className="mt-2 h-6 w-40 animate-pulse rounded bg-surface-elevated" />
+                ) : coach ? (
+                  <>
+                    <div className="mt-0.5 truncate text-sm text-text-secondary">{coach.email}</div>
+                    <div className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-success/30 bg-success/10 px-2 py-1 text-[10px] font-bold text-success">
+                      <ShieldCheck size={12} aria-hidden="true" />
+                      {coach.provider === "cloudflare-access" ? "Cloudflare Access verified" : "Local development"}
+                    </div>
+                  </>
+                ) : (
+                  <div className="mt-1 text-xs text-amber-200">Coach identity unavailable</div>
+                )}
               </div>
             </div>
-            <p className="mt-4 text-xs leading-5 text-text-muted">
-              The signed-in coach’s name and email will live here when production access is enabled. fld.LAB is not inventing account information before that identity exists.
-            </p>
+
+            {coachError ? (
+              <div className="mt-4 rounded-lg border border-amber-400/25 bg-amber-400/10 p-3 text-xs text-amber-100">
+                <p>{coachError}</p>
+                <Button type="button" variant="warning" size="sm" onClick={() => void loadCoach()} className="mt-3 gap-1.5">
+                  <RefreshCw size={14} aria-hidden="true" /> Retry identity check
+                </Button>
+              </div>
+            ) : (
+              <p className="mt-4 text-xs leading-5 text-text-muted">
+                {coach?.provider === "development"
+                  ? "Local development uses a fictional coach identity. Production must use the configured Cloudflare Access account."
+                  : "This v1 deployment authorizes one verified coach account. Multi-coach roles and team sharing remain a later product decision."}
+              </p>
+            )}
+
+            {coach?.provider === "cloudflare-access" && (
+              <Button
+                type="button"
+                variant="secondary"
+                className="mt-4 w-full gap-2"
+                onClick={() => window.location.assign("/cdn-cgi/access/logout")}
+              >
+                <LogOut size={15} aria-hidden="true" /> Sign out
+              </Button>
+            )}
           </div>
         </section>
 
