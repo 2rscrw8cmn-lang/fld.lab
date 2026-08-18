@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
+  Activity,
   AlertTriangle,
   Check,
   CircleStop,
@@ -13,6 +14,8 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { buildManualResult, initialManualValues, type ManualValues } from "@/features/train/manual-result";
+import { ManualResultInput } from "@/features/train/manual-result-input";
 import {
   ApiError,
   createTrainingSession,
@@ -24,6 +27,7 @@ import {
   persistTrainingAttempt,
   type AttemptPayload,
   type Drill,
+  type DrillDefinition,
   type SessionAthlete,
   type SessionDetail,
   type Team,
@@ -68,12 +72,51 @@ function athletePositions(athlete: SessionAthlete) {
   return [athlete.membership.primary_position, athlete.membership.secondary_position].filter(Boolean).join(" / ") || "—";
 }
 
+function measurementTypeLabel(type: Drill["measurement_type"]) {
+  switch (type) {
+    case "successes_attempts": return "Successes / attempts";
+    case "custom_numeric": return "Custom numeric";
+    default: return type.charAt(0).toUpperCase() + type.slice(1);
+  }
+}
+
+function measurementValue(payload: AttemptPayload, key: string) {
+  return payload.measurements.find((measurement) => measurement.key === key)?.value_numeric ?? null;
+}
+
+function attemptSummary(payload: AttemptPayload, definition: DrillDefinition) {
+  if (definition.measurement.type === "time" && payload.elapsed_ms !== null) return formatTime(payload.elapsed_ms);
+  const unit = definition.measurement.unit;
+
+  if (definition.measurement.type === "successes_attempts") {
+    return `${measurementValue(payload, "successes") ?? "—"}/${measurementValue(payload, "attempts") ?? "—"}`;
+  }
+  if (definition.measurement.type === "distance") {
+    const value = measurementValue(payload, "distance");
+    return `${value ?? "—"}${unit ? ` ${unit}` : ""}`;
+  }
+  if (definition.measurement.type === "count") {
+    const value = measurementValue(payload, "count");
+    return `${value ?? "—"}${unit ? ` ${unit}` : ""}`;
+  }
+  if (definition.measurement.type === "rating") {
+    const value = measurementValue(payload, "rating");
+    return definition.measurement.max !== undefined ? `${value ?? "—"}/${definition.measurement.max}` : `${value ?? "—"}`;
+  }
+
+  return payload.measurements
+    .map((measurement) => `${measurement.label} ${measurement.value_numeric ?? "—"}${measurement.unit ? ` ${measurement.unit}` : ""}`)
+    .join(" · ");
+}
+
 export function TrainScreen({ team, onNavigate }: { team: Team | null; onNavigate: (path: string) => void }) {
   const [drills, setDrills] = useState<Drill[]>([]);
   const [selectedDrillId, setSelectedDrillId] = useState("");
   const [session, setSession] = useState<SessionDetail | null>(null);
   const [activeAthleteId, setActiveAthleteId] = useState("");
   const [capture, setCapture] = useState<Capture>(emptyCapture);
+  const [manualValues, setManualValues] = useState<ManualValues>({});
+  const [manualError, setManualError] = useState("");
   const [localAttempts, setLocalAttempts] = useState<AttemptPayload[]>([]);
   const [writes, setWrites] = useState<Record<string, PendingWrite>>({});
   const [loading, setLoading] = useState(true);
@@ -82,8 +125,8 @@ export function TrainScreen({ team, onNavigate }: { team: Team | null; onNavigat
   const [error, setError] = useState("");
   const startPerf = useRef<number | null>(null);
 
-  const timedDrills = useMemo(() => drills.filter((drill) => drill.measurement_type === "time"), [drills]);
   const requiredAttempts = session?.drill_definition.attempts.count ?? 0;
+  const isTimed = session?.drill_definition.measurement.type === "time";
 
   const attemptCount = (athleteId: string) => {
     const persisted = session?.attempts.filter((attempt) => attempt.athlete_id === athleteId).length ?? 0;
@@ -110,6 +153,13 @@ export function TrainScreen({ team, onNavigate }: { team: Team | null; onNavigat
     )?.athlete_id ?? detail.athletes[0]?.athlete_id ?? "";
   };
 
+  const resetEntry = (definition = session?.drill_definition) => {
+    startPerf.current = null;
+    setCapture(emptyCapture());
+    setManualValues(definition ? initialManualValues(definition) : {});
+    setManualError("");
+  };
+
   const load = async () => {
     if (!team) {
       setDrills([]);
@@ -124,16 +174,13 @@ export function TrainScreen({ team, onNavigate }: { team: Team | null; onNavigat
     try {
       const [availableDrills, activeSession] = await Promise.all([listDrills(), getActiveSession(team.id)]);
       setDrills(availableDrills);
-      const firstTimed = availableDrills.find((drill) => drill.measurement_type === "time");
-      setSelectedDrillId((current) =>
-        availableDrills.some((drill) => drill.id === current && drill.measurement_type === "time")
-          ? current
-          : firstTimed?.id ?? "",
-      );
+      setSelectedDrillId((current) => availableDrills.some((drill) => drill.id === current) ? current : availableDrills[0]?.id ?? "");
       setSession(activeSession);
       setLocalAttempts([]);
       setWrites({});
       setCapture(emptyCapture());
+      setManualValues(activeSession ? initialManualValues(activeSession.drill_definition) : {});
+      setManualError("");
       if (activeSession) setActiveAthleteId(chooseFirstEligible(activeSession));
       else setActiveAthleteId("");
     } catch (loadError) {
@@ -164,9 +211,7 @@ export function TrainScreen({ team, onNavigate }: { team: Team | null; onNavigat
 
   useEffect(() => {
     const warn = (event: BeforeUnloadEvent) => {
-      if (capture.mode === "running" || capture.mode === "review" || unresolvedWrites > 0) {
-        event.preventDefault();
-      }
+      if (capture.mode === "running" || capture.mode === "review" || unresolvedWrites > 0) event.preventDefault();
     };
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
@@ -180,15 +225,16 @@ export function TrainScreen({ team, onNavigate }: { team: Team | null; onNavigat
       const detail = await createTrainingSession(team.id, selectedDrillId);
       setSession(detail);
       setActiveAthleteId(chooseFirstEligible(detail));
-      setCapture(emptyCapture());
       setLocalAttempts([]);
       setWrites({});
+      resetEntry(detail.drill_definition);
     } catch (startError) {
       if (startError instanceof ApiError && startError.status === 409 && startError.fields?.session_id) {
         try {
           const detail = await getTrainingSession(startError.fields.session_id);
           setSession(detail);
           setActiveAthleteId(chooseFirstEligible(detail));
+          resetEntry(detail.drill_definition);
           return;
         } catch {
           // Fall through to the original error below.
@@ -203,17 +249,17 @@ export function TrainScreen({ team, onNavigate }: { team: Team | null; onNavigat
   const selectAthlete = (athleteId: string) => {
     if (capture.mode !== "ready") return;
     setActiveAthleteId(athleteId);
-    setCapture(emptyCapture());
+    resetEntry();
   };
 
   const startTimer = () => {
-    if (!activeAthlete || athleteIsComplete(activeAthlete)) return;
+    if (!activeAthlete || athleteIsComplete(activeAthlete) || !isTimed) return;
     startPerf.current = performance.now();
     setCapture({ mode: "running", elapsedMs: 0, splits: {}, startedAt: new Date().toISOString(), stoppedAt: null });
   };
 
   const captureSplit = () => {
-    if (capture.mode !== "running" || startPerf.current === null || !session) return;
+    if (capture.mode !== "running" || startPerf.current === null || !session || !isTimed) return;
     const nextSplit = (session.drill_definition.timer?.splits ?? []).find((split) => capture.splits[split.key] === undefined);
     if (!nextSplit) return;
     const elapsed = Math.max(1, Math.round(performance.now() - startPerf.current));
@@ -221,15 +267,21 @@ export function TrainScreen({ team, onNavigate }: { team: Team | null; onNavigat
   };
 
   const stopTimer = () => {
-    if (capture.mode !== "running" || startPerf.current === null) return;
+    if (capture.mode !== "running" || startPerf.current === null || !isTimed) return;
     const elapsed = Math.max(1, Math.round(performance.now() - startPerf.current));
     startPerf.current = null;
     setCapture((current) => ({ ...current, mode: "review", elapsedMs: elapsed, stoppedAt: new Date().toISOString() }));
   };
 
-  const resetAttempt = () => {
-    startPerf.current = null;
-    setCapture(emptyCapture());
+  const reviewManualResult = () => {
+    if (!session || isTimed || !activeAthlete || athleteIsComplete(activeAthlete)) return;
+    const result = buildManualResult(session.drill_definition, manualValues);
+    if (!result.ok) {
+      setManualError(result.error);
+      return;
+    }
+    setManualError("");
+    setCapture((current) => ({ ...current, mode: "review" }));
   };
 
   const nextEligibleAthlete = (currentAthleteId: string, nextLocalAttempts: AttemptPayload[]) => {
@@ -264,37 +316,59 @@ export function TrainScreen({ team, onNavigate }: { team: Team | null; onNavigat
 
   const saveAttempt = (advance: boolean) => {
     if (!session || !activeAthlete || capture.mode !== "review") return;
-    const splits = session.drill_definition.timer?.splits ?? [];
-    const payload: AttemptPayload = {
-      client_attempt_id: crypto.randomUUID(),
-      athlete_id: activeAthlete.athlete_id,
-      attempt_number: activeAttemptNumber,
-      started_at: capture.startedAt,
-      stopped_at: capture.stoppedAt,
-      elapsed_ms: capture.elapsedMs,
-      valid: true,
-      note: null,
-      measurements: [
-        {
-          key: "total_time",
-          label: "Total Time",
-          value_numeric: capture.elapsedMs,
-          value_text: null,
-          unit: "ms",
-          sequence: 0,
-        },
-        ...splits
-          .filter((split) => capture.splits[split.key] !== undefined)
-          .map((split, index) => ({
-            key: split.key,
-            label: split.label,
-            value_numeric: capture.splits[split.key],
+
+    let payload: AttemptPayload;
+    if (isTimed) {
+      const splits = session.drill_definition.timer?.splits ?? [];
+      payload = {
+        client_attempt_id: crypto.randomUUID(),
+        athlete_id: activeAthlete.athlete_id,
+        attempt_number: activeAttemptNumber,
+        started_at: capture.startedAt,
+        stopped_at: capture.stoppedAt,
+        elapsed_ms: capture.elapsedMs,
+        valid: true,
+        note: null,
+        measurements: [
+          {
+            key: "total_time",
+            label: "Total Time",
+            value_numeric: capture.elapsedMs,
             value_text: null,
             unit: "ms",
-            sequence: index + 1,
-          })),
-      ],
-    };
+            sequence: 0,
+          },
+          ...splits
+            .filter((split) => capture.splits[split.key] !== undefined)
+            .map((split, index) => ({
+              key: split.key,
+              label: split.label,
+              value_numeric: capture.splits[split.key],
+              value_text: null,
+              unit: "ms",
+              sequence: index + 1,
+            })),
+        ],
+      };
+    } else {
+      const manual = buildManualResult(session.drill_definition, manualValues);
+      if (!manual.ok) {
+        setManualError(manual.error);
+        setCapture((current) => ({ ...current, mode: "ready" }));
+        return;
+      }
+      payload = {
+        client_attempt_id: crypto.randomUUID(),
+        athlete_id: activeAthlete.athlete_id,
+        attempt_number: activeAttemptNumber,
+        started_at: null,
+        stopped_at: null,
+        elapsed_ms: null,
+        valid: true,
+        note: null,
+        measurements: manual.measurements,
+      };
+    }
 
     const nextLocal = [...localAttempts, payload];
     setLocalAttempts(nextLocal);
@@ -306,7 +380,7 @@ export function TrainScreen({ team, onNavigate }: { team: Team | null; onNavigat
           : athlete,
       ),
     } : current);
-    setCapture(emptyCapture());
+    resetEntry(session.drill_definition);
     if (advance) setActiveAthleteId(nextEligibleAthlete(activeAthlete.athlete_id, nextLocal));
     void sendWrite(payload);
   };
@@ -324,6 +398,7 @@ export function TrainScreen({ team, onNavigate }: { team: Team | null; onNavigat
       } : current);
       if (next === "skipped" && athlete.athlete_id === activeAthleteId) {
         setActiveAthleteId(nextEligibleAthlete(athlete.athlete_id, localAttempts));
+        resetEntry();
       }
     } catch (skipError) {
       setError(skipError instanceof Error ? skipError.message : "Could not update athlete.");
@@ -354,7 +429,7 @@ export function TrainScreen({ team, onNavigate }: { team: Team | null; onNavigat
       setSession(null);
       setLocalAttempts([]);
       setWrites({});
-      setCapture(emptyCapture());
+      resetEntry(undefined);
       setActiveAthleteId("");
     } catch (abandonError) {
       setError(abandonError instanceof Error ? abandonError.message : "Could not abandon session.");
@@ -408,28 +483,30 @@ export function TrainScreen({ team, onNavigate }: { team: Team | null; onNavigat
 
         <section className="mt-5 overflow-hidden rounded-xl border border-border bg-surface">
           <div className="border-b border-border px-4 py-3">
-            <div className="text-xs font-bold uppercase tracking-[0.08em] text-text-muted">Choose timed drill</div>
+            <div className="text-xs font-bold uppercase tracking-[0.08em] text-text-muted">Choose drill</div>
           </div>
-          {timedDrills.length ? (
+          {drills.length ? (
             <div className="divide-y divide-border">
-              {timedDrills.map((drill) => (
+              {drills.map((drill) => (
                 <button
                   key={drill.id}
                   type="button"
                   onClick={() => setSelectedDrillId(drill.id)}
                   className={`grid min-h-[58px] w-full grid-cols-[36px_minmax(0,1fr)_auto] items-center gap-3 px-4 text-left transition-colors hover:bg-surface-elevated ${selectedDrillId === drill.id ? "bg-surface-elevated" : ""}`}
                 >
-                  <span className="flex h-9 w-9 items-center justify-center rounded-md border border-border bg-background text-text-muted"><TimerReset size={18} /></span>
+                  <span className="flex h-9 w-9 items-center justify-center rounded-md border border-border bg-background text-text-muted">
+                    {drill.measurement_type === "time" ? <TimerReset size={18} /> : <Activity size={18} />}
+                  </span>
                   <span className="min-w-0">
                     <span className="block truncate text-sm font-bold">{drill.name}</span>
-                    <span className="block text-xs text-text-muted">{drill.category} · v{drill.current_version}</span>
+                    <span className="block text-xs text-text-muted">{drill.category} · {measurementTypeLabel(drill.measurement_type)} · v{drill.current_version}</span>
                   </span>
                   <span className={`h-4 w-4 rounded-full border ${selectedDrillId === drill.id ? "border-accent bg-accent" : "border-border"}`} aria-hidden={true} />
                 </button>
               ))}
             </div>
           ) : (
-            <div className="p-5 text-sm text-text-muted">No timed drills are available yet. Import a timed drill in the Drill Library.</div>
+            <div className="p-5 text-sm text-text-muted">No drills are available yet. Import a drill in the Drill Library.</div>
           )}
         </section>
 
@@ -440,8 +517,9 @@ export function TrainScreen({ team, onNavigate }: { team: Team | null; onNavigat
     );
   }
 
-  const splits = session.drill_definition.timer?.splits ?? [];
+  const splits = isTimed ? session.drill_definition.timer?.splits ?? [] : [];
   const nextSplit = splits.find((split) => capture.splits[split.key] === undefined);
+  const manualResult = !isTimed ? buildManualResult(session.drill_definition, manualValues) : null;
   const completedCount = session.athletes.filter((athlete) => athlete.status !== "skipped" && athleteIsComplete(athlete)).length;
   const skippedCount = session.athletes.filter((athlete) => athlete.status === "skipped").length;
 
@@ -479,7 +557,7 @@ export function TrainScreen({ team, onNavigate }: { team: Team | null; onNavigat
               <div key={write.payload.client_attempt_id} className="flex items-center justify-between gap-3 border-b border-border px-3 py-2 last:border-b-0">
                 <div className="min-w-0 text-xs">
                   <span className="font-bold">{athlete ? athleteName(athlete) : "Athlete"}</span>
-                  <span className="ml-2 text-text-muted">Attempt {write.payload.attempt_number} · {formatTime(write.payload.elapsed_ms)}</span>
+                  <span className="ml-2 text-text-muted">Attempt {write.payload.attempt_number} · {attemptSummary(write.payload, session.drill_definition)}</span>
                   {write.error && <div className="truncate text-[11px] text-danger">{write.error}</div>}
                 </div>
                 <Button variant="secondary" className="min-h-8 shrink-0 px-3 text-xs" onClick={() => retryWrite(write)}>Retry</Button>
@@ -579,45 +657,80 @@ export function TrainScreen({ team, onNavigate }: { team: Team | null; onNavigat
               </div>
 
               <div className="flex flex-1 flex-col items-center justify-center px-4 py-7 sm:px-6">
-                <div className="tabular-nums text-[68px] font-black leading-none tracking-[-0.06em] sm:text-[92px] lg:text-[112px]">
-                  {formatTime(capture.elapsedMs)}
-                </div>
-                <div className="mt-3 min-h-6 text-center text-xs font-bold uppercase tracking-[0.08em] text-text-muted">
-                  {capture.mode === "running" ? "Running" : capture.mode === "review" ? "Review result" : "Ready"}
-                </div>
+                {isTimed ? (
+                  <>
+                    <div className="tabular-nums text-[68px] font-black leading-none tracking-[-0.06em] sm:text-[92px] lg:text-[112px]">
+                      {formatTime(capture.elapsedMs)}
+                    </div>
+                    <div className="mt-3 min-h-6 text-center text-xs font-bold uppercase tracking-[0.08em] text-text-muted">
+                      {capture.mode === "running" ? "Running" : capture.mode === "review" ? "Review result" : "Ready"}
+                    </div>
 
-                {splits.length > 0 && (
-                  <div className="mt-5 flex min-h-10 flex-wrap justify-center gap-2">
-                    {splits.map((split) => (
-                      <span key={split.key} className="inline-flex min-h-9 items-center gap-2 rounded-md border border-border bg-background px-3 text-xs">
-                        <span className="font-bold text-text-muted">{split.label}</span>
-                        <span className="font-extrabold tabular-nums">{capture.splits[split.key] !== undefined ? formatTime(capture.splits[split.key]) : "—"}</span>
-                      </span>
-                    ))}
-                  </div>
-                )}
-
-                {capture.mode === "ready" && (
-                  <div className="mt-8 w-full max-w-[560px]">
-                    <Button size="lg" className="min-h-[88px] w-full text-xl font-black sm:min-h-[100px] sm:text-2xl" onClick={startTimer}>
-                      <Play size={25} fill="currentColor" /> Start
-                    </Button>
-                    <button type="button" onClick={() => void toggleSkip(activeAthlete)} className="mt-4 flex min-h-10 w-full items-center justify-center gap-2 text-xs font-bold text-text-muted hover:text-text-primary">
-                      <SkipForward size={16} /> Skip athlete
-                    </button>
-                  </div>
-                )}
-
-                {capture.mode === "running" && (
-                  <div className={`mt-8 grid w-full max-w-[680px] gap-3 ${nextSplit ? "grid-cols-2" : "grid-cols-1"}`}>
-                    {nextSplit && (
-                      <Button variant="secondary" size="lg" className="min-h-[88px] text-lg font-extrabold sm:min-h-[100px]" onClick={captureSplit}>
-                        <Flag size={22} /> Split {nextSplit.label}
-                      </Button>
+                    {splits.length > 0 && (
+                      <div className="mt-5 flex min-h-10 flex-wrap justify-center gap-2">
+                        {splits.map((split) => (
+                          <span key={split.key} className="inline-flex min-h-9 items-center gap-2 rounded-md border border-border bg-background px-3 text-xs">
+                            <span className="font-bold text-text-muted">{split.label}</span>
+                            <span className="font-extrabold tabular-nums">{capture.splits[split.key] !== undefined ? formatTime(capture.splits[split.key]) : "—"}</span>
+                          </span>
+                        ))}
+                      </div>
                     )}
-                    <Button size="lg" className="min-h-[88px] bg-danger text-lg font-extrabold hover:bg-danger/90 sm:min-h-[100px]" onClick={stopTimer}>
-                      <CircleStop size={23} /> Stop
-                    </Button>
+
+                    {capture.mode === "ready" && (
+                      <div className="mt-8 w-full max-w-[560px]">
+                        <Button size="lg" className="min-h-[88px] w-full text-xl font-black sm:min-h-[100px] sm:text-2xl" onClick={startTimer}>
+                          <Play size={25} fill="currentColor" /> Start
+                        </Button>
+                        <button type="button" onClick={() => void toggleSkip(activeAthlete)} className="mt-4 flex min-h-10 w-full items-center justify-center gap-2 text-xs font-bold text-text-muted hover:text-text-primary">
+                          <SkipForward size={16} /> Skip athlete
+                        </button>
+                      </div>
+                    )}
+
+                    {capture.mode === "running" && (
+                      <div className={`mt-8 grid w-full max-w-[680px] gap-3 ${nextSplit ? "grid-cols-2" : "grid-cols-1"}`}>
+                        {nextSplit && (
+                          <Button variant="secondary" size="lg" className="min-h-[88px] text-lg font-extrabold sm:min-h-[100px]" onClick={captureSplit}>
+                            <Flag size={22} /> Split {nextSplit.label}
+                          </Button>
+                        )}
+                        <Button size="lg" className="min-h-[88px] bg-danger text-lg font-extrabold hover:bg-danger/90 sm:min-h-[100px]" onClick={stopTimer}>
+                          <CircleStop size={23} /> Stop
+                        </Button>
+                      </div>
+                    )}
+                  </>
+                ) : capture.mode === "ready" ? (
+                  <div className="flex w-full flex-col items-center">
+                    <div className="mb-5 text-center">
+                      <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-text-muted">Enter result</div>
+                      <div className="mt-1 text-sm text-text-secondary">{measurementTypeLabel(session.drill_definition.measurement.type)}</div>
+                    </div>
+                    <ManualResultInput
+                      definition={session.drill_definition}
+                      values={manualValues}
+                      onChange={(key, value) => {
+                        setManualValues((current) => ({ ...current, [key]: value }));
+                        if (manualError) setManualError("");
+                      }}
+                    />
+                    {manualError && <p className="mt-3 text-center text-sm font-semibold text-danger">{manualError}</p>}
+                    <div className="mt-7 w-full max-w-[560px]">
+                      <Button size="lg" className="min-h-[64px] w-full text-base font-extrabold" onClick={reviewManualResult}>
+                        Review Result
+                      </Button>
+                      <button type="button" onClick={() => void toggleSkip(activeAthlete)} className="mt-3 flex min-h-10 w-full items-center justify-center gap-2 text-xs font-bold text-text-muted hover:text-text-primary">
+                        <SkipForward size={16} /> Skip athlete
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center">
+                    <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-text-muted">Review result</div>
+                    <div className="mt-3 max-w-[680px] text-[42px] font-black leading-tight tracking-[-0.04em] sm:text-[56px]">
+                      {manualResult?.ok ? manualResult.summary : "—"}
+                    </div>
                   </div>
                 )}
 
@@ -632,8 +745,8 @@ export function TrainScreen({ team, onNavigate }: { team: Team | null; onNavigat
                       </Button>
                     </div>
                     <div className="mt-3 grid grid-cols-2 gap-2">
-                      <Button variant="secondary" className="min-h-11" onClick={resetAttempt}><RotateCcw size={17} /> Redo</Button>
-                      <Button variant="secondary" className="min-h-11" onClick={resetAttempt}><X size={17} /> Cancel</Button>
+                      <Button variant="secondary" className="min-h-11" onClick={() => resetEntry()}><RotateCcw size={17} /> Redo</Button>
+                      <Button variant="secondary" className="min-h-11" onClick={() => resetEntry()}><X size={17} /> Cancel</Button>
                     </div>
                   </div>
                 )}
