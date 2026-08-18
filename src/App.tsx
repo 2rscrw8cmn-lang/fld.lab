@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { getRoute } from "@/app/routes";
 import { AppShell } from "@/components/app-shell";
 import { RoutePlaceholder } from "@/components/route-placeholder";
+import { DrillLibraryScreen } from "@/features/drills/drill-library-screen";
 import { HomeScreen } from "@/features/home/home-screen";
 import { RosterScreen } from "@/features/roster/roster-screen";
 import { FirstTeamSetup } from "@/features/teams/first-team-setup";
@@ -83,6 +84,7 @@ export default function App() {
         ? <RosterScreen team={activeTeam} />
         : <FirstTeamSetup onCreated={handleTeamCreated} />;
   }
+  if (activePath === "/drills") screen = <DrillLibraryScreen />;
 
   return (
     <AppShell
