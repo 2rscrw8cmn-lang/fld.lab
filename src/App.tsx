@@ -11,6 +11,7 @@ import { RosterScreen } from "@/features/roster/roster-screen";
 import { SettingsScreen } from "@/features/settings/settings-screen";
 import { FirstTeamSetup } from "@/features/teams/first-team-setup";
 import { TrainRoute } from "@/features/train/train-route";
+import { TrainStartRoute } from "@/features/train/train-start-route";
 import { getActiveSession, listTeams, type Team } from "@/lib/api";
 
 const TEAM_STORAGE_KEY = "fld-lab:last-team-id";
@@ -18,6 +19,10 @@ const ACTIVE_SESSION_LEAVE_MESSAGE = "Leave the active training session? The ses
 
 function sortTeams(teams: Team[]) {
   return [...teams].sort((a, b) => a.name.localeCompare(b.name) || (a.season_label ?? "").localeCompare(b.season_label ?? ""));
+}
+
+function isTrainPath(path: string) {
+  return path === "/train" || path.startsWith("/train/start/");
 }
 
 export default function App() {
@@ -30,7 +35,7 @@ export default function App() {
   useEffect(() => {
     const handlePopState = () => {
       const nextPath = window.location.pathname;
-      if (pathname === "/train" && nextPath !== "/train" && activeSessionLock && !window.confirm(ACTIVE_SESSION_LEAVE_MESSAGE)) {
+      if (isTrainPath(pathname) && !isTrainPath(nextPath) && activeSessionLock && !window.confirm(ACTIVE_SESSION_LEAVE_MESSAGE)) {
         window.history.pushState({}, "", pathname);
         return;
       }
@@ -89,7 +94,7 @@ export default function App() {
 
   const navigate = (path: string) => {
     if (path === pathname) return;
-    if (pathname === "/train" && path !== "/train" && activeSessionLock && !window.confirm(ACTIVE_SESSION_LEAVE_MESSAGE)) return;
+    if (isTrainPath(pathname) && !isTrainPath(path) && activeSessionLock && !window.confirm(ACTIVE_SESSION_LEAVE_MESSAGE)) return;
     window.history.pushState({}, "", path);
     setPathname(path);
     window.scrollTo({ top: 0, behavior: "auto" });
@@ -128,13 +133,17 @@ export default function App() {
 
   const athleteMatch = pathname.match(/^\/athletes\/([^/]+)$/);
   const athleteId = athleteMatch ? decodeURIComponent(athleteMatch[1]) : null;
-  const route = getRoute(pathname);
-  const activePath = athleteId ? "/roster" : route.path;
+  const trainStartMatch = pathname.match(/^\/train\/start\/([^/]+)$/);
+  const trainStartDrillId = trainStartMatch ? decodeURIComponent(trainStartMatch[1]) : null;
+  const route = getRoute(trainStartDrillId ? "/train" : pathname);
+  const activePath = athleteId ? "/roster" : trainStartDrillId ? "/train" : route.path;
   const activeTeam = useMemo(() => teams.find((team) => team.id === teamId) ?? null, [teamId, teams]);
 
   let screen = <RoutePlaceholder route={route} />;
   if (athleteId) {
     screen = <AthleteProfileScreen team={activeTeam} athleteId={athleteId} onNavigate={navigate} />;
+  } else if (trainStartDrillId) {
+    screen = <TrainStartRoute team={activeTeam} drillId={trainStartDrillId} onNavigate={navigate} />;
   } else if (activePath === "/") {
     screen = <HomeScreen onNavigate={navigate} team={activeTeam} />;
   } else if (activePath === "/roster") {
