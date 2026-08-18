@@ -1,0 +1,351 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fld.lab/schemas/drill-definition.schema.json",
+  "title": "fld.LAB Drill Definition v1",
+  "description": "Declarative drill definition imported by fld.LAB.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "slug",
+    "name",
+    "category",
+    "measurement",
+    "attempts"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "slug": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80,
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120
+    },
+    "category": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 60
+    },
+    "icon": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 40,
+      "pattern": "^[a-z0-9_]+$"
+    },
+    "description": {
+      "type": "string",
+      "maxLength": 500
+    },
+    "instructions": {
+      "type": "string",
+      "maxLength": 2000
+    },
+    "measurement": {
+      "$ref": "#/$defs/measurement"
+    },
+    "attempts": {
+      "$ref": "#/$defs/attempts"
+    },
+    "timer": {
+      "$ref": "#/$defs/timer"
+    },
+    "equipment": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 100
+      }
+    },
+    "tags": {
+      "type": "array",
+      "maxItems": 20,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 40
+      }
+    },
+    "positions": {
+      "type": "array",
+      "maxItems": 20,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 30
+      }
+    },
+    "setup": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "distance_yards": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 500
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "measurement": {
+            "properties": {
+              "type": {
+                "const": "time"
+              }
+            },
+            "required": ["type"]
+          }
+        }
+      },
+      "then": {
+        "required": ["timer"],
+        "properties": {
+          "timer": {
+            "properties": {
+              "enabled": {
+                "const": true
+              }
+            },
+            "required": ["enabled"]
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "direction": {
+      "type": "string",
+      "enum": ["lower", "higher", "none"]
+    },
+    "attempts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["count", "result"],
+      "properties": {
+        "count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20
+        },
+        "result": {
+          "type": "string",
+          "enum": ["best", "average", "latest", "total"]
+        }
+      }
+    },
+    "timer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "splits"],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "splits": {
+          "type": "array",
+          "maxItems": 20,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["key", "label"],
+            "properties": {
+              "key": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 60,
+                "pattern": "^[a-z][a-z0-9_]*$"
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 60
+              }
+            }
+          }
+        }
+      }
+    },
+    "measurement": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/timeMeasurement"
+        },
+        {
+          "$ref": "#/$defs/successesAttemptsMeasurement"
+        },
+        {
+          "$ref": "#/$defs/distanceMeasurement"
+        },
+        {
+          "$ref": "#/$defs/countMeasurement"
+        },
+        {
+          "$ref": "#/$defs/ratingMeasurement"
+        },
+        {
+          "$ref": "#/$defs/customNumericMeasurement"
+        }
+      ]
+    },
+    "timeMeasurement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "unit", "direction"],
+      "properties": {
+        "type": {
+          "const": "time"
+        },
+        "unit": {
+          "const": "ms"
+        },
+        "direction": {
+          "$ref": "#/$defs/direction"
+        }
+      }
+    },
+    "successesAttemptsMeasurement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "unit", "direction", "total_attempts"],
+      "properties": {
+        "type": {
+          "const": "successes_attempts"
+        },
+        "unit": {
+          "const": "count"
+        },
+        "direction": {
+          "$ref": "#/$defs/direction"
+        },
+        "total_attempts": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000
+        }
+      }
+    },
+    "distanceMeasurement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "unit", "direction"],
+      "properties": {
+        "type": {
+          "const": "distance"
+        },
+        "unit": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20
+        },
+        "direction": {
+          "$ref": "#/$defs/direction"
+        }
+      }
+    },
+    "countMeasurement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "unit", "direction"],
+      "properties": {
+        "type": {
+          "const": "count"
+        },
+        "unit": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20
+        },
+        "direction": {
+          "$ref": "#/$defs/direction"
+        }
+      }
+    },
+    "ratingMeasurement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "unit", "direction", "min", "max", "step"],
+      "properties": {
+        "type": {
+          "const": "rating"
+        },
+        "unit": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20
+        },
+        "direction": {
+          "$ref": "#/$defs/direction"
+        },
+        "min": {
+          "type": "number"
+        },
+        "max": {
+          "type": "number"
+        },
+        "step": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      }
+    },
+    "customNumericMeasurement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "direction", "fields"],
+      "properties": {
+        "type": {
+          "const": "custom_numeric"
+        },
+        "direction": {
+          "$ref": "#/$defs/direction"
+        },
+        "fields": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["key", "label", "unit"],
+            "properties": {
+              "key": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 60,
+                "pattern": "^[a-z][a-z0-9_]*$"
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              },
+              "unit": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 20
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
