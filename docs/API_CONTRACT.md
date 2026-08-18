@@ -26,7 +26,7 @@ Timestamps are UTC ISO-8601 strings, for example:
 2026-08-18T01:30:00.000Z
 ```
 
-Timed performance values are integer milliseconds.
+Timed performance values are integer milliseconds. Non-timed attempts use `elapsed_ms: null`; their authoritative values live in Measurement rows defined by the session's immutable drill definition.
 
 ## 2. Authentication
 
@@ -132,7 +132,7 @@ Response:
 }
 ```
 
-Default behavior should return active teams. A future query flag may include archived teams if needed.
+Default behavior returns active teams.
 
 ## 8. Create team
 
@@ -210,7 +210,7 @@ Athlete identity does **not** contain jersey number or positions for MVP.
 
 ## 12. Roster row resource
 
-The roster endpoint returns a view model combining identity + membership for display convenience.
+Roster endpoints return identity + membership together for display convenience:
 
 ```json
 {
@@ -248,21 +248,13 @@ Default response includes active memberships only:
 }
 ```
 
-Optional future query:
-
-```text
-?include_inactive=true
-```
-
-Do not add pagination until roster sizes justify it.
+`?include_inactive=true` includes archived memberships.
 
 ## 14. Add athlete to roster
 
 ### `POST /api/teams/:teamId/roster`
 
-The common MVP flow creates a new Athlete and TeamMembership in one transaction.
-
-Request:
+The common MVP flow creates a new Athlete and TeamMembership together:
 
 ```json
 {
@@ -287,14 +279,12 @@ Server behavior:
 1. validate identity + membership
 2. create Athlete
 3. create TeamMembership
-4. commit transaction
+4. commit together
 5. return combined row
 
-If membership creation fails, do not leave a partial orphaned Athlete from this request.
+If membership creation fails, do not leave an orphaned Athlete.
 
-### Add existing athlete to another team
-
-Support when needed with:
+To add an existing athlete to another team:
 
 ```json
 {
@@ -307,9 +297,7 @@ Support when needed with:
 }
 ```
 
-Exactly one of `athlete` or `athlete_id` must be provided.
-
-Existing active membership on the same team should return `409 conflict`.
+Exactly one of `athlete` or `athlete_id` must be provided. Existing membership on the same team returns `409 conflict`.
 
 ## 15. Update athlete identity
 
@@ -344,11 +332,7 @@ Allowed fields:
 }
 ```
 
-When setting `active=false`, server may also set `left_at` if not already set.
-
-Reactivation may set `active=true` and clear `left_at` for the same membership if that matches the workflow.
-
-Do not delete athlete history.
+Archiving may set `left_at`; reactivation may clear it. Never delete athlete history.
 
 ---
 
@@ -366,24 +350,15 @@ Response:
 }
 ```
 
-Each row should include enough metadata for the library:
-
-- id
-- slug
-- name
-- category
-- icon
-- measurement type
-- current version
-- active
+Each row includes enough metadata for the library: id, slug, name, category, icon, measurement type, current version, and active state.
 
 ## 18. Drill detail
 
 ### `GET /api/drills/:drillId`
 
-Returns stable Drill metadata plus current DrillVersion definition.
+Returns stable Drill metadata plus its current DrillVersion definition.
 
-Historical sessions fetch their stored `drill_version_id`; never substitute current version when reading old results.
+Historical sessions always read their stored `drill_version_id`; never substitute the current version for old results.
 
 ## 19. Import drill
 
@@ -391,19 +366,11 @@ Historical sessions fetch their stored `drill_version_id`; never substitute curr
 
 Request body is the drill definition JSON itself.
 
-Server must validate against:
+Server validates against `schemas/drill-definition.schema.json` and applies `DRILL_SPEC.md` semantic/versioning rules.
 
-```text
-schemas/drill-definition.schema.json
-```
-
-Then apply `DRILL_SPEC.md` semantic/versioning rules.
-
-New drill response: `201`.
-
-New version of existing slug: `201`.
-
-Identical definition re-import may return `200` with the existing current version rather than creating duplicate versions.
+- new drill → `201`
+- changed definition for existing slug → `201` with new immutable version
+- identical current definition → may return `200` with existing version
 
 Invalid definition:
 
@@ -442,7 +409,9 @@ Server behavior:
 2. snapshot the drill's current `drill_version_id`
 3. create TrainingSession
 4. create ordered SessionAthlete rows from active roster membership
-5. return session + athlete queue + definition
+5. return session + athlete queue + exact definition
+
+All v1 measurement types supported by `DRILL_SPEC.md` may start a session.
 
 Response `201`:
 
@@ -457,7 +426,8 @@ Response `201`:
     "started_at": "2026-08-18T01:30:00.000Z"
   },
   "drill_definition": {},
-  "athletes": []
+  "athletes": [],
+  "attempts": []
 }
 ```
 
@@ -471,7 +441,11 @@ Returns:
 - exact drill definition version
 - athlete queue/order
 - SessionAthlete statuses
-- persisted attempt counts/results needed to resume
+- persisted attempts and measurements needed to resume
+
+### `GET /api/teams/:teamId/active-session`
+
+Returns the team's active SessionDetail, or `null` when no active session exists.
 
 ## 22. Update session
 
@@ -484,21 +458,23 @@ active → completed
 active → abandoned
 ```
 
-Do not mark completed if the server knows required pending persistence is unresolved in the current request flow.
-
-Already-saved attempts remain when a session is abandoned.
+Every session athlete must be complete or skipped before completion. Already-saved attempts remain when a session is abandoned.
 
 ## 23. Persist attempt
 
 ### `POST /api/sessions/:sessionId/attempts`
 
-Request:
+Every attempt uses the same envelope. The Measurement rows vary by the session's immutable drill definition.
+
+### Timed example
 
 ```json
 {
   "client_attempt_id": "01J...",
   "athlete_id": "athlete_123",
   "attempt_number": 1,
+  "started_at": "2026-08-18T01:35:00.000Z",
+  "stopped_at": "2026-08-18T01:35:04.180Z",
   "elapsed_ms": 4180,
   "valid": true,
   "note": null,
@@ -507,6 +483,7 @@ Request:
       "key": "total_time",
       "label": "Total Time",
       "value_numeric": 4180,
+      "value_text": null,
       "unit": "ms",
       "sequence": 0
     },
@@ -514,6 +491,7 @@ Request:
       "key": "split_10yd",
       "label": "10 yd",
       "value_numeric": 2210,
+      "value_text": null,
       "unit": "ms",
       "sequence": 1
     }
@@ -521,30 +499,70 @@ Request:
 }
 ```
 
-Rules:
+For `time`, `elapsed_ms` is a positive integer millisecond value. Split values are elapsed milliseconds from the original Start.
+
+### Non-timed example — successes / attempts
+
+```json
+{
+  "client_attempt_id": "01J...",
+  "athlete_id": "athlete_123",
+  "attempt_number": 1,
+  "started_at": null,
+  "stopped_at": null,
+  "elapsed_ms": null,
+  "valid": true,
+  "note": null,
+  "measurements": [
+    {
+      "key": "successes",
+      "label": "Successes",
+      "value_numeric": 8,
+      "value_text": null,
+      "unit": "count",
+      "sequence": 0
+    },
+    {
+      "key": "attempts",
+      "label": "Attempts",
+      "value_numeric": 10,
+      "value_text": null,
+      "unit": "count",
+      "sequence": 1
+    }
+  ]
+}
+```
+
+For every non-timed measurement type, `elapsed_ms`, `started_at`, and `stopped_at` are `null` in the normal manual-entry flow.
+
+Authoritative measurement shapes:
+
+- `successes_attempts` → `successes` + `attempts`; both integers, attempts equals configured `total_attempts`, and `0 <= successes <= attempts`
+- `distance` → `distance` using the configured unit; value is zero or greater
+- `count` → `count` using the configured unit; value is an integer zero or greater
+- `rating` → `rating` using configured unit/min/max/step
+- `custom_numeric` → exactly one numeric Measurement for every configured field key/label/unit
+
+Rules for all attempt types:
 
 - `client_attempt_id` is required and unique for idempotent retry
-- athlete must belong to the session queue
+- athlete must belong to the session queue and not be skipped
 - attempt number must be valid for the drill
-- measurements must match the session's immutable drill definition
-- elapsed/split values are already captured by the browser; server does not retime them
+- measurement keys, labels, units, values, and ranges must match the session's immutable drill definition
+- timed elapsed/split values are captured by the browser; the server never retimes them
 - attempt + measurements persist transactionally
-
-Response:
-
 - first successful create → `201`
-- retry with same `client_attempt_id` and same payload → `200` existing attempt
-- same ID with conflicting payload → `409 conflict`
+- retry with the same `client_attempt_id` and same payload → `200` existing attempt
+- same client ID with different data → `409 conflict`
 
-This prevents a network retry from duplicating an athlete result.
+This prevents network retries from duplicating results.
 
 ## 24. Session athlete status
 
 ### `PATCH /api/sessions/:sessionId/athletes/:athleteId`
 
-Used for explicit session participation state such as skip/unskip.
-
-Example:
+Used for explicit participation state such as skip/unskip:
 
 ```json
 {
@@ -553,6 +571,29 @@ Example:
 ```
 
 Do not represent skipped athletes with a zero-valued attempt.
+
+## 24A. Add roster athletes to an active session
+
+### `POST /api/sessions/:sessionId/athletes`
+
+Allows a coach to explicitly append active team members who were rostered after the session snapshot was created.
+
+Request:
+
+```json
+{
+  "athlete_ids": ["athlete_456", "athlete_789"]
+}
+```
+
+Server rules:
+
+- session must still be active
+- each requested athlete must be an active roster member of the session's team
+- existing session athletes are left unchanged
+- repeated requests are idempotent for athletes already present
+- new athletes append to the queue as `pending`
+- response is refreshed SessionDetail
 
 ---
 
@@ -571,7 +612,7 @@ Expected filters:
 ?to=<iso-date>
 ```
 
-Response should include raw session result history plus derived values needed by the UI, such as PB/latest, without making those derived values authoritative database records.
+Response should include raw session result history plus derived values needed by the UI, such as PB/latest, without making derived values authoritative database records.
 
 ## 26. Drill leaderboard
 
@@ -587,15 +628,13 @@ Only valid attempts/results count.
 
 ## 27. Validation boundary
 
-Client validation improves UX.
-
-Server validation is authoritative.
+Client validation improves UX. Server validation is authoritative.
 
 Never trust:
 
 - athlete/team IDs from browser without access checks
 - drill definitions just because client validation passed
-- elapsed values to match a different drill's expected schema
+- elapsed or measurement values to match a different drill's expected schema
 - archived/inactive relationships without explicit server rules
 
 ## 28. API evolution
