@@ -1,14 +1,8 @@
 import { useEffect, useState } from "react";
-import { ChevronRight } from "lucide-react";
+import { Activity, ChevronRight } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { getRoster, type RosterRow, type Team } from "@/lib/api";
-
-const sessions = [
-  { drill: "20-Yard Sprint", when: "Yesterday · 5:42 PM", athletes: "9 athletes", status: "Completed" },
-  { drill: "Quick Catch", when: "Aug 14 · 6:08 PM", athletes: "10 athletes", status: "Completed" },
-  { drill: "5-10-5 Shuttle", when: "Aug 11 · 5:51 PM", athletes: "8 athletes", status: "Completed" },
-];
+import { getDrill, getRoster, listDrills, type DrillDetail, type RosterRow, type Team } from "@/lib/api";
 
 function positionLabel(row: RosterRow) {
   return [row.membership.primary_position, row.membership.secondary_position].filter(Boolean).join(" / ") || "—";
@@ -17,6 +11,8 @@ function positionLabel(row: RosterRow) {
 export function HomeScreen({ onNavigate, team }: { onNavigate: (path: string) => void; team: Team | null }) {
   const [roster, setRoster] = useState<RosterRow[]>([]);
   const [rosterLoading, setRosterLoading] = useState(false);
+  const [quickDrill, setQuickDrill] = useState<DrillDetail | null>(null);
+  const [drillLoading, setDrillLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
@@ -34,6 +30,25 @@ export function HomeScreen({ onNavigate, team }: { onNavigate: (path: string) =>
     return () => { cancelled = true; };
   }, [team]);
 
+  useEffect(() => {
+    let cancelled = false;
+    setDrillLoading(true);
+
+    listDrills()
+      .then(async (drills) => {
+        if (!drills.length) return null;
+        return getDrill(drills[0].id);
+      })
+      .then((detail) => { if (!cancelled) setQuickDrill(detail); })
+      .catch(() => { if (!cancelled) setQuickDrill(null); })
+      .finally(() => { if (!cancelled) setDrillLoading(false); });
+
+    return () => { cancelled = true; };
+  }, []);
+
+  const definition = quickDrill?.version.definition;
+  const splitLabel = definition?.timer?.splits?.[0]?.label;
+
   return (
     <section className="mx-auto max-w-[1160px] px-4 pb-7 pt-[18px] md:px-7 md:pt-[22px]">
       <div className="mb-[13px] md:mb-[15px]">
@@ -49,19 +64,36 @@ export function HomeScreen({ onNavigate, team }: { onNavigate: (path: string) =>
           </div>
 
           <div className="flex flex-1 flex-col justify-between gap-5 p-[17px] sm:p-5">
-            <div>
-              <div className="text-[28px] font-extrabold leading-none tracking-[-0.05em] sm:text-[34px] lg:text-[39px]">20-Yard Sprint</div>
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                <span className="inline-flex min-h-[25px] items-center rounded-full border border-[rgba(124,58,237,0.42)] bg-[rgba(124,58,237,0.14)] px-2.5 text-[10px] font-bold text-[#c4b5fd]">Speed</span>
-                <span className="inline-flex min-h-[25px] items-center rounded-full border border-border px-2.5 text-[10px] font-bold text-text-muted">2 attempts</span>
-                <span className="inline-flex min-h-[25px] items-center rounded-full border border-border px-2.5 text-[10px] font-bold text-text-muted">10 yd split</span>
+            {drillLoading ? (
+              <div className="space-y-3" aria-label="Loading drill">
+                <div className="h-9 w-2/3 animate-pulse rounded bg-surface-elevated" />
+                <div className="h-6 w-1/2 animate-pulse rounded bg-surface-elevated" />
               </div>
-            </div>
+            ) : quickDrill && definition ? (
+              <div>
+                <div className="text-[28px] font-extrabold leading-none tracking-[-0.05em] sm:text-[34px] lg:text-[39px]">{quickDrill.drill.name}</div>
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  <span className="inline-flex min-h-[25px] items-center rounded-full border border-[rgba(124,58,237,0.42)] bg-[rgba(124,58,237,0.14)] px-2.5 text-[10px] font-bold text-[#c4b5fd]">{quickDrill.drill.category}</span>
+                  <span className="inline-flex min-h-[25px] items-center rounded-full border border-border px-2.5 text-[10px] font-bold text-text-muted">{definition.attempts.count} {definition.attempts.count === 1 ? "attempt" : "attempts"}</span>
+                  {splitLabel && <span className="inline-flex min-h-[25px] items-center rounded-full border border-border px-2.5 text-[10px] font-bold text-text-muted">{splitLabel} split</span>}
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-start gap-3">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-border bg-background text-text-muted">
+                  <Activity aria-hidden={true} size={19} />
+                </span>
+                <div>
+                  <div className="text-base font-extrabold">No drills configured</div>
+                  <p className="mt-1 max-w-md text-xs leading-5 text-text-muted">Open the Drill Library and import your first drill definition.</p>
+                </div>
+              </div>
+            )}
 
             <div>
-              <Button type="button" size="lg" onClick={() => onNavigate("/train")} disabled={!team} className="min-h-[60px] w-full rounded-[9px] text-base font-extrabold">Start Session</Button>
+              <Button type="button" size="lg" onClick={() => onNavigate("/train")} disabled={!team || !quickDrill} className="min-h-[60px] w-full rounded-[9px] text-base font-extrabold">Start Session</Button>
               <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                <Button type="button" variant="secondary" onClick={() => onNavigate("/train")} className="min-h-10 text-[11px] font-bold">Resume Last Session</Button>
+                <Button type="button" variant="secondary" onClick={() => onNavigate("/train")} disabled className="min-h-10 text-[11px] font-bold">Resume Last Session</Button>
                 <Button type="button" variant="secondary" onClick={() => onNavigate("/drills")} className="min-h-10 text-[11px] font-bold">Open Drill Library</Button>
               </div>
             </div>
@@ -103,24 +135,17 @@ export function HomeScreen({ onNavigate, team }: { onNavigate: (path: string) =>
           <h2 id="recent-sessions-title" className="text-[13px] font-bold">Recent Sessions</h2>
           <button type="button" onClick={() => onNavigate("/data")} className="min-h-10 px-1 text-[11px] font-bold text-text-muted transition-colors hover:text-text-primary">View all</button>
         </div>
-        <div>
-          {sessions.map((session) => (
-            <button
-              key={`${session.drill}-${session.when}`}
-              type="button"
-              onClick={() => onNavigate("/data")}
-              className="grid min-h-12 w-full grid-cols-[minmax(0,1fr)_auto_18px] items-center gap-2.5 border-b border-border px-[15px] text-left last:border-b-0 hover:bg-surface-elevated sm:grid-cols-[minmax(180px,1.4fr)_minmax(100px,.75fr)_minmax(85px,.6fr)_18px] sm:gap-3.5"
-            >
-              <span className="min-w-0">
-                <span className="block truncate text-xs font-bold">{session.drill}</span>
-                <span className="block truncate text-[11px] text-text-muted">{session.when}</span>
-              </span>
-              <span className="hidden text-[11px] text-text-muted sm:block">{session.athletes}</span>
-              <span className="text-[11px] text-text-muted">{session.status}</span>
-              <ChevronRight aria-hidden={true} size={15} className="text-text-muted" />
-            </button>
-          ))}
-        </div>
+        <button
+          type="button"
+          onClick={() => onNavigate("/train")}
+          className="grid min-h-[64px] w-full grid-cols-[minmax(0,1fr)_18px] items-center gap-3 px-[15px] text-left hover:bg-surface-elevated"
+        >
+          <span>
+            <span className="block text-xs font-bold">No sessions recorded yet.</span>
+            <span className="mt-0.5 block text-[11px] text-text-muted">Completed training sessions will appear here once session capture is live.</span>
+          </span>
+          <ChevronRight aria-hidden={true} size={15} className="text-text-muted" />
+        </button>
       </section>
     </section>
   );
