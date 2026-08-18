@@ -19,7 +19,7 @@ export default function App() {
     if (path === pathname) return;
     window.history.pushState({}, "", path);
     setPathname(path);
-    window.scrollTo({ top: 0, behavior: "instant" });
+    window.scrollTo({ top: 0, behavior: "auto" });
   };
 
   const route = getRoute(pathname);
