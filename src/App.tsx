@@ -14,6 +14,7 @@ import { TrainRoute } from "@/features/train/train-route";
 import { getActiveSession, listTeams, type Team } from "@/lib/api";
 
 const TEAM_STORAGE_KEY = "fld-lab:last-team-id";
+const ACTIVE_SESSION_LEAVE_MESSAGE = "Leave the active training session? The session will stay active and can be resumed when you return.";
 
 function sortTeams(teams: Team[]) {
   return [...teams].sort((a, b) => a.name.localeCompare(b.name) || (a.season_label ?? "").localeCompare(b.season_label ?? ""));
@@ -27,10 +28,17 @@ export default function App() {
   const [activeSessionLock, setActiveSessionLock] = useState(false);
 
   useEffect(() => {
-    const handlePopState = () => setPathname(window.location.pathname);
+    const handlePopState = () => {
+      const nextPath = window.location.pathname;
+      if (pathname === "/train" && nextPath !== "/train" && activeSessionLock && !window.confirm(ACTIVE_SESSION_LEAVE_MESSAGE)) {
+        window.history.pushState({}, "", pathname);
+        return;
+      }
+      setPathname(nextPath);
+    };
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, []);
+  }, [activeSessionLock, pathname]);
 
   useEffect(() => {
     let cancelled = false;
@@ -69,16 +77,19 @@ export default function App() {
       return;
     }
 
-    if (pathname === "/train") setActiveSessionLock(true);
+    // Train reports its current session state directly so the lock updates as sessions start/end.
+    if (pathname === "/train") return;
+
     getActiveSession(teamId)
-      .then((active) => { if (!cancelled && pathname !== "/train") setActiveSessionLock(Boolean(active)); })
-      .catch(() => { if (!cancelled && pathname !== "/train") setActiveSessionLock(false); });
+      .then((active) => { if (!cancelled) setActiveSessionLock(Boolean(active)); })
+      .catch(() => { if (!cancelled) setActiveSessionLock(false); });
 
     return () => { cancelled = true; };
   }, [pathname, teamId]);
 
   const navigate = (path: string) => {
     if (path === pathname) return;
+    if (pathname === "/train" && path !== "/train" && activeSessionLock && !window.confirm(ACTIVE_SESSION_LEAVE_MESSAGE)) return;
     window.history.pushState({}, "", path);
     setPathname(path);
     window.scrollTo({ top: 0, behavior: "auto" });
@@ -133,7 +144,7 @@ export default function App() {
         ? <RosterScreen team={activeTeam} onNavigate={navigate} />
         : <FirstTeamSetup onCreated={handleTeamCreated} />;
   } else if (activePath === "/train") {
-    screen = <TrainRoute team={activeTeam} onNavigate={navigate} />;
+    screen = <TrainRoute team={activeTeam} onNavigate={navigate} onSessionStateChange={setActiveSessionLock} />;
   } else if (activePath === "/data") {
     screen = <DataScreen team={activeTeam} />;
   } else if (activePath === "/drills") {

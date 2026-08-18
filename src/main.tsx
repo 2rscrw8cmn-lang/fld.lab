@@ -15,3 +15,11 @@ createRoot(root).render(
     <App />
   </StrictMode>
 );
+
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    void navigator.serviceWorker.register("/sw.js").catch((error) => {
+      console.warn("fld.LAB service worker registration failed", error);
+    });
+  });
+}

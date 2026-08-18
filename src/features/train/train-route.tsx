@@ -28,7 +28,15 @@ async function addAthletesToSession(sessionId: string, athleteIds: string[]): Pr
   return response.json() as Promise<SessionDetail>;
 }
 
-export function TrainRoute({ team, onNavigate }: { team: Team | null; onNavigate: (path: string) => void }) {
+export function TrainRoute({
+  team,
+  onNavigate,
+  onSessionStateChange,
+}: {
+  team: Team | null;
+  onNavigate: (path: string) => void;
+  onSessionStateChange?: (active: boolean) => void;
+}) {
   const [roster, setRoster] = useState<RosterRow[]>([]);
   const [activeSession, setActiveSession] = useState<SessionDetail | null>(null);
   const [resultContext, setResultContext] = useState<SessionResultContext | null>(null);
@@ -64,6 +72,10 @@ export function TrainRoute({ team, onNavigate }: { team: Team | null; onNavigate
       window.clearInterval(interval);
     };
   }, [team?.id]);
+
+  useEffect(() => {
+    onSessionStateChange?.(Boolean(activeSession));
+  }, [activeSession, onSessionStateChange]);
 
   useEffect(() => {
     let cancelled = false;
