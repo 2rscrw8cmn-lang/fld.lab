@@ -8,11 +8,16 @@ import { DataScreen } from "@/features/data/data-screen";
 import { DrillLibraryScreen } from "@/features/drills/drill-library-screen";
 import { HomeScreen } from "@/features/home/home-screen";
 import { RosterScreen } from "@/features/roster/roster-screen";
+import { SettingsScreen } from "@/features/settings/settings-screen";
 import { FirstTeamSetup } from "@/features/teams/first-team-setup";
 import { TrainRoute } from "@/features/train/train-route";
 import { getActiveSession, listTeams, type Team } from "@/lib/api";
 
 const TEAM_STORAGE_KEY = "fld-lab:last-team-id";
+
+function sortTeams(teams: Team[]) {
+  return [...teams].sort((a, b) => a.name.localeCompare(b.name) || (a.season_label ?? "").localeCompare(b.season_label ?? ""));
+}
 
 export default function App() {
   const [pathname, setPathname] = useState(() => window.location.pathname);
@@ -86,9 +91,28 @@ export default function App() {
   };
 
   const handleTeamCreated = (team: Team) => {
-    setTeams((current) => [...current, team]);
+    setTeams((current) => sortTeams([...current.filter((candidate) => candidate.id !== team.id), team]));
     setTeamId(team.id);
     window.localStorage.setItem(TEAM_STORAGE_KEY, team.id);
+  };
+
+  const handleManagedTeamCreated = (team: Team) => {
+    if (!team.active) return;
+    setTeams((current) => sortTeams([...current.filter((candidate) => candidate.id !== team.id), team]));
+  };
+
+  const handleTeamUpdated = (team: Team) => {
+    const nextTeams = team.active
+      ? sortTeams([...teams.filter((candidate) => candidate.id !== team.id), team])
+      : teams.filter((candidate) => candidate.id !== team.id);
+    setTeams(nextTeams);
+
+    if (!team.active && team.id === teamId) {
+      const nextTeamId = nextTeams[0]?.id ?? "";
+      setTeamId(nextTeamId);
+      if (nextTeamId) window.localStorage.setItem(TEAM_STORAGE_KEY, nextTeamId);
+      else window.localStorage.removeItem(TEAM_STORAGE_KEY);
+    }
   };
 
   const athleteMatch = pathname.match(/^\/athletes\/([^/]+)$/);
@@ -114,6 +138,16 @@ export default function App() {
     screen = <DataScreen team={activeTeam} />;
   } else if (activePath === "/drills") {
     screen = <DrillLibraryScreen />;
+  } else if (activePath === "/settings") {
+    screen = (
+      <SettingsScreen
+        currentTeamId={teamId}
+        teamSwitchDisabled={activeSessionLock}
+        onSelectTeam={selectTeam}
+        onTeamCreated={handleManagedTeamCreated}
+        onTeamUpdated={handleTeamUpdated}
+      />
+    );
   }
 
   return (
