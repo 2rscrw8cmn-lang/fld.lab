@@ -59,7 +59,7 @@ Worker access:
 env.DB
 ```
 
-Database IDs belong in Wrangler configuration, never application code.
+Resource IDs are Cloudflare account metadata. Never hard-code a database ID in application code. The repository may omit `database_id` when using Wrangler automatic resource provisioning.
 
 ## 3. Scaffold
 
@@ -93,7 +93,7 @@ Generated structure may vary with Cloudflare tooling. Preserve the architecture,
 
 Keep `wrangler.jsonc` in the repository.
 
-Representative shape:
+The MVP repository uses Wrangler automatic D1 resource provisioning, so the committed binding intentionally identifies the database by name without an account-specific `database_id`:
 
 ```jsonc
 {
@@ -102,13 +102,13 @@ Representative shape:
   "main": "worker/index.ts",
   "compatibility_date": "YYYY-MM-DD",
   "assets": {
-    "not_found_handling": "single-page-application"
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
   },
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "fld-lab-prod",
-      "database_id": "<D1_DATABASE_ID>",
       "migrations_dir": "migrations"
     }
   ]
@@ -120,20 +120,33 @@ Rules:
 - use the compatibility date expected by the current scaffold
 - point `main` at the actual Worker entry
 - keep SPA route fallback enabled
-- never commit a placeholder as if it were a real database ID
+- route `/api/*` through the Worker before static assets
+- keep the binding name `DB` and database name `fld-lab-prod`
+- do not add a fake/placeholder database ID
 - generated Wrangler structure may differ; preserve the `DB` binding and migration rules
 
-## 5. Production database creation
+If automatic provisioning is intentionally replaced later with an explicitly managed D1 resource, add the real `database_id` returned by Cloudflare to the binding. Do not invent or copy an ID from another account/environment.
 
-Create once:
+## 5. Production database provisioning
+
+The default MVP workflow is automatic provisioning through Wrangler/Workers Builds.
+
+On the first deployment containing the `DB` binding with `database_name: "fld-lab-prod"` and no `database_id`, Cloudflare can create and link the production D1 resource for the Worker. Subsequent deployments continue using the linked resource.
+
+Important:
+
+- provisioning the D1 resource does **not** apply repository migrations
+- after the database exists, apply the production migration deliberately with `--remote`
+- do not create a new production database per deployment
+- do not seed production with the fictional local seed file
+
+Manual creation is an alternative only when deliberately needed:
 
 ```bash
 npx wrangler d1 create fld-lab-prod
 ```
 
-Copy the returned database ID into the `DB` binding in `wrangler.jsonc`.
-
-Do not create a new production database per deployment.
+If using that manual path, configure the returned real database ID in `wrangler.jsonc` before deployment.
 
 ## 6. Local development
 
@@ -142,10 +155,16 @@ Normal feature development uses local D1 emulation, not production data.
 Apply migrations locally:
 
 ```bash
+npm run db:migrate:local
+```
+
+Equivalent Wrangler command:
+
+```bash
 npx wrangler d1 migrations apply fld-lab-prod --local
 ```
 
-Start the app with the repository's actual development script, expected to be:
+Start the app with the repository's actual development script:
 
 ```bash
 npm run dev
@@ -172,7 +191,7 @@ npx wrangler d1 migrations create fld-lab-prod <migration-name>
 Apply locally first:
 
 ```bash
-npx wrangler d1 migrations apply fld-lab-prod --local
+npm run db:migrate:local
 ```
 
 Review production state:
@@ -182,6 +201,12 @@ npx wrangler d1 migrations list fld-lab-prod --remote
 ```
 
 Apply deliberately to production:
+
+```bash
+npm run db:migrate:remote
+```
+
+Equivalent Wrangler command:
 
 ```bash
 npx wrangler d1 migrations apply fld-lab-prod --remote
@@ -291,6 +316,12 @@ scripts/
 ```
 
 Run locally:
+
+```bash
+npm run db:seed:local
+```
+
+Equivalent Wrangler command:
 
 ```bash
 npx wrangler d1 execute fld-lab-prod --local --file=./scripts/seed.local.sql
@@ -429,21 +460,35 @@ See `SECURITY.md`.
 
 ## 19. Deployment workflow
 
-Phase 1 should establish repeatable commands that actually exist in `package.json`.
+The repository is connected to Cloudflare Workers Builds on `main`.
 
-Expected sequence:
+Normal application deploy:
 
 ```bash
 npm install
 npm run typecheck
 npm test
 npm run build
-npx wrangler d1 migrations list fld-lab-prod --remote
-npx wrangler d1 migrations apply fld-lab-prod --remote
 npx wrangler deploy
 ```
 
-If a referenced script does not exist yet, add it during scaffolding rather than leaving documentation that points to fake commands.
+Schema migrations are a separate deliberate operation. A Worker deployment does **not** imply that pending D1 migrations have been applied.
+
+For a release containing a new migration:
+
+1. apply and test it locally
+2. merge/deploy the Worker so any automatically provisioned D1 resource exists
+3. review remote migration state
+4. apply the migration remotely
+5. verify the affected API/read-write path
+
+Commands:
+
+```bash
+npm run db:migrate:local
+npx wrangler d1 migrations list fld-lab-prod --remote
+npm run db:migrate:remote
+```
 
 A deployment must never depend on manual database edits in the Cloudflare dashboard.
 
@@ -489,26 +534,26 @@ Keep youth-athlete PII limited to the fields defined in `DATA_MODEL.md`.
 
 ## 22. Phase 1 checklist
 
-- [ ] React/Vite/Worker scaffold runs locally
-- [ ] `wrangler.jsonc` exists
-- [ ] Worker is named `fld-lab`
-- [ ] production D1 database exists
-- [ ] D1 binding is `DB`
-- [ ] real database ID is configured
-- [ ] `migrations/` exists
+- [x] React/Vite/Worker scaffold runs locally
+- [x] `wrangler.jsonc` exists
+- [x] Worker is named `fld-lab`
+- [ ] production D1 database exists/is provisioned
+- [x] D1 binding is named `DB` in repository configuration
+- [x] `migrations/` exists
 - [ ] initial roster migration applies locally
 - [ ] initial roster migration applies remotely
 - [ ] local app reads/writes local D1
 - [ ] deployed Worker can read/write configured D1
-- [ ] local state and secrets are gitignored
-- [ ] type checking passes
-- [ ] build succeeds
-- [ ] no real youth-athlete data is exposed anonymously
+- [x] local state and secrets are gitignored
+- [x] type checking passes
+- [x] build succeeds
+- [x] no real youth-athlete data is intentionally included in the repository
+- [ ] production access control is implemented before any real youth-athlete data is loaded
 
 ## 23. Command reference
 
 ```bash
-# create database
+# optional manual database creation (automatic provisioning is the default)
 npx wrangler d1 create fld-lab-prod
 
 # create migration
@@ -519,8 +564,11 @@ npx wrangler d1 migrations list fld-lab-prod --local
 npx wrangler d1 migrations list fld-lab-prod --remote
 
 # apply migrations
-npx wrangler d1 migrations apply fld-lab-prod --local
-npx wrangler d1 migrations apply fld-lab-prod --remote
+npm run db:migrate:local
+npm run db:migrate:remote
+
+# seed local development only
+npm run db:seed:local
 
 # execute SQL
 npx wrangler d1 execute fld-lab-prod --local --command "SELECT 1;"
@@ -541,6 +589,7 @@ npx wrangler deploy
 - one production D1 database is enough for MVP
 - do not use production D1 for normal local development
 - do not hard-code database IDs in TypeScript
+- do not add a placeholder `database_id` to Wrangler configuration
 - do not introduce an ORM unless it clearly reduces complexity
 - do not manually patch production schema as the normal workflow
 - do not expose D1 administration to browser code
