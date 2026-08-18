@@ -603,28 +603,131 @@ Server rules:
 
 ### `GET /api/athletes/:athleteId/results`
 
-Expected filters:
+Optional filters:
 
 ```text
 ?drill_id=<id>
 ?team_id=<id>
-?from=<iso-date>
-?to=<iso-date>
+?from=<iso-date-or-timestamp>
+?to=<iso-date-or-timestamp>
 ```
 
-Response should include raw session result history plus derived values needed by the UI, such as PB/latest, without making derived values authoritative database records.
+Results are derived from saved valid Attempts and Measurements. The server does not persist PB/latest summary rows.
+
+Response shape:
+
+```json
+{
+  "athlete": {
+    "id": "athlete_123",
+    "first_name": "Emma",
+    "last_name": "Johnson"
+  },
+  "groups": [
+    {
+      "drill": {
+        "id": "drill_123",
+        "name": "20-Yard Sprint",
+        "category": "Speed"
+      },
+      "metric": {
+        "type": "time",
+        "key": "total_time",
+        "label": "Time",
+        "unit": "ms",
+        "direction": "lower",
+        "aggregation": "best",
+        "total_attempts": null,
+        "max": null
+      },
+      "summary": {
+        "pb": 4010,
+        "latest": 4180,
+        "previous": 4260,
+        "change_from_previous": -80,
+        "improved_from_previous": true,
+        "result_count": 4
+      },
+      "results": [
+        {
+          "session_id": "session_123",
+          "team_id": "team_123",
+          "drill_id": "drill_123",
+          "drill_version_id": "drill_version_2",
+          "athlete_id": "athlete_123",
+          "started_at": "2026-08-18T01:30:00.000Z",
+          "completed_at": "2026-08-18T02:00:00.000Z",
+          "session_status": "completed",
+          "value": 4180,
+          "attempt_count": 2,
+          "metric": {}
+        }
+      ]
+    }
+  ]
+}
+```
+
+Derivation rules:
+
+- each athlete/session produces at most one comparable result for a drill
+- the session's stored DrillVersion defines the primary metric and attempt aggregation
+- `best` uses the session definition's `direction` (`lower` = minimum, `higher` = maximum; `none` falls back to latest)
+- `average`, `latest`, and `total` use the configured attempt aggregation literally
+- timed drills use `total_time` / `elapsed_ms` as the comparable scalar
+- `successes_attempts` uses `successes`
+- `distance`, `count`, and `rating` use their canonical measurement key
+- `custom_numeric` uses the first configured numeric field as the v1 comparable metric; all raw Measurements remain preserved on Attempts
+- PB/latest summaries compare only historical results whose metric signature is compatible with the drill's current definition (type/key/unit/direction/aggregation and relevant denominator/range metadata)
+- `direction: none` returns `pb: null` because there is no ranked personal best
+- saved valid attempts from completed, abandoned, or still-active sessions remain part of history
 
 ## 26. Drill leaderboard
 
 ### `GET /api/drills/:drillId/leaderboard?team_id=:teamId`
 
-Rank according to drill `direction`:
+`team_id` is required.
 
+Response:
+
+```json
+{
+  "drill": {
+    "id": "drill_123",
+    "name": "20-Yard Sprint",
+    "category": "Speed"
+  },
+  "metric": {},
+  "entries": [
+    {
+      "rank": 1,
+      "athlete": {
+        "id": "athlete_123",
+        "first_name": "Emma",
+        "last_name": "Johnson"
+      },
+      "membership": {
+        "jersey_number": "12",
+        "primary_position": "WR",
+        "secondary_position": "DB"
+      },
+      "pb": 4010,
+      "latest": 4180,
+      "previous": 4260,
+      "result_count": 4
+    }
+  ]
+}
+```
+
+Ranking rules:
+
+- leaderboard ranks each athlete by their compatible all-time PB for the selected team/drill
 - `lower` → ascending
 - `higher` → descending
-- `none` → no ranked leaderboard
-
-Only valid attempts/results count.
+- tied PB values share a rank
+- `none` → entries are returned unranked (`rank: null`)
+- only valid persisted results count
 
 ## 27. Validation boundary
 
