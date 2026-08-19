@@ -8,6 +8,7 @@ import { AthleteProfileScreen } from "@/features/athletes/athlete-profile-screen
 import { DataScreen } from "@/features/data/data-screen";
 import { DrillLibraryScreen } from "@/features/drills/drill-library-screen";
 import { HomeScreen } from "@/features/home/home-screen";
+import { PlaybookScreen } from "@/features/playbook/playbook-screen";
 import { RosterScreen } from "@/features/roster/roster-screen";
 import { SettingsScreen } from "@/features/settings/settings-screen";
 import { FirstTeamSetup } from "@/features/teams/first-team-setup";
@@ -49,8 +50,6 @@ export default function App() {
       setActiveSessionLock(hasActiveSession);
       return hasActiveSession;
     } catch {
-      // If the current state cannot be verified, preserve the guard rather than
-      // letting a coach accidentally leave an active session.
       return true;
     }
   }, [activeSessionLock, teamId]);
@@ -111,7 +110,6 @@ export default function App() {
       return;
     }
 
-    // Train reports its current session state directly so the lock updates as sessions start/end.
     if (pathname === "/train") return;
 
     getActiveSession(teamId)
@@ -201,6 +199,8 @@ export default function App() {
     screen = <TrainRoute team={activeTeam} onNavigate={navigate} onSessionStateChange={setActiveSessionLock} />;
   } else if (activePath === "/data") {
     screen = <DataScreen team={activeTeam} />;
+  } else if (activePath === "/playbook") {
+    screen = <PlaybookScreen team={activeTeam} />;
   } else if (activePath === "/drills") {
     screen = <DrillLibraryScreen />;
   } else if (activePath === "/settings") {
