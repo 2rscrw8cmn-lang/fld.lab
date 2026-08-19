@@ -95,7 +95,6 @@ The editor supports:
 - clear selected assignments
 - change formation
 - direct selection and adjustment of existing route/motion lines
-- move a saved play from Editor to Library
 
 Changing formation resets player placement and assignments.
 
@@ -196,7 +195,7 @@ This is separate from archival. A Library play is still a normal saved play. Its
 
 New plays default to Editor. The UI may continue storing this state in the existing `active_play` field until a future data migration gives the concept a better persistence name.
 
-Editor cards open directly into the editor. Library cards open into the play viewer. An Editor play should never require an extra viewer → Edit step before the coach can change it.
+Editor cards open directly into the editor. Library cards open into the play viewer. An Editor play should never require an extra viewer → Edit step before the coach can change it. Moving a finished play to Library is an Editor-card action, not an in-editor control.
 
 ### Play viewer
 
