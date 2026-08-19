@@ -1,5 +1,13 @@
 import type { D1Database } from "@cloudflare/workers-types";
 
+import {
+  assertPlaybookForTeam,
+  createPlaybook,
+  getPlaybook,
+  listPlaybooks,
+  updatePlaybook,
+  type PlaybookFormat,
+} from "../db/playbooks";
 import { createPlay, getPlay, listPlays, updatePlay, type PlayInput, type PlaySituation, type PlayType } from "../db/plays";
 import { RepositoryError } from "../db/repository";
 
@@ -23,6 +31,7 @@ type PlayDiagram = {
 const ROUTE_TEMPLATES = new Set(["go", "slant", "out", "in", "post", "corner", "hitch", "drag"]);
 const PLAY_TYPES = new Set<PlayType>(["pass", "run", "option"]);
 const PLAY_SITUATIONS = new Set<PlaySituation>(["any", "short", "medium", "deep", "no-run", "goal-line", "conversion"]);
+const PLAYBOOK_FORMATS = new Set<PlaybookFormat>(["5v5", "6v6"]);
 
 function errorResponse(code: string, message: string, status: number, fields?: Record<string, string>) {
   return Response.json(
@@ -121,6 +130,7 @@ function validateDiagram(value: unknown): PlayDiagram | null {
 
 function parsePlayInput(body: JsonObject): { input?: PlayInput; fields: Record<string, string> } {
   const fields: Record<string, string> = {};
+  const playbookId = boundedString(body.playbook_id, 100);
   const name = boundedString(body.name, 120);
   const side = body.side === "offense" || body.side === "defense" ? body.side : null;
   const formationId = optionalString(body.formation_id, 80);
@@ -138,6 +148,7 @@ function parsePlayInput(body: JsonObject): { input?: PlayInput; fields: Record<s
   const activePlay = body.active_play === undefined ? true : typeof body.active_play === "boolean" ? body.active_play : undefined;
   const diagram = validateDiagram(body.diagram);
 
+  if (!playbookId) fields.playbook_id = "Required";
   if (!name) fields.name = "Required; maximum 120 characters";
   if (!side) fields.side = "Must be offense or defense";
   if (body.formation_id !== undefined && formationId === undefined) fields.formation_id = "Must be a string or null";
@@ -153,6 +164,7 @@ function parsePlayInput(body: JsonObject): { input?: PlayInput; fields: Record<s
   return {
     fields,
     input: {
+      playbook_id: playbookId!,
       name: name!,
       side: side!,
       formation_id: formationId ?? null,
@@ -172,13 +184,68 @@ export async function handlePlaybookApi(request: Request, db: D1Database): Promi
   const { pathname } = url;
 
   try {
+    const playbooksMatch = pathname.match(/^\/api\/teams\/([^/]+)\/playbooks$/);
+    if (playbooksMatch) {
+      const teamId = decodeURIComponent(playbooksMatch[1]);
+      if (request.method === "GET") {
+        const includeArchived = url.searchParams.get("include_archived") === "true";
+        return Response.json(
+          { playbooks: await listPlaybooks(db, teamId, includeArchived) },
+          { headers: { "Cache-Control": "no-store" } },
+        );
+      }
+      if (request.method === "POST") {
+        const body = await readJson(request);
+        if (!body) return errorResponse("validation_error", "Request body must be a JSON object.", 400);
+        const name = boundedString(body.name, 80);
+        const format = typeof body.format === "string" && PLAYBOOK_FORMATS.has(body.format as PlaybookFormat)
+          ? body.format as PlaybookFormat
+          : null;
+        const fields: Record<string, string> = {};
+        if (!name) fields.name = "Required; maximum 80 characters";
+        if (!format) fields.format = "Must be 5v5 or 6v6";
+        if (Object.keys(fields).length) return errorResponse("validation_error", "One or more fields are invalid.", 400, fields);
+        return Response.json(await createPlaybook(db, teamId, { name: name!, format: format! }), {
+          status: 201,
+          headers: { "Cache-Control": "no-store" },
+        });
+      }
+      return null;
+    }
+
+    const playbookMatch = pathname.match(/^\/api\/teams\/([^/]+)\/playbooks\/([^/]+)$/);
+    if (playbookMatch) {
+      const teamId = decodeURIComponent(playbookMatch[1]);
+      const playbookId = decodeURIComponent(playbookMatch[2]);
+      if (request.method === "GET") {
+        return Response.json(await getPlaybook(db, teamId, playbookId), { headers: { "Cache-Control": "no-store" } });
+      }
+      if (request.method === "PATCH") {
+        const body = await readJson(request);
+        if (!body) return errorResponse("validation_error", "Request body must be a JSON object.", 400);
+        const name = body.name === undefined ? undefined : boundedString(body.name, 80);
+        const archived = body.archived === undefined ? undefined : typeof body.archived === "boolean" ? body.archived : null;
+        const fields: Record<string, string> = {};
+        if (body.name !== undefined && !name) fields.name = "Must be 1–80 characters";
+        if (body.archived !== undefined && archived === null) fields.archived = "Must be a boolean";
+        if (Object.keys(fields).length) return errorResponse("validation_error", "One or more fields are invalid.", 400, fields);
+        return Response.json(
+          await updatePlaybook(db, teamId, playbookId, { ...(name ? { name } : {}), ...(archived !== undefined && archived !== null ? { archived } : {}) }),
+          { headers: { "Cache-Control": "no-store" } },
+        );
+      }
+      return null;
+    }
+
     const collectionMatch = pathname.match(/^\/api\/teams\/([^/]+)\/plays$/);
     if (collectionMatch) {
       const teamId = decodeURIComponent(collectionMatch[1]);
       if (request.method === "GET") {
         const includeArchived = url.searchParams.get("include_archived") === "true";
+        const playbookId = url.searchParams.get("playbook_id");
+        if (playbookId) await assertPlaybookForTeam(db, teamId, playbookId);
         return Response.json(
-          { plays: await listPlays(db, teamId, includeArchived) },
+          { plays: await listPlays(db, teamId, includeArchived, playbookId) },
           { headers: { "Cache-Control": "no-store" } },
         );
       }
@@ -188,6 +255,7 @@ export async function handlePlaybookApi(request: Request, db: D1Database): Promi
         if (!body) return errorResponse("validation_error", "Request body must be a JSON object.", 400);
         const parsed = parsePlayInput(body);
         if (!parsed.input) return errorResponse("validation_error", "One or more fields are invalid.", 400, parsed.fields);
+        await assertPlaybookForTeam(db, teamId, parsed.input.playbook_id);
         return Response.json(await createPlay(db, teamId, parsed.input), {
           status: 201,
           headers: { "Cache-Control": "no-store" },
@@ -210,6 +278,7 @@ export async function handlePlaybookApi(request: Request, db: D1Database): Promi
       if (!body) return errorResponse("validation_error", "Request body must be a JSON object.", 400);
       const parsed = parsePlayInput(body);
       if (!parsed.input) return errorResponse("validation_error", "One or more fields are invalid.", 400, parsed.fields);
+      await assertPlaybookForTeam(db, teamId, parsed.input.playbook_id);
       return Response.json(await updatePlay(db, teamId, playId, parsed.input), { headers: { "Cache-Control": "no-store" } });
     }
 
@@ -221,6 +290,7 @@ export async function handlePlaybookApi(request: Request, db: D1Database): Promi
       const current = await getPlay(db, teamId, playId);
       return Response.json(
         await updatePlay(db, teamId, playId, {
+          playbook_id: current.playbook_id,
           name: current.name,
           side: current.side,
           formation_id: current.formation_id,
