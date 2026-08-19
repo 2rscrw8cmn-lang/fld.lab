@@ -225,6 +225,7 @@ A play keeps football roles and roster personnel as separate layers.
 - each diagram player may optionally map to an active athlete on the team roster
 - an athlete may only occupy one diagram position in the same play
 - Library keeps the diagram itself locked while allowing personnel assignments to change
+- the Library viewer uses a distinct **Assign players** / **Edit assignments** action rather than a generic manage link
 - the viewer can switch between **Positions** and **Players** without changing route geometry or route color
 - route colors remain tied to the football role; swapping an athlete does not change the visual language of the concept
 - in Players mode, the marker uses the athlete jersey number when available and shows the athlete first name adjacent to the marker
