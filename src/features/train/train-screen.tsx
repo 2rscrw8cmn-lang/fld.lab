@@ -123,6 +123,7 @@ export function TrainScreen({ team, onNavigate }: { team: Team | null; onNavigat
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
   const [sessionAction, setSessionAction] = useState(false);
+  const [quitConfirmOpen, setQuitConfirmOpen] = useState(false);
   const [error, setError] = useState("");
   const startPerf = useRef<number | null>(null);
 
@@ -420,9 +421,9 @@ export function TrainScreen({ team, onNavigate }: { team: Team | null; onNavigat
     }
   };
 
-  const abandonSession = async () => {
+  const quitSession = async () => {
     if (!session || capture.mode === "running") return;
-    if (!window.confirm("Abandon this session? Saved attempts will be kept.")) return;
+    setQuitConfirmOpen(false);
     setSessionAction(true);
     setError("");
     try {
@@ -432,8 +433,8 @@ export function TrainScreen({ team, onNavigate }: { team: Team | null; onNavigat
       setWrites({});
       resetEntry(undefined);
       setActiveAthleteId("");
-    } catch (abandonError) {
-      setError(abandonError instanceof Error ? abandonError.message : "Could not abandon session.");
+    } catch (quitError) {
+      setError(quitError instanceof Error ? quitError.message : "Could not quit session.");
     } finally {
       setSessionAction(false);
     }
@@ -539,7 +540,7 @@ export function TrainScreen({ team, onNavigate }: { team: Team | null; onNavigat
               {failedWrites.length ? `${failedWrites.length} unsaved` : "Saving"}
             </div>
           )}
-          <Button variant="destructive" className="min-h-9 px-3 text-xs" disabled={capture.mode === "running" || sessionAction} onClick={() => void abandonSession()}>Abandon</Button>
+          <Button variant="destructive" className="min-h-9 px-3 text-xs" disabled={capture.mode === "running" || sessionAction} onClick={() => setQuitConfirmOpen(true)}>Quit</Button>
         </div>
       </div>
 
@@ -747,7 +748,7 @@ export function TrainScreen({ team, onNavigate }: { team: Team | null; onNavigat
                     </div>
                     <div className="mt-3 grid grid-cols-2 gap-2">
                       <Button variant="warning" className="min-h-11 font-bold" onClick={() => resetEntry()}><RotateCcw size={17} /> Redo</Button>
-                      <Button variant="ghost" className="min-h-11 border border-border" onClick={() => resetEntry()}><X size={17} /> Cancel</Button>
+                      <Button variant="destructive" className="min-h-11 font-bold" onClick={() => resetEntry()}><X size={17} /> Cancel</Button>
                     </div>
                   </div>
                 )}
@@ -761,6 +762,21 @@ export function TrainScreen({ team, onNavigate }: { team: Team | null; onNavigat
         <span>{team.name}{team.season_label ? ` · ${team.season_label}` : ""}</span>
         <span>{session.drill_definition.attempts.count} {session.drill_definition.attempts.count === 1 ? "attempt" : "attempts"} · {session.drill_definition.attempts.result}</span>
       </div>
+
+      {quitConfirmOpen && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 p-4" role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target && !sessionAction) setQuitConfirmOpen(false); }}>
+          <section className="w-full max-w-[430px] overflow-hidden rounded-xl border border-border bg-surface shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="quit-session-title">
+            <div className="border-b border-border px-5 py-4">
+              <h2 id="quit-session-title" className="text-lg font-extrabold">Quit this session?</h2>
+              <p className="mt-1 text-sm leading-5 text-text-muted">Saved attempts will be kept internally, but this session will not count toward athlete results or appear in coaching history.</p>
+            </div>
+            <div className="grid gap-2 p-4 sm:grid-cols-2">
+              <Button type="button" variant="secondary" disabled={sessionAction} onClick={() => setQuitConfirmOpen(false)}>Keep Training</Button>
+              <Button type="button" variant="destructive" disabled={sessionAction} onClick={() => void quitSession()}>{sessionAction ? "Quitting…" : "Quit Session"}</Button>
+            </div>
+          </section>
+        </div>
+      )}
     </section>
   );
 }
