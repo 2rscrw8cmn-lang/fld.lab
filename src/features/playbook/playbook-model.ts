@@ -194,6 +194,44 @@ function outsideSign(start: Point) {
   return -insideSign(start);
 }
 
+function requestedSign(start: Point, requestedEnd: Point, semantic: "inside" | "outside") {
+  if (Math.abs(start.x - 50) <= 5) {
+    return Math.sign(requestedEnd.x - start.x) || 1;
+  }
+  return semantic === "inside" ? insideSign(start) : outsideSign(start);
+}
+
+function forceHorizontalDirection(start: Point, requestedEnd: Point, semantic: "inside" | "outside") {
+  const sign = requestedSign(start, requestedEnd, semantic);
+  const distance = Math.max(5, Math.abs(requestedEnd.x - start.x));
+  return clamp(start.x + sign * distance);
+}
+
+function upfieldY(start: Point, requestedEnd: Point, minimumDepth: number) {
+  return clamp(Math.min(requestedEnd.y, start.y - minimumDepth));
+}
+
+function semanticRouteEnd(template: RouteTemplate, start: Point, requestedEnd: Point): Point {
+  switch (template) {
+    case "go":
+      return point(start.x, upfieldY(start, requestedEnd, 8));
+    case "slant":
+      return point(forceHorizontalDirection(start, requestedEnd, "inside"), upfieldY(start, requestedEnd, 7));
+    case "out":
+      return point(forceHorizontalDirection(start, requestedEnd, "outside"), upfieldY(start, requestedEnd, 8));
+    case "in":
+      return point(forceHorizontalDirection(start, requestedEnd, "inside"), upfieldY(start, requestedEnd, 8));
+    case "post":
+      return point(forceHorizontalDirection(start, requestedEnd, "inside"), upfieldY(start, requestedEnd, 15));
+    case "corner":
+      return point(forceHorizontalDirection(start, requestedEnd, "outside"), upfieldY(start, requestedEnd, 15));
+    case "hitch":
+      return point(forceHorizontalDirection(start, requestedEnd, "inside"), upfieldY(start, requestedEnd, 7));
+    case "drag":
+      return point(forceHorizontalDirection(start, requestedEnd, "inside"), upfieldY(start, requestedEnd, 4));
+  }
+}
+
 export function defaultRouteEnd(template: RouteTemplate, start: Point): Point {
   const inside = insideSign(start);
   const outside = outsideSign(start);
@@ -205,13 +243,15 @@ export function defaultRouteEnd(template: RouteTemplate, start: Point): Point {
     case "in": return point(start.x + inside * 26, start.y - 18);
     case "post": return point(start.x + inside * 21, start.y - 35);
     case "corner": return point(start.x + outside * 23, start.y - 35);
-    case "hitch": return point(start.x + inside * 5, start.y - 16);
+    case "hitch": return point(start.x + inside * 5, start.y - 11);
     case "drag": return point(start.x + inside * 33, start.y - 8);
   }
 }
 
 export function buildRoutePoints(template: RouteTemplate, start: Point, requestedEnd?: Point): Point[] {
-  const end = requestedEnd ? point(requestedEnd.x, requestedEnd.y) : defaultRouteEnd(template, start);
+  const end = requestedEnd
+    ? semanticRouteEnd(template, start, point(requestedEnd.x, requestedEnd.y))
+    : defaultRouteEnd(template, start);
   const normalizedStart = point(start.x, start.y);
 
   switch (template) {
@@ -228,11 +268,8 @@ export function buildRoutePoints(template: RouteTemplate, start: Point, requeste
       const cutY = start.y + (end.y - start.y) * 0.58;
       return [normalizedStart, point(start.x, cutY), end];
     }
-    case "hitch": {
-      const stemY = end.y;
-      const comebackX = Math.abs(end.x - start.x) < 2 ? start.x + insideSign(start) * 5 : end.x;
-      return [normalizedStart, point(start.x, stemY), point(comebackX, stemY + 5)];
-    }
+    case "hitch":
+      return [normalizedStart, point(start.x, end.y - 5), end];
   }
 }
 
