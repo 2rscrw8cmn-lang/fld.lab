@@ -18,8 +18,6 @@ Playbook is not a generic drawing canvas and should not become a broad practice-
 
 ## Phase 1 — editor interaction
 
-Phase 1 validates the editing model before permanent database persistence.
-
 ### New play
 
 A new offensive play begins by choosing a formation preset. Initial presets:
@@ -63,6 +61,8 @@ Route semantics stay locked while adjusting. For example, an Out remains outside
 
 A player has at most one primary route assignment. Choosing another route replaces that player's current route.
 
+Normal route ink is neutral rather than accent-colored. Purple is reserved for active selection and interaction state. Motion remains visually quieter and dashed.
+
 ### Motion
 
 Motion is a separate pre-snap assignment and renders as a dashed path. It is not stored as a route style.
@@ -83,7 +83,7 @@ The editor supports:
 - clear selected assignments
 - change formation
 
-Changing formation resets player placement and assignments during the interaction prototype.
+Changing formation resets player placement and assignments.
 
 ### Field
 
@@ -94,11 +94,11 @@ The field is a compact coaching diagram, not a full stadium field. It should sho
 - a 7-yard rush reference
 - enough vertical field to read route depth
 
+Field guides remain quieter than player markers and assignment lines.
+
 ### Diagram data
 
 Coordinates are normalized from `0` to `100`, never screen pixels.
-
-Phase 1 uses structured diagram data similar to:
 
 ```ts
 type PlayDiagram = {
@@ -126,22 +126,43 @@ Rules:
 - assignment player IDs must reference an existing player
 - route/motion assignments contain at least two points
 - route templates produce clean geometry rather than sampled freehand points
-- existing schema-v1 browser plays should be migrated in memory when possible rather than silently discarded
+- existing schema-v1 browser plays should be migrated when possible rather than silently discarded
 
-### Storage during interaction prototype
+## Persistence
 
-Until the editor interaction is approved, browser storage may be used and must remain scoped by team ID.
+D1 is the authoritative source of truth for team playbooks.
 
-After the interaction is approved, plays move to authenticated team-scoped D1 persistence.
+Each stored play belongs to exactly one team and contains:
 
-## Phase 2 — real playbook
+- `id`
+- `team_id`
+- `name`
+- `side`
+- `formation_id`
+- `formation`
+- `notes`
+- `diagram_json`
+- `archived`
+- `created_at`
+- `updated_at`
 
-- D1 play persistence
+Rules:
+
+- play access follows the existing authenticated TeamCoach permission model
+- coaches with team access may read and edit the team's plays
+- inaccessible team playbooks return the same not-found behavior as other team-scoped resources
+- archive instead of destructive delete
+- the server validates schema-v2 diagram structure before persistence
+- new persistent IDs are generated server-side
+- browser storage may be retained temporarily only as a migration/cache fallback; it is not the authoritative source after D1 persistence is active
+
+## Phase 2 — real playbook organization
+
 - formation, concept, and situation metadata
 - Active Plays vs Library
 - roster personnel mapping to position roles
 - defensive assignment editor
-- archive/delete behavior
+- archive/restore UI
 
 ## Phase 3 — game day
 

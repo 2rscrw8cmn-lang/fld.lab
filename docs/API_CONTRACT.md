@@ -37,7 +37,7 @@ Authorization has two layers:
 1. the verified email must be present in the deployment `AUTHORIZED_COACH_EMAILS` allowlist
 2. team-scoped data requires an active `team_coaches` membership for the authenticated Coach
 
-A client-supplied team, athlete, membership, or session ID is never proof of access. Inaccessible team-scoped resources should normally return `404` so the API does not reveal whether another coach's resource exists. Owner-only mutations return `403` when the signed-in coach has team access but lacks the `owner` role.
+A client-supplied team, athlete, membership, session, or play ID is never proof of access. Inaccessible team-scoped resources should normally return `404` so the API does not reveal whether another coach's resource exists. Owner-only mutations return `403` when the signed-in coach has team access but lacks the `owner` role.
 
 Cloudflare Access remains the login provider; fld.LAB does not store passwords.
 
@@ -840,19 +840,140 @@ GET /api/sessions/:sessionId/result-context
 
 Coach-facing session lists contain completed sessions only. Team trends and prior-result context use completed compatible results only.
 
-## 27. Validation boundary
+---
+
+# Phase 5 — Playbook
+
+Every Playbook route is team-scoped and requires active access to `:teamId`. A play ID never bypasses the team authorization boundary.
+
+## 27. Play resource
+
+```json
+{
+  "id": "play_123",
+  "team_id": "team_123",
+  "name": "Trips Flood",
+  "side": "offense",
+  "formation_id": "trips-right",
+  "formation": "Trips Right",
+  "notes": "Read outside-in.",
+  "diagram": {
+    "schema_version": 2,
+    "players": [],
+    "assignments": [],
+    "primary_target_player_id": null
+  },
+  "archived": false,
+  "created_at": "2026-08-19T10:00:00.000Z",
+  "updated_at": "2026-08-19T10:00:00.000Z"
+}
+```
+
+`diagram` is the parsed API representation of the D1 `diagram_json` column. The client never sends or receives `diagram_json` as an encoded JSON string.
+
+## 28. List/create team plays
+
+### `GET /api/teams/:teamId/plays`
+
+Returns active plays by default, newest updated first:
+
+```json
+{
+  "plays": []
+}
+```
+
+`?include_archived=true` includes archived plays.
+
+### `POST /api/teams/:teamId/plays`
+
+Request:
+
+```json
+{
+  "name": "Trips Flood",
+  "side": "offense",
+  "formation_id": "trips-right",
+  "formation": "Trips Right",
+  "notes": "Read outside-in.",
+  "diagram": {
+    "schema_version": 2,
+    "players": [],
+    "assignments": [],
+    "primary_target_player_id": null
+  }
+}
+```
+
+Response: `201` with the created Play. The server generates the persistent Play ID; a browser-generated prototype ID is not authoritative.
+
+## 29. Read/update/archive play
+
+### `GET /api/teams/:teamId/plays/:playId`
+
+Returns the Play when it belongs to the authorized team.
+
+### `PUT /api/teams/:teamId/plays/:playId`
+
+Replaces the editable play payload (`name`, `side`, formation fields, notes, and diagram) while preserving ID/team/created timestamp.
+
+### `PATCH /api/teams/:teamId/plays/:playId`
+
+Archive/restore only:
+
+```json
+{
+  "archived": true
+}
+```
+
+There is no destructive delete endpoint in the first persistent Playbook phase.
+
+## 30. Play diagram validation
+
+Client editing constraints improve UX, but server validation is authoritative.
+
+For schema v2:
+
+- `schema_version` must equal `2`
+- at least one player is required; v1 server limit is 12 players
+- player and assignment IDs must be unique inside the play document
+- coordinates must be finite numbers from `0..100`
+- assignment `player_id` must reference a player in the same diagram
+- assignment kind is `route | motion`
+- route template, when present, is one of `go | slant | out | in | post | corner | hitch | drag`
+- each assignment contains 2–8 points
+- `primary_target_player_id` is null or references a player in the diagram
+- play name is required and bounded; formation/notes are bounded server-side
+
+Malformed diagram input returns `400 validation_error` with `fields.diagram`.
+
+## 31. Browser-cache reconciliation
+
+D1 is authoritative when the Playbook API is available. Existing browser-only prototype plays may be uploaded during the migration transition.
+
+Rules:
+
+- local cache remains team-keyed
+- matching persistent IDs may update D1 only when the local `updated_at` is newer
+- browser-only IDs create new server-owned Play resources
+- after reconciliation, the client replaces its cache with the server-normalized play list
+- when D1 persistence is temporarily unavailable, the client may retain edits locally rather than discarding coach work; it must clearly communicate that fallback state
+
+## 32. Validation boundary
 
 Client validation improves UX. Server validation is authoritative.
 
 Never trust:
 
-- athlete/team/session/membership IDs from browser without access checks
+- athlete/team/session/membership/play IDs from browser without access checks
 - `team_id` query parameters without checking `team_coaches`
 - drill definitions just because client validation passed
+- Playbook diagram JSON just because it came from the editor
 - elapsed or measurement values to match a different drill's expected schema
 - archived/inactive relationships without explicit server rules
 
-## 28. API evolution
+## 33. API evolution
 
 When changing a request/response contract:
 

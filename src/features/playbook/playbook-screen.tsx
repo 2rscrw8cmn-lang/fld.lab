@@ -20,6 +20,7 @@ import {
 
 import { Button } from "@/components/ui/button";
 import type { Team } from "@/lib/api";
+import { createTeamPlay, listTeamPlays, updateTeamPlay } from "@/lib/playbook-api";
 import {
   FORMATIONS,
   ROUTE_TEMPLATES,
@@ -57,6 +58,7 @@ type Play = {
 };
 
 type Filter = "all" | PlaySide;
+type PersistenceMode = "loading" | "database" | "local";
 type EditorSnapshot = Pick<Play, "side" | "formation_id" | "formation" | "diagram">;
 type DragState = { kind: "player" | "assignment"; id: string } | null;
 
@@ -190,6 +192,52 @@ function parseStoredPlays(teamId: string): Play[] {
   } catch {
     return [];
   }
+}
+
+function cachePlays(teamId: string, plays: Play[]) {
+  window.localStorage.setItem(storageKey(teamId), JSON.stringify(plays));
+}
+
+function playInput(play: Play) {
+  return {
+    name: play.name.trim() || "Untitled Play",
+    side: play.side,
+    formation_id: play.formation_id,
+    formation: play.formation.trim(),
+    notes: play.notes.trim(),
+    diagram: play.diagram,
+  };
+}
+
+async function reconcileDatabasePlays(teamId: string, localPlays: Play[]): Promise<Play[]> {
+  const remoteValues = await listTeamPlays(teamId);
+  const remotePlays = remoteValues.flatMap((value) => {
+    const play = normalizePlay(value, teamId);
+    return play ? [play] : [];
+  });
+  const byId = new Map(remotePlays.map((play) => [play.id, play]));
+  const reconciled = [...remotePlays];
+
+  for (const localPlay of localPlays) {
+    const remote = byId.get(localPlay.id);
+    if (remote) {
+      if (localPlay.updated_at > remote.updated_at) {
+        const stored = await updateTeamPlay(teamId, remote.id, playInput(localPlay));
+        const updated = normalizePlay(stored, teamId);
+        if (updated) {
+          const index = reconciled.findIndex((play) => play.id === remote.id);
+          if (index >= 0) reconciled[index] = updated;
+        }
+      }
+      continue;
+    }
+
+    const stored = await createTeamPlay(teamId, playInput(localPlay));
+    const created = normalizePlay(stored, teamId);
+    if (created) reconciled.push(created);
+  }
+
+  return reconciled;
 }
 
 function formatUpdated(value: string) {
@@ -369,30 +417,99 @@ export function PlaybookScreen({ team }: { team: Team | null }) {
   const [draft, setDraft] = useState<Play | null>(null);
   const [newPlayPickerOpen, setNewPlayPickerOpen] = useState(false);
   const [pickerSide, setPickerSide] = useState<PlaySide>("offense");
+  const [persistenceMode, setPersistenceMode] = useState<PersistenceMode>("loading");
 
   useEffect(() => {
+    let cancelled = false;
     setDraft(null);
     setFilter("all");
     setNewPlayPickerOpen(false);
-    setPlays(team ? parseStoredPlays(team.id) : []);
+    setPersistenceMode("loading");
+
+    if (!team) {
+      setPlays([]);
+      return () => { cancelled = true; };
+    }
+
+    const localPlays = parseStoredPlays(team.id);
+    setPlays(localPlays);
+
+    void reconcileDatabasePlays(team.id, localPlays)
+      .then((databasePlays) => {
+        if (cancelled) return;
+        setPlays(databasePlays);
+        cachePlays(team.id, databasePlays);
+        setPersistenceMode("database");
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setPlays(localPlays);
+        setPersistenceMode("local");
+      });
+
+    return () => { cancelled = true; };
   }, [team?.id]);
 
-  const persist = (next: Play[]) => {
+  const persistLocal = (next: Play[]) => {
     setPlays(next);
-    if (team) window.localStorage.setItem(storageKey(team.id), JSON.stringify(next));
+    if (team) cachePlays(team.id, next);
   };
 
-  const savePlay = (saved: Play) => {
-    const next = plays.some((play) => play.id === saved.id)
+  const savePlay = async (saved: Play) => {
+    if (!team) return;
+    const exists = plays.some((play) => play.id === saved.id);
+    const localNext = exists
       ? plays.map((play) => play.id === saved.id ? saved : play)
       : [saved, ...plays];
-    persist(next);
-    setDraft(null);
+
+    if (persistenceMode !== "database") {
+      persistLocal(localNext);
+      setPersistenceMode("local");
+      setDraft(null);
+      return;
+    }
+
+    try {
+      const stored = exists
+        ? await updateTeamPlay(team.id, saved.id, playInput(saved))
+        : await createTeamPlay(team.id, playInput(saved));
+      const persisted = normalizePlay(stored, team.id);
+      if (!persisted) throw new Error("Invalid play returned by API.");
+      const next = exists
+        ? plays.map((play) => play.id === saved.id ? persisted : play)
+        : [persisted, ...plays];
+      persistLocal(next);
+      setDraft(null);
+    } catch {
+      persistLocal(localNext);
+      setPersistenceMode("local");
+      setDraft(null);
+    }
   };
 
-  const duplicatePlay = (copy: Play) => {
-    persist([copy, ...plays.filter((play) => play.id !== copy.id)]);
-    setDraft(copy);
+  const duplicatePlay = async (copy: Play) => {
+    if (!team) return;
+    const localNext = [copy, ...plays.filter((play) => play.id !== copy.id)];
+
+    if (persistenceMode !== "database") {
+      persistLocal(localNext);
+      setPersistenceMode("local");
+      setDraft(copy);
+      return;
+    }
+
+    try {
+      const stored = await createTeamPlay(team.id, playInput(copy));
+      const persisted = normalizePlay(stored, team.id);
+      if (!persisted) throw new Error("Invalid play returned by API.");
+      const next = [persisted, ...plays];
+      persistLocal(next);
+      setDraft(persisted);
+    } catch {
+      persistLocal(localNext);
+      setPersistenceMode("local");
+      setDraft(copy);
+    }
   };
 
   const filtered = useMemo(
@@ -444,8 +561,12 @@ export function PlaybookScreen({ team }: { team: Team | null }) {
         </div>
       )}
 
-      <div className="mt-5 rounded-lg border border-border bg-surface px-3 py-2.5 text-[10px] leading-4 text-text-muted">
-        Interaction prototype: plays are still stored on this browser by team. Database persistence comes after the editor is approved.
+      <div className={`mt-5 rounded-lg border px-3 py-2.5 text-[10px] leading-4 ${persistenceMode === "local" ? "border-warning/45 bg-warning/5 text-warning" : "border-border bg-surface text-text-muted"}`}>
+        {persistenceMode === "database"
+          ? "Saved to the team database. This playbook is available on any signed-in device with team access."
+          : persistenceMode === "local"
+            ? "Team database is unavailable right now. Changes are cached on this device and will reconcile when the playbook reconnects."
+            : "Loading the team playbook…"}
       </div>
 
       {newPlayPickerOpen && (
