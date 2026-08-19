@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { PlayViewer } from "@/features/playbook/play-viewer";
 import type { Team } from "@/lib/api";
 import {
   createTeamPlay,
@@ -468,6 +469,7 @@ export function PlaybookScreen({ team }: { team: Team | null }) {
   const [plays, setPlays] = useState<Play[]>([]);
   const [filter, setFilter] = useState<Filter>("all");
   const [view, setView] = useState<LibraryView>("active");
+  const [viewer, setViewer] = useState<Play | null>(null);
   const [draft, setDraft] = useState<Play | null>(null);
   const [newPlayPickerOpen, setNewPlayPickerOpen] = useState(false);
   const [pickerSide, setPickerSide] = useState<PlaySide>("offense");
@@ -475,6 +477,7 @@ export function PlaybookScreen({ team }: { team: Team | null }) {
 
   useEffect(() => {
     let cancelled = false;
+    setViewer(null);
     setDraft(null);
     setFilter("all");
     setView("active");
@@ -521,6 +524,7 @@ export function PlaybookScreen({ team }: { team: Team | null }) {
       persistLocal(localNext);
       setPersistenceMode("local");
       setDraft(null);
+      setView(saved.active_play ? "active" : "library");
       return;
     }
 
@@ -540,6 +544,7 @@ export function PlaybookScreen({ team }: { team: Team | null }) {
       persistLocal(localNext);
       setPersistenceMode("local");
       setDraft(null);
+      setView(saved.active_play ? "active" : "library");
     }
   };
 
@@ -583,6 +588,25 @@ export function PlaybookScreen({ team }: { team: Team | null }) {
     return <section className="p-6 text-sm text-text-muted">Create or select a team to build a playbook.</section>;
   }
 
+  if (viewer) {
+    return (
+      <PlayViewer
+        key={`viewer-${viewer.id}`}
+        play={viewer}
+        onBack={() => setViewer(null)}
+        onEdit={viewer.active_play ? () => {
+          setViewer(null);
+          setDraft(structuredClone(viewer));
+        } : undefined}
+        onMoveToActive={!viewer.active_play ? () => {
+          const promoted = { ...structuredClone(viewer), active_play: true, updated_at: new Date().toISOString() };
+          setViewer(null);
+          void savePlay(promoted);
+        } : undefined}
+      />
+    );
+  }
+
   if (draft) {
     return (
       <PlayEditor
@@ -618,13 +642,13 @@ export function PlaybookScreen({ team }: { team: Team | null }) {
           <Route size={34} className="text-text-muted" />
           <h2 className="mt-4 text-lg font-extrabold">{view === "active" ? "No active plays yet" : "Library is empty"}</h2>
           <p className="mt-1 max-w-sm text-sm leading-5 text-text-muted">
-            {view === "active" ? "New plays start active. Move plays to the Library when they are not in the current install." : "Edit an active play and turn off Active Play to keep it here for later."}
+            {view === "active" ? "New plays start active. Move plays to the Library when they are not in the current install." : "Move an active play to the Library when it is not in the current install."}
           </p>
           {view === "active" && <Button className="mt-5" onClick={() => { setPickerSide("offense"); setNewPlayPickerOpen(true); }}><Plus size={16} />Create first play</Button>}
         </div>
       ) : (
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-          {filtered.map((play) => <PlayCard key={play.id} play={play} onOpen={() => setDraft(structuredClone(play))} />)}
+          {filtered.map((play) => <PlayCard key={play.id} play={play} onOpen={() => setViewer(structuredClone(play))} />)}
         </div>
       )}
 
