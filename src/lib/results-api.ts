@@ -35,7 +35,7 @@ export type ResultSummary = {
 };
 
 export type AthleteResultGroup = {
-  drill: { id: string; name: string; category: string };
+  drill: { id: string; name: string; category: string; icon: string | null };
   metric: ResultMetric | null;
   summary: ResultSummary;
   results: DerivedSessionResult[];
@@ -61,7 +61,7 @@ export type LeaderboardEntry = {
 };
 
 export type DrillLeaderboard = {
-  drill: { id: string; name: string; category: string };
+  drill: { id: string; name: string; category: string; icon: string | null };
   metric: ResultMetric | null;
   entries: LeaderboardEntry[];
 };
