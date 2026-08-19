@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import {
   ArrowLeft,
+  ArrowRight,
   CircleDot,
   Copy,
   Eraser,
@@ -430,7 +431,15 @@ function FormationPreview({ formation }: { formation: FormationPreset }) {
   return <FieldDiagram diagram={diagram} compact markerPrefix={`formation-${formation.id}`} />;
 }
 
-function PlayCard({ play, onOpen }: { play: Play; onOpen: () => void }) {
+function PlayCard({
+  play,
+  onOpen,
+  onMoveToLibrary,
+}: {
+  play: Play;
+  onOpen: () => void;
+  onMoveToLibrary?: () => void;
+}) {
   const details = [
     play.play_type.charAt(0).toUpperCase() + play.play_type.slice(1),
     play.concept || null,
@@ -438,24 +447,38 @@ function PlayCard({ play, onOpen }: { play: Play; onOpen: () => void }) {
   ].filter((value): value is string => Boolean(value));
 
   return (
-    <button type="button" onClick={onOpen} className="group overflow-hidden rounded-lg border border-border bg-surface text-left transition-colors hover:border-text-muted hover:bg-surface-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
-      <div className="aspect-[4/3] bg-background p-3">
-        <FieldDiagram diagram={play.diagram} compact showLabels markerPrefix={`card-${play.id}`} />
-      </div>
-      <div className="border-t border-border px-3 py-2.5">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <div className="truncate text-[13px] font-extrabold text-text-primary">{play.name}</div>
-            <div className="mt-0.5 truncate text-[9px] font-semibold uppercase tracking-[0.05em] text-text-muted">{play.formation || (play.side === "offense" ? "Offense" : "Defense")}</div>
+    <article className="group overflow-hidden rounded-lg border border-border bg-surface transition-colors hover:border-text-muted hover:bg-surface-elevated">
+      <button type="button" onClick={onOpen} className="block w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent">
+        <div className="aspect-[4/3] bg-background p-3">
+          <FieldDiagram diagram={play.diagram} compact showLabels markerPrefix={`card-${play.id}`} />
+        </div>
+        <div className="border-t border-border px-3 py-2.5">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="truncate text-[13px] font-extrabold text-text-primary">{play.name}</div>
+              <div className="mt-0.5 truncate text-[9px] font-semibold uppercase tracking-[0.05em] text-text-muted">{play.formation || (play.side === "offense" ? "Offense" : "Defense")}</div>
+            </div>
+            <span className="shrink-0 text-[8px] font-bold uppercase tracking-[0.08em] text-text-muted">{play.side}</span>
           </div>
-          <span className="shrink-0 text-[8px] font-bold uppercase tracking-[0.08em] text-text-muted">{play.side}</span>
+          <div className="mt-2 flex min-w-0 items-center justify-between gap-3 text-[9px] text-text-muted">
+            <span className="truncate">{details.join(" · ") || "Uncategorized"}</span>
+            <span className="shrink-0 tabular-nums opacity-70">{formatUpdated(play.updated_at)}</span>
+          </div>
         </div>
-        <div className="mt-2 flex min-w-0 items-center justify-between gap-3 text-[9px] text-text-muted">
-          <span className="truncate">{details.join(" · ") || "Uncategorized"}</span>
-          <span className="shrink-0 tabular-nums opacity-70">{formatUpdated(play.updated_at)}</span>
+      </button>
+      {onMoveToLibrary && (
+        <div className="flex items-center justify-between gap-3 border-t border-border bg-background/45 px-3 py-2">
+          <span className="text-[8px] font-black uppercase tracking-[0.08em] text-text-muted">Editor</span>
+          <button
+            type="button"
+            onClick={onMoveToLibrary}
+            className="inline-flex min-h-7 items-center gap-1.5 rounded-md px-1 text-[9px] font-extrabold text-[#c4b5fd] transition-colors hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          >
+            Move to Library <ArrowRight size={12} />
+          </button>
         </div>
-      </div>
-    </button>
+      )}
+    </article>
   );
 }
 
@@ -604,6 +627,28 @@ export function PlaybookScreen({ team }: { team: Team | null }) {
     }
   };
 
+  const movePlayToLibrary = async (play: Play) => {
+    if (!team) return;
+    const moved = { ...play, active_play: false, updated_at: new Date().toISOString() };
+    const localNext = plays.map((candidate) => candidate.id === play.id ? moved : candidate);
+
+    if (persistenceMode !== "database") {
+      persistLocal(localNext);
+      setPersistenceMode("local");
+      return;
+    }
+
+    try {
+      const stored = await updateTeamPlay(team.id, play.id, playInput(moved));
+      const persisted = normalizePlay(stored, team.id);
+      if (!persisted) throw new Error("Invalid play returned by API.");
+      persistLocal(plays.map((candidate) => candidate.id === play.id ? persisted : candidate));
+    } catch {
+      persistLocal(localNext);
+      setPersistenceMode("local");
+    }
+  };
+
   const duplicatePlay = async (copy: Play) => {
     if (!team) return;
     const localNext = [copy, ...plays.filter((play) => play.id !== copy.id)];
@@ -711,6 +756,7 @@ export function PlaybookScreen({ team }: { team: Team | null }) {
               key={play.id}
               play={play}
               onOpen={() => view === "editor" ? setDraft(structuredClone(play)) : setViewer(structuredClone(play))}
+              onMoveToLibrary={view === "editor" ? () => void movePlayToLibrary(play) : undefined}
             />
           ))}
         </div>
@@ -1179,19 +1225,11 @@ function PlayEditor({
           </section>
 
           <section className="rounded-xl border border-border bg-surface p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-accent" />
-                  <div className="text-[9px] font-black uppercase tracking-[0.1em] text-text-muted">Play setup</div>
-                </div>
-                <div className="mt-1 text-sm font-extrabold">Play details</div>
-                <div className="mt-0.5 text-[10px] text-text-muted">Build the football here. Assign athletes after moving it to Library.</div>
-              </div>
-              <button type="button" onClick={() => setDraft((current) => ({ ...current, active_play: !current.active_play }))} className="shrink-0 text-[10px] font-bold text-[#c4b5fd] hover:text-text-primary">
-                {draft.active_play ? "Move to Library" : "Move to Editor"}
-              </button>
+            <div className="flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-accent" />
+              <div className="text-[9px] font-black uppercase tracking-[0.1em] text-text-muted">Play setup</div>
             </div>
+            <div className="mt-1 text-[10px] text-text-muted">Type, concept and situation</div>
 
             <div className="mt-4 text-[9px] font-bold uppercase tracking-[0.08em] text-text-muted">Type</div>
             <div className="mt-2 grid grid-cols-3 gap-1.5">
@@ -1307,8 +1345,8 @@ function PlayerControls({
         <div className="flex min-w-0 items-center gap-2.5">
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-background text-[10px] font-black" style={{ backgroundColor: color, color: playerTextColor(primary) }}>{player.label}</span>
           <div className="min-w-0">
-            <div className="text-[9px] font-black uppercase tracking-[0.1em] text-text-muted">Player</div>
-            <div className="truncate text-sm font-extrabold">Selected · {player.label}</div>
+            <div className="text-[9px] font-black uppercase tracking-[0.1em] text-text-muted">Selected player</div>
+            <div className="truncate text-sm font-extrabold">{player.label}</div>
           </div>
         </div>
         <button type="button" onClick={onRemove} className="flex h-9 w-9 items-center justify-center rounded-md border border-border text-text-muted hover:text-danger" aria-label="Remove player"><Trash2 size={15} /></button>
