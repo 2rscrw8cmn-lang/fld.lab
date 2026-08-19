@@ -167,26 +167,10 @@ function CompactPlayDiagram({
 
   return (
     <svg viewBox={viewBox} className="h-full w-full" role="img" aria-label={`${play.name} play diagram`} preserveAspectRatio="xMidYMid meet">
-      <line
-        x1={bounds.x}
-        y1={LOS_Y}
-        x2={bounds.x + bounds.width}
-        y2={LOS_Y}
-        stroke="#64748b"
-        strokeWidth={tiny ? 0.68 : 0.78}
-        opacity="0.82"
-      />
+      <line x1={bounds.x} y1={LOS_Y} x2={bounds.x + bounds.width} y2={LOS_Y} stroke="#64748b" strokeWidth={tiny ? 0.68 : 0.78} opacity="0.82" />
       <text x={labelX} y={LOS_Y - 1.5} fill="#64748b" fontSize={tiny ? 2.1 : 2.35} fontWeight="800">LOS</text>
       {bounds.y <= 55 && bounds.y + bounds.height >= 55 && (
-        <line
-          x1={bounds.x}
-          y1="55"
-          x2={bounds.x + bounds.width}
-          y2="55"
-          stroke="#cbd5e1"
-          strokeWidth="0.4"
-          strokeDasharray="2 2"
-        />
+        <line x1={bounds.x} y1="55" x2={bounds.x + bounds.width} y2="55" stroke="#cbd5e1" strokeWidth="0.4" strokeDasharray="2 2" />
       )}
 
       <defs>
@@ -196,16 +180,7 @@ function CompactPlayDiagram({
           const color = player ? playerColor(player, primary) : "#64748b";
           const markerSize = tiny ? (assignment.kind === "route" ? 3.5 : 3) : assignment.kind === "route" ? 4.1 : 3.4;
           return (
-            <marker
-              key={assignment.id}
-              id={`${markerPrefix}-${assignment.id}`}
-              viewBox="0 0 10 10"
-              refX="8"
-              refY="5"
-              markerWidth={markerSize}
-              markerHeight={markerSize}
-              orient="auto-start-reverse"
-            >
+            <marker key={assignment.id} id={`${markerPrefix}-${assignment.id}`} viewBox="0 0 10 10" refX="8" refY="5" markerWidth={markerSize} markerHeight={markerSize} orient="auto-start-reverse">
               <path d="M 0 0 L 10 5 L 0 10 z" fill={color} />
             </marker>
           );
@@ -239,14 +214,7 @@ function CompactPlayDiagram({
         return (
           <g key={player.id}>
             <circle cx={player.x} cy={player.y} r={radius} fill={playerColor(player, primary)} stroke="#ffffff" strokeWidth={tiny ? 0.72 : 0.8} />
-            <text
-              x={player.x}
-              y={player.y + (tiny ? 0.78 : 0.88)}
-              textAnchor="middle"
-              fill={playerTextColor(primary)}
-              fontSize={tiny ? 2.15 : 2.35}
-              fontWeight="900"
-            >
+            <text x={player.x} y={player.y + (tiny ? 0.78 : 0.88)} textAnchor="middle" fill={playerTextColor(primary)} fontSize={tiny ? 2.15 : 2.35} fontWeight="900">
               {playerMarkerLabel(player, assignment, labelMode)}
             </text>
           </g>
@@ -318,13 +286,7 @@ function PrintStyles() {
   );
 }
 
-function CallSheetHeader({ team, teamSubtitle, playCount, page, pageCount }: {
-  team: Team;
-  teamSubtitle: string;
-  playCount: number;
-  page: number;
-  pageCount: number;
-}) {
+function CallSheetHeader({ team, teamSubtitle, playCount, page, pageCount }: { team: Team; teamSubtitle: string; playCount: number; page: number; pageCount: number }) {
   return (
     <header className="flex items-center justify-between gap-5 border-b-2 border-[#7c3aed] pb-2.5">
       <div className="flex min-w-0 items-center gap-3">
@@ -343,17 +305,7 @@ function CallSheetHeader({ team, teamSubtitle, playCount, page, pageCount }: {
   );
 }
 
-function CallSheetCard({
-  play,
-  number,
-  personnel,
-  labelMode,
-}: {
-  play: PlaybookGameDayPlay;
-  number: number;
-  personnel: PlayPersonnelAssignment[];
-  labelMode: LabelMode;
-}) {
+function CallSheetCard({ play, number, personnel, labelMode }: { play: PlaybookGameDayPlay; number: number; personnel: PlayPersonnelAssignment[]; labelMode: LabelMode }) {
   const meta = [
     play.formation || "Custom",
     play.play_type.charAt(0).toUpperCase() + play.play_type.slice(1),
@@ -372,7 +324,7 @@ function CallSheetCard({
         <div className="truncate text-[11px] font-black leading-tight text-[#0f172a]">{play.name}</div>
         <div className="mt-1 line-clamp-2 text-[6.5px] font-bold uppercase leading-[1.35] tracking-[0.045em] text-[#64748b]">{meta.join(" · ")}</div>
         {play.notes ? (
-          <div className="mt-2 border-t border-[#e2e8f0] pt-1.5 text-[6.5px] font-medium leading-[1.35] text-[#475569] line-clamp-3">{play.notes}</div>
+          <div className="mt-2 line-clamp-3 border-t border-[#e2e8f0] pt-1.5 text-[6.5px] font-medium leading-[1.35] text-[#475569]">{play.notes}</div>
         ) : (
           <div className="mt-2 border-t border-[#e2e8f0] pt-1.5 text-[6px] font-semibold uppercase tracking-[0.08em] text-[#94a3b8]">No coaching note</div>
         )}
@@ -384,19 +336,7 @@ function CallSheetCard({
   );
 }
 
-function CallSheetOutput({
-  team,
-  teamSubtitle,
-  plays,
-  personnelByPlay,
-  labelMode,
-}: {
-  team: Team;
-  teamSubtitle: string;
-  plays: PlaybookGameDayPlay[];
-  personnelByPlay: PersonnelMap;
-  labelMode: LabelMode;
-}) {
+function CallSheetOutput({ team, teamSubtitle, plays, personnelByPlay, labelMode }: { team: Team; teamSubtitle: string; plays: PlaybookGameDayPlay[]; personnelByPlay: PersonnelMap; labelMode: LabelMode }) {
   const pages = chunk(plays, CALL_SHEET_PAGE_SIZE);
   return (
     <div className="playbook-gameday-print-root space-y-4">
@@ -405,13 +345,7 @@ function CallSheetOutput({
           <CallSheetHeader team={team} teamSubtitle={teamSubtitle} playCount={plays.length} page={pageIndex + 1} pageCount={pages.length} />
           <div className="mt-2.5 grid grid-cols-3 gap-1.5">
             {pagePlays.map((play, index) => (
-              <CallSheetCard
-                key={play.id}
-                play={play}
-                number={(pageIndex * CALL_SHEET_PAGE_SIZE) + index + 1}
-                personnel={personnelByPlay[play.id] ?? []}
-                labelMode={labelMode}
-              />
+              <CallSheetCard key={play.id} play={play} number={(pageIndex * CALL_SHEET_PAGE_SIZE) + index + 1} personnel={personnelByPlay[play.id] ?? []} labelMode={labelMode} />
             ))}
           </div>
         </section>
@@ -426,21 +360,7 @@ function wristbandGridClass(density: WristbandDensity) {
   return "grid-cols-2 grid-rows-3";
 }
 
-function WristbandPlayCell({
-  play,
-  number,
-  personnel,
-  labelMode,
-  density,
-  copyIndex,
-}: {
-  play: PlaybookGameDayPlay | null;
-  number: number;
-  personnel: PlayPersonnelAssignment[];
-  labelMode: LabelMode;
-  density: WristbandDensity;
-  copyIndex: number;
-}) {
+function WristbandPlayCell({ play, number, personnel, labelMode, density, copyIndex }: { play: PlaybookGameDayPlay | null; number: number; personnel: PlayPersonnelAssignment[]; labelMode: LabelMode; density: WristbandDensity; copyIndex: number }) {
   if (!play) return <div className="border border-[#e2e8f0] bg-[#f8fafc]/40" />;
   const compactText = density === 12;
   return (
@@ -451,41 +371,13 @@ function WristbandPlayCell({
         <span className={`shrink-0 truncate font-bold uppercase text-[#64748b] ${compactText ? "max-w-[32%] text-[4.5px]" : "max-w-[34%] text-[5px]"}`}>{play.formation || "Custom"}</span>
       </div>
       <div className="h-[78%] min-h-0 p-0.5">
-        <CompactPlayDiagram
-          play={play}
-          personnel={personnel}
-          labelMode={labelMode}
-          markerPrefix={`wrist-${play.id}-${number}-${copyIndex}`}
-          tiny
-        />
+        <CompactPlayDiagram play={play} personnel={personnel} labelMode={labelMode} markerPrefix={`wrist-${play.id}-${number}-${copyIndex}`} tiny />
       </div>
     </article>
   );
 }
 
-function WristbandInsert({
-  team,
-  teamSubtitle,
-  plays,
-  startNumber,
-  personnelByPlay,
-  labelMode,
-  density,
-  setNumber,
-  setCount,
-  copyIndex,
-}: {
-  team: Team;
-  teamSubtitle: string;
-  plays: PlaybookGameDayPlay[];
-  startNumber: number;
-  personnelByPlay: PersonnelMap;
-  labelMode: LabelMode;
-  density: WristbandDensity;
-  setNumber: number;
-  setCount: number;
-  copyIndex: number;
-}) {
+function WristbandInsert({ team, teamSubtitle, plays, startNumber, personnelByPlay, labelMode, density, setNumber, setCount, copyIndex }: { team: Team; teamSubtitle: string; plays: PlaybookGameDayPlay[]; startNumber: number; personnelByPlay: PersonnelMap; labelMode: LabelMode; density: WristbandDensity; setNumber: number; setCount: number; copyIndex: number }) {
   const slots = Array.from({ length: density }, (_, index) => plays[index] ?? null);
   const endNumber = startNumber + plays.length - 1;
   return (
@@ -494,62 +386,26 @@ function WristbandInsert({
         <BrandMark className="h-[14px]" />
         <div className="min-w-0 text-right">
           <div className="truncate text-[6px] font-black uppercase tracking-[0.06em] text-[#0f172a]">{team.name}</div>
-          <div className="text-[4.5px] font-bold uppercase tracking-[0.06em] text-[#64748b]">
-            {teamSubtitle ? `${teamSubtitle} · ` : ""}{setCount > 1 ? `Set ${setNumber}/${setCount} · ` : ""}{startNumber}–{endNumber}
-          </div>
+          <div className="text-[4.5px] font-bold uppercase tracking-[0.06em] text-[#64748b]">{teamSubtitle ? `${teamSubtitle} · ` : ""}{setCount > 1 ? `Set ${setNumber}/${setCount} · ` : ""}{startNumber}–{endNumber}</div>
         </div>
       </header>
       <div className={`mt-1 grid min-h-0 flex-1 ${wristbandGridClass(density)}`}>
         {slots.map((play, index) => (
-          <WristbandPlayCell
-            key={`${copyIndex}-${index}-${play?.id ?? "blank"}`}
-            play={play}
-            number={startNumber + index}
-            personnel={play ? personnelByPlay[play.id] ?? [] : []}
-            labelMode={labelMode}
-            density={density}
-            copyIndex={copyIndex}
-          />
+          <WristbandPlayCell key={`${copyIndex}-${index}-${play?.id ?? "blank"}`} play={play} number={startNumber + index} personnel={play ? personnelByPlay[play.id] ?? [] : []} labelMode={labelMode} density={density} copyIndex={copyIndex} />
         ))}
       </div>
     </section>
   );
 }
 
-function WristbandOutput({
-  team,
-  teamSubtitle,
-  plays,
-  personnelByPlay,
-  labelMode,
-  density,
-}: {
-  team: Team;
-  teamSubtitle: string;
-  plays: PlaybookGameDayPlay[];
-  personnelByPlay: PersonnelMap;
-  labelMode: LabelMode;
-  density: WristbandDensity;
-}) {
+function WristbandOutput({ team, teamSubtitle, plays, personnelByPlay, labelMode, density }: { team: Team; teamSubtitle: string; plays: PlaybookGameDayPlay[]; personnelByPlay: PersonnelMap; labelMode: LabelMode; density: WristbandDensity }) {
   const sets = chunk(plays, density);
   return (
     <div className="playbook-gameday-print-root space-y-4">
       {sets.map((setPlays, setIndex) => (
         <section key={`wrist-page-${setIndex}`} className="playbook-wristband-page grid grid-cols-2 gap-2 rounded-lg border border-[#cbd5e1] bg-white p-3 shadow-sm">
           {Array.from({ length: WRISTBAND_COPIES_PER_PAGE }, (_, copyIndex) => (
-            <WristbandInsert
-              key={`wrist-copy-${setIndex}-${copyIndex}`}
-              team={team}
-              teamSubtitle={teamSubtitle}
-              plays={setPlays}
-              startNumber={(setIndex * density) + 1}
-              personnelByPlay={personnelByPlay}
-              labelMode={labelMode}
-              density={density}
-              setNumber={setIndex + 1}
-              setCount={sets.length}
-              copyIndex={copyIndex}
-            />
+            <WristbandInsert key={`wrist-copy-${setIndex}-${copyIndex}`} team={team} teamSubtitle={teamSubtitle} plays={setPlays} startNumber={(setIndex * density) + 1} personnelByPlay={personnelByPlay} labelMode={labelMode} density={density} setNumber={setIndex + 1} setCount={sets.length} copyIndex={copyIndex} />
           ))}
         </section>
       ))}
@@ -568,22 +424,14 @@ export function PlaybookGameDay({ team, plays, onBack }: Props) {
 
   useEffect(() => {
     const playIds = new Set(plays.map((play) => play.id));
-    setOrder((current) => [
-      ...current.filter((playId) => playIds.has(playId)),
-      ...plays.map((play) => play.id).filter((playId) => !current.includes(playId)),
-    ]);
-    setIncluded((current) => new Set([
-      ...[...current].filter((playId) => playIds.has(playId)),
-      ...plays.map((play) => play.id).filter((playId) => !current.has(playId)),
-    ]));
+    setOrder((current) => [...current.filter((playId) => playIds.has(playId)), ...plays.map((play) => play.id).filter((playId) => !current.includes(playId))]);
+    setIncluded((current) => new Set([...([...current].filter((playId) => playIds.has(playId))), ...plays.map((play) => play.id).filter((playId) => !current.has(playId))]));
   }, [plays]);
 
   useEffect(() => {
     let cancelled = false;
     setPersonnelLoading(true);
-    void Promise.all(
-      plays.map(async (play) => [play.id, await getPlayPersonnel(play.team_id, play.id)] as const),
-    )
+    void Promise.all(plays.map(async (play) => [play.id, await getPlayPersonnel(play.team_id, play.id)] as const))
       .then((entries) => {
         if (cancelled) return;
         setPersonnelByPlay(Object.fromEntries(entries));
@@ -600,10 +448,7 @@ export function PlaybookGameDay({ team, plays, onBack }: Props) {
   }, [plays]);
 
   const playById = useMemo(() => new Map(plays.map((play) => [play.id, play])), [plays]);
-  const selectedPlays = useMemo(
-    () => order.flatMap((playId) => included.has(playId) && playById.has(playId) ? [playById.get(playId)!] : []),
-    [included, order, playById],
-  );
+  const selectedPlays = useMemo(() => order.flatMap((playId) => included.has(playId) && playById.has(playId) ? [playById.get(playId)!] : []), [included, order, playById]);
   const selectedNumberById = useMemo(() => new Map(selectedPlays.map((play, index) => [play.id, index + 1])), [selectedPlays]);
   const hasAnyPersonnel = Object.values(personnelByPlay).some((assignments) => assignments.length > 0);
 
@@ -624,18 +469,14 @@ export function PlaybookGameDay({ team, plays, onBack }: Props) {
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
         <div className="flex min-w-0 items-center gap-3">
-          <button type="button" onClick={onBack} className="inline-flex min-h-10 shrink-0 items-center gap-2 text-xs font-bold text-text-muted hover:text-text-primary">
-            <ArrowLeft size={16} />Playbook
-          </button>
+          <button type="button" onClick={onBack} className="inline-flex min-h-10 shrink-0 items-center gap-2 text-xs font-bold text-text-muted hover:text-text-primary"><ArrowLeft size={16} />Playbook</button>
           <div className="h-7 w-px bg-border" />
           <div className="min-w-0">
             <div className="text-[9px] font-black uppercase tracking-[0.11em] text-text-muted">Game Day</div>
             <h1 className="truncate text-xl font-extrabold tracking-[-0.025em]">Call sheets + wristbands</h1>
           </div>
         </div>
-        <Button onClick={() => window.print()} disabled={!selectedPlays.length}>
-          <Printer size={16} />Print / Save PDF
-        </Button>
+        <Button onClick={() => window.print()} disabled={!selectedPlays.length}><Printer size={16} />Print / Save PDF</Button>
       </div>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-[238px_minmax(0,1fr)]">
@@ -686,9 +527,7 @@ export function PlaybookGameDay({ team, plays, onBack }: Props) {
                 const selectedNumber = selectedNumberById.get(play.id);
                 return [(
                   <div key={play.id} className={`grid grid-cols-[26px_24px_minmax(0,1fr)_44px] items-center gap-1.5 rounded-md border px-1.5 py-1.5 ${active ? "border-border bg-background" : "border-border/60 bg-background/45 opacity-55"}`}>
-                    <button type="button" onClick={() => toggleIncluded(play.id)} className={`flex h-6 w-6 items-center justify-center rounded ${active ? "bg-[rgba(124,58,237,0.16)] text-[#c4b5fd]" : "text-text-muted"}`} aria-label={`${active ? "Exclude" : "Include"} ${play.name}`}>
-                      {active ? <Check size={13} /> : <Square size={12} />}
-                    </button>
+                    <button type="button" onClick={() => toggleIncluded(play.id)} className={`flex h-6 w-6 items-center justify-center rounded ${active ? "bg-[rgba(124,58,237,0.16)] text-[#c4b5fd]" : "text-text-muted"}`} aria-label={`${active ? "Exclude" : "Include"} ${play.name}`}>{active ? <Check size={13} /> : <Square size={12} />}</button>
                     <span className={`text-center text-[11px] font-black tabular-nums ${active ? "text-text-primary" : "text-text-muted"}`}>{selectedNumber ?? "—"}</span>
                     <button type="button" onClick={() => toggleIncluded(play.id)} className="min-w-0 text-left">
                       <span className="block truncate text-[9px] font-extrabold text-text-primary">{play.name}</span>
@@ -713,13 +552,9 @@ export function PlaybookGameDay({ team, plays, onBack }: Props) {
               <div className="mt-1 max-w-sm text-xs leading-5 text-[#64748b]">Included Library plays are numbered in the order shown at left.</div>
             </div>
           ) : mode === "call-sheet" ? (
-            <div className="min-w-[940px]">
-              <CallSheetOutput team={team} teamSubtitle={teamSubtitle} plays={selectedPlays} personnelByPlay={personnelByPlay} labelMode={labelMode} />
-            </div>
+            <div className="min-w-[940px]"><CallSheetOutput team={team} teamSubtitle={teamSubtitle} plays={selectedPlays} personnelByPlay={personnelByPlay} labelMode={labelMode} /></div>
           ) : (
-            <div className="mx-auto min-w-[720px] max-w-[860px]">
-              <WristbandOutput team={team} teamSubtitle={teamSubtitle} plays={selectedPlays} personnelByPlay={personnelByPlay} labelMode={labelMode} density={wristbandDensity} />
-            </div>
+            <div className="mx-auto min-w-[720px] max-w-[860px]"><WristbandOutput team={team} teamSubtitle={teamSubtitle} plays={selectedPlays} personnelByPlay={personnelByPlay} labelMode={labelMode} density={wristbandDensity} /></div>
           )}
         </div>
       </div>
