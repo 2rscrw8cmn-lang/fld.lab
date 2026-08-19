@@ -189,6 +189,82 @@ svg[aria-label="Play editor field"] > line.stroke-text-secondary {
   opacity: 0.82;
 }
 
+/* Phone-first Playbook polish. Keep these selectors tied to semantic/structural Playbook hooks. */
+@media (max-width: 639px) {
+  /* The editor field should stay useful without consuming almost a full phone viewport. */
+  div:has(> svg[aria-label="Play editor field"]) {
+    min-height: 0 !important;
+    max-height: none !important;
+    aspect-ratio: 1 / 1.08 !important;
+  }
+
+  /* Keep the field hint fully inside the canvas and readable at narrow widths. */
+  div:has(> svg[aria-label="Play editor field"]) > div {
+    right: 0.75rem;
+    max-width: none;
+    white-space: normal;
+    line-height: 1.3;
+  }
+
+  /* Flip / Duplicate / Duplicate + Flip become a stable two-column control group. */
+  section:has(svg[aria-label="Play editor field"]) > div:nth-of-type(3) {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  section:has(svg[aria-label="Play editor field"]) > div:nth-of-type(3) > button {
+    width: 100%;
+  }
+
+  section:has(svg[aria-label="Play editor field"]) > div:nth-of-type(3) > button:nth-child(3) {
+    grid-column: 1 / -1;
+  }
+
+  /* When Editor is empty, use its Create play CTA instead of repeating New Play above it. */
+  section:has(> div > svg.lucide-route):has(> div > button) > div:first-child button {
+    display: none;
+  }
+
+  /* Compress the multi-playbook chooser into one horizontal strip plus a compact add button. */
+  div[class~="max-w-[1220px]"][class~="pt-3"]:has(> div > div > button > span + span) > div {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 40px;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem;
+  }
+
+  div[class~="max-w-[1220px]"][class~="pt-3"]:has(> div > div > button > span + span) > div > div:first-child {
+    min-width: 0;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  div[class~="max-w-[1220px]"][class~="pt-3"]:has(> div > div > button > span + span) > div > div:first-child::-webkit-scrollbar {
+    display: none;
+  }
+
+  div[class~="max-w-[1220px]"][class~="pt-3"]:has(> div > div > button > span + span) > div > div:first-child > span:first-child {
+    display: none;
+  }
+
+  div[class~="max-w-[1220px]"][class~="pt-3"]:has(> div > div > button > span + span) > div > div:first-child > button {
+    flex: 0 0 auto;
+    min-height: 36px;
+  }
+
+  div[class~="max-w-[1220px]"][class~="pt-3"]:has(> div > div > button > span + span) > div > button:last-child {
+    width: 40px;
+    min-width: 40px;
+    padding-inline: 0;
+    gap: 0;
+    font-size: 0;
+  }
+}
+
 @media (max-width: 520px) {
   [aria-labelledby="drill-detail-title"] dl {
     grid-template-columns: 1fr;
