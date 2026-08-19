@@ -92,6 +92,8 @@ export function AppShell({
 
   return (
     <div className="min-h-[100dvh] bg-background pt-[env(safe-area-inset-top)] text-text-primary md:grid md:grid-cols-[188px_minmax(0,1fr)]">
+      <div className="pointer-events-none fixed inset-x-0 top-0 z-[70] h-[env(safe-area-inset-top)] bg-background md:hidden" aria-hidden={true} />
+
       <aside className="hidden min-h-[calc(100dvh_-_env(safe-area-inset-top))] border-r border-border bg-sidebar px-3 py-[18px] md:flex md:flex-col">
         <a
           href="/"
