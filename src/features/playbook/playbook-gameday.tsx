@@ -306,13 +306,7 @@ function CallSheetHeader({ team, teamSubtitle, playCount, page, pageCount }: { t
 }
 
 function CallSheetCard({ play, number, personnel, labelMode }: { play: PlaybookGameDayPlay; number: number; personnel: PlayPersonnelAssignment[]; labelMode: LabelMode }) {
-  const meta = [
-    play.formation || "Custom",
-    play.play_type.charAt(0).toUpperCase() + play.play_type.slice(1),
-    play.concept || null,
-    play.situation !== "any" ? SITUATION_LABELS[play.situation] : null,
-  ].filter((value): value is string => Boolean(value));
-
+  const meta = [play.formation || "Custom", play.play_type.charAt(0).toUpperCase() + play.play_type.slice(1), play.concept || null, play.situation !== "any" ? SITUATION_LABELS[play.situation] : null].filter((value): value is string => Boolean(value));
   return (
     <article className="playbook-print-card grid min-h-[142px] grid-cols-[34px_minmax(0,1fr)_112px] overflow-hidden rounded-[6px] border border-[#cbd5e1] bg-white text-[#0f172a]">
       <div className="flex flex-col items-center border-r border-[#e2e8f0] bg-[#f8fafc] px-1 py-2">
@@ -323,15 +317,9 @@ function CallSheetCard({ play, number, personnel, labelMode }: { play: PlaybookG
       <div className="min-w-0 p-2.5">
         <div className="truncate text-[11px] font-black leading-tight text-[#0f172a]">{play.name}</div>
         <div className="mt-1 line-clamp-2 text-[6.5px] font-bold uppercase leading-[1.35] tracking-[0.045em] text-[#64748b]">{meta.join(" · ")}</div>
-        {play.notes ? (
-          <div className="mt-2 line-clamp-3 border-t border-[#e2e8f0] pt-1.5 text-[6.5px] font-medium leading-[1.35] text-[#475569]">{play.notes}</div>
-        ) : (
-          <div className="mt-2 border-t border-[#e2e8f0] pt-1.5 text-[6px] font-semibold uppercase tracking-[0.08em] text-[#94a3b8]">No coaching note</div>
-        )}
+        {play.notes ? <div className="mt-2 line-clamp-3 border-t border-[#e2e8f0] pt-1.5 text-[6.5px] font-medium leading-[1.35] text-[#475569]">{play.notes}</div> : <div className="mt-2 border-t border-[#e2e8f0] pt-1.5 text-[6px] font-semibold uppercase tracking-[0.08em] text-[#94a3b8]">No coaching note</div>}
       </div>
-      <div className="min-w-0 border-l border-[#e2e8f0] bg-[#f8fafc] p-1.5">
-        <CompactPlayDiagram play={play} personnel={personnel} labelMode={labelMode} markerPrefix={`call-${play.id}-${number}`} />
-      </div>
+      <div className="min-w-0 border-l border-[#e2e8f0] bg-[#f8fafc] p-1.5"><CompactPlayDiagram play={play} personnel={personnel} labelMode={labelMode} markerPrefix={`call-${play.id}-${number}`} /></div>
     </article>
   );
 }
@@ -344,9 +332,7 @@ function CallSheetOutput({ team, teamSubtitle, plays, personnelByPlay, labelMode
         <section key={`call-page-${pageIndex}`} className="playbook-call-page rounded-lg border border-[#cbd5e1] bg-white p-4 text-[#0f172a] shadow-sm">
           <CallSheetHeader team={team} teamSubtitle={teamSubtitle} playCount={plays.length} page={pageIndex + 1} pageCount={pages.length} />
           <div className="mt-2.5 grid grid-cols-3 gap-1.5">
-            {pagePlays.map((play, index) => (
-              <CallSheetCard key={play.id} play={play} number={(pageIndex * CALL_SHEET_PAGE_SIZE) + index + 1} personnel={personnelByPlay[play.id] ?? []} labelMode={labelMode} />
-            ))}
+            {pagePlays.map((play, index) => <CallSheetCard key={play.id} play={play} number={(pageIndex * CALL_SHEET_PAGE_SIZE) + index + 1} personnel={personnelByPlay[play.id] ?? []} labelMode={labelMode} />)}
           </div>
         </section>
       ))}
@@ -370,9 +356,7 @@ function WristbandPlayCell({ play, number, personnel, labelMode, density, copyIn
         <span className={`min-w-0 flex-1 truncate font-black text-[#0f172a] ${compactText ? "text-[5.5px]" : "text-[6.5px]"}`}>{play.name}</span>
         <span className={`shrink-0 truncate font-bold uppercase text-[#64748b] ${compactText ? "max-w-[32%] text-[4.5px]" : "max-w-[34%] text-[5px]"}`}>{play.formation || "Custom"}</span>
       </div>
-      <div className="h-[78%] min-h-0 p-0.5">
-        <CompactPlayDiagram play={play} personnel={personnel} labelMode={labelMode} markerPrefix={`wrist-${play.id}-${number}-${copyIndex}`} tiny />
-      </div>
+      <div className="h-[78%] min-h-0 p-0.5"><CompactPlayDiagram play={play} personnel={personnel} labelMode={labelMode} markerPrefix={`wrist-${play.id}-${number}-${copyIndex}`} tiny /></div>
     </article>
   );
 }
@@ -390,9 +374,7 @@ function WristbandInsert({ team, teamSubtitle, plays, startNumber, personnelByPl
         </div>
       </header>
       <div className={`mt-1 grid min-h-0 flex-1 ${wristbandGridClass(density)}`}>
-        {slots.map((play, index) => (
-          <WristbandPlayCell key={`${copyIndex}-${index}-${play?.id ?? "blank"}`} play={play} number={startNumber + index} personnel={play ? personnelByPlay[play.id] ?? [] : []} labelMode={labelMode} density={density} copyIndex={copyIndex} />
-        ))}
+        {slots.map((play, index) => <WristbandPlayCell key={`${copyIndex}-${index}-${play?.id ?? "blank"}`} play={play} number={startNumber + index} personnel={play ? personnelByPlay[play.id] ?? [] : []} labelMode={labelMode} density={density} copyIndex={copyIndex} />)}
       </div>
     </section>
   );
@@ -404,9 +386,7 @@ function WristbandOutput({ team, teamSubtitle, plays, personnelByPlay, labelMode
     <div className="playbook-gameday-print-root space-y-4">
       {sets.map((setPlays, setIndex) => (
         <section key={`wrist-page-${setIndex}`} className="playbook-wristband-page grid grid-cols-2 gap-2 rounded-lg border border-[#cbd5e1] bg-white p-3 shadow-sm">
-          {Array.from({ length: WRISTBAND_COPIES_PER_PAGE }, (_, copyIndex) => (
-            <WristbandInsert key={`wrist-copy-${setIndex}-${copyIndex}`} team={team} teamSubtitle={teamSubtitle} plays={setPlays} startNumber={(setIndex * density) + 1} personnelByPlay={personnelByPlay} labelMode={labelMode} density={density} setNumber={setIndex + 1} setCount={sets.length} copyIndex={copyIndex} />
-          ))}
+          {Array.from({ length: WRISTBAND_COPIES_PER_PAGE }, (_, copyIndex) => <WristbandInsert key={`wrist-copy-${setIndex}-${copyIndex}`} team={team} teamSubtitle={teamSubtitle} plays={setPlays} startNumber={(setIndex * density) + 1} personnelByPlay={personnelByPlay} labelMode={labelMode} density={density} setNumber={setIndex + 1} setCount={sets.length} copyIndex={copyIndex} />)}
         </section>
       ))}
     </div>
@@ -424,8 +404,14 @@ export function PlaybookGameDay({ team, plays, onBack }: Props) {
 
   useEffect(() => {
     const playIds = new Set(plays.map((play) => play.id));
-    setOrder((current) => [...current.filter((playId) => playIds.has(playId)), ...plays.map((play) => play.id).filter((playId) => !current.includes(playId))]);
-    setIncluded((current) => new Set([...([...current].filter((playId) => playIds.has(playId))), ...plays.map((play) => play.id).filter((playId) => !current.has(playId))]));
+    setOrder((current) => [
+      ...current.filter((playId) => playIds.has(playId)),
+      ...plays.map((play) => play.id).filter((playId) => !current.includes(playId)),
+    ]);
+    setIncluded((current) => new Set([
+      ...[...current].filter((playId) => playIds.has(playId)),
+      ...plays.map((play) => play.id).filter((playId) => !current.has(playId)),
+    ]));
   }, [plays]);
 
   useEffect(() => {
@@ -466,15 +452,11 @@ export function PlaybookGameDay({ team, plays, onBack }: Props) {
   return (
     <section className="mx-auto max-w-[1440px] px-3 pb-8 pt-3 sm:px-4 md:px-6 md:pt-5">
       <PrintStyles />
-
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
         <div className="flex min-w-0 items-center gap-3">
           <button type="button" onClick={onBack} className="inline-flex min-h-10 shrink-0 items-center gap-2 text-xs font-bold text-text-muted hover:text-text-primary"><ArrowLeft size={16} />Playbook</button>
           <div className="h-7 w-px bg-border" />
-          <div className="min-w-0">
-            <div className="text-[9px] font-black uppercase tracking-[0.11em] text-text-muted">Game Day</div>
-            <h1 className="truncate text-xl font-extrabold tracking-[-0.025em]">Call sheets + wristbands</h1>
-          </div>
+          <div className="min-w-0"><div className="text-[9px] font-black uppercase tracking-[0.11em] text-text-muted">Game Day</div><h1 className="truncate text-xl font-extrabold tracking-[-0.025em]">Call sheets + wristbands</h1></div>
         </div>
         <Button onClick={() => window.print()} disabled={!selectedPlays.length}><Printer size={16} />Print / Save PDF</Button>
       </div>
@@ -487,75 +469,33 @@ export function PlaybookGameDay({ team, plays, onBack }: Props) {
               <button type="button" onClick={() => setMode("call-sheet")} className={`min-h-8 rounded-[5px] px-2 ${mode === "call-sheet" ? "bg-surface-elevated text-text-primary" : "text-text-muted hover:text-text-primary"}`}>Call Sheet</button>
               <button type="button" onClick={() => setMode("wristbands")} className={`min-h-8 rounded-[5px] px-2 ${mode === "wristbands" ? "bg-surface-elevated text-text-primary" : "text-text-muted hover:text-text-primary"}`}>Wristbands</button>
             </div>
-
             <div className="mt-4 text-[9px] font-black uppercase tracking-[0.1em] text-text-muted">Player labels</div>
             <div className="mt-2 grid grid-cols-2 rounded-md border border-border bg-background p-0.5 text-[10px] font-bold">
               <button type="button" onClick={() => setLabelMode("positions")} className={`min-h-8 rounded-[5px] px-2 ${labelMode === "positions" ? "bg-surface-elevated text-text-primary" : "text-text-muted hover:text-text-primary"}`}>Positions</button>
               <button type="button" disabled={personnelLoading || !hasAnyPersonnel} onClick={() => setLabelMode("players")} className={`min-h-8 rounded-[5px] px-2 ${labelMode === "players" ? "bg-surface-elevated text-text-primary" : "text-text-muted hover:text-text-primary"} disabled:opacity-35`}>Players</button>
             </div>
-
-            {mode === "wristbands" && (
-              <>
-                <div className="mt-4 text-[9px] font-black uppercase tracking-[0.1em] text-text-muted">Plays per insert</div>
-                <div className="mt-2 grid grid-cols-3 gap-1.5">
-                  {([6, 8, 12] as WristbandDensity[]).map((density) => (
-                    <button key={density} type="button" onClick={() => setWristbandDensity(density)} className={`min-h-8 rounded-md border text-[10px] font-extrabold ${wristbandDensity === density ? "border-[rgba(124,58,237,0.48)] bg-[rgba(124,58,237,0.14)] text-[#c4b5fd]" : "border-border bg-background text-text-muted hover:text-text-primary"}`}>{density}</button>
-                  ))}
-                </div>
-                <p className="mt-2 text-[9px] leading-4 text-text-muted">Each printed page makes 8 identical cut-ready inserts. Larger play sets continue onto another insert set.</p>
-              </>
-            )}
+            {mode === "wristbands" && <><div className="mt-4 text-[9px] font-black uppercase tracking-[0.1em] text-text-muted">Plays per insert</div><div className="mt-2 grid grid-cols-3 gap-1.5">{([6, 8, 12] as WristbandDensity[]).map((density) => <button key={density} type="button" onClick={() => setWristbandDensity(density)} className={`min-h-8 rounded-md border text-[10px] font-extrabold ${wristbandDensity === density ? "border-[rgba(124,58,237,0.48)] bg-[rgba(124,58,237,0.14)] text-[#c4b5fd]" : "border-border bg-background text-text-muted hover:text-text-primary"}`}>{density}</button>)}</div><p className="mt-2 text-[9px] leading-4 text-text-muted">Each printed page makes 8 identical cut-ready inserts. Larger play sets continue onto another insert set.</p></>}
           </section>
 
           <section className="rounded-xl border border-border bg-surface p-3">
             <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className="text-[9px] font-black uppercase tracking-[0.1em] text-text-muted">Play set</div>
-                <div className="mt-1 text-xs font-extrabold">{selectedPlays.length} of {plays.length} included</div>
-              </div>
-              <div className="flex gap-2 text-[8px] font-bold">
-                <button type="button" onClick={() => setIncluded(new Set(plays.map((play) => play.id)))} className="text-[#c4b5fd] hover:text-text-primary">Include all</button>
-                <button type="button" onClick={() => setIncluded(new Set())} className="text-text-muted hover:text-text-primary">Clear</button>
-              </div>
+              <div><div className="text-[9px] font-black uppercase tracking-[0.1em] text-text-muted">Play set</div><div className="mt-1 text-xs font-extrabold">{selectedPlays.length} of {plays.length} included</div></div>
+              <div className="flex gap-2 text-[8px] font-bold"><button type="button" onClick={() => setIncluded(new Set(plays.map((play) => play.id)))} className="text-[#c4b5fd] hover:text-text-primary">Include all</button><button type="button" onClick={() => setIncluded(new Set())} className="text-text-muted hover:text-text-primary">Clear</button></div>
             </div>
-
             <div className="mt-3 space-y-1.5">
               {order.flatMap((playId, orderIndex) => {
                 const play = playById.get(playId);
                 if (!play) return [];
                 const active = included.has(playId);
                 const selectedNumber = selectedNumberById.get(play.id);
-                return [(
-                  <div key={play.id} className={`grid grid-cols-[26px_24px_minmax(0,1fr)_44px] items-center gap-1.5 rounded-md border px-1.5 py-1.5 ${active ? "border-border bg-background" : "border-border/60 bg-background/45 opacity-55"}`}>
-                    <button type="button" onClick={() => toggleIncluded(play.id)} className={`flex h-6 w-6 items-center justify-center rounded ${active ? "bg-[rgba(124,58,237,0.16)] text-[#c4b5fd]" : "text-text-muted"}`} aria-label={`${active ? "Exclude" : "Include"} ${play.name}`}>{active ? <Check size={13} /> : <Square size={12} />}</button>
-                    <span className={`text-center text-[11px] font-black tabular-nums ${active ? "text-text-primary" : "text-text-muted"}`}>{selectedNumber ?? "—"}</span>
-                    <button type="button" onClick={() => toggleIncluded(play.id)} className="min-w-0 text-left">
-                      <span className="block truncate text-[9px] font-extrabold text-text-primary">{play.name}</span>
-                      <span className="mt-0.5 block truncate text-[7px] text-text-muted">{play.formation || "Custom"}{play.situation !== "any" ? ` · ${SITUATION_LABELS[play.situation]}` : ""}</span>
-                    </button>
-                    <div className="grid grid-cols-2 gap-0.5">
-                      <button type="button" disabled={orderIndex === 0} onClick={() => setOrder((current) => movePlay(current, play.id, -1))} className="flex h-6 items-center justify-center rounded text-text-muted hover:bg-surface-elevated hover:text-text-primary disabled:opacity-20" aria-label={`Move ${play.name} up`}><ArrowUp size={12} /></button>
-                      <button type="button" disabled={orderIndex === order.length - 1} onClick={() => setOrder((current) => movePlay(current, play.id, 1))} className="flex h-6 items-center justify-center rounded text-text-muted hover:bg-surface-elevated hover:text-text-primary disabled:opacity-20" aria-label={`Move ${play.name} down`}><ArrowDown size={12} /></button>
-                    </div>
-                  </div>
-                )];
+                return [<div key={play.id} className={`grid grid-cols-[26px_24px_minmax(0,1fr)_44px] items-center gap-1.5 rounded-md border px-1.5 py-1.5 ${active ? "border-border bg-background" : "border-border/60 bg-background/45 opacity-55"}`}><button type="button" onClick={() => toggleIncluded(play.id)} className={`flex h-6 w-6 items-center justify-center rounded ${active ? "bg-[rgba(124,58,237,0.16)] text-[#c4b5fd]" : "text-text-muted"}`} aria-label={`${active ? "Exclude" : "Include"} ${play.name}`}>{active ? <Check size={13} /> : <Square size={12} />}</button><span className={`text-center text-[11px] font-black tabular-nums ${active ? "text-text-primary" : "text-text-muted"}`}>{selectedNumber ?? "—"}</span><button type="button" onClick={() => toggleIncluded(play.id)} className="min-w-0 text-left"><span className="block truncate text-[9px] font-extrabold text-text-primary">{play.name}</span><span className="mt-0.5 block truncate text-[7px] text-text-muted">{play.formation || "Custom"}{play.situation !== "any" ? ` · ${SITUATION_LABELS[play.situation]}` : ""}</span></button><div className="grid grid-cols-2 gap-0.5"><button type="button" disabled={orderIndex === 0} onClick={() => setOrder((current) => movePlay(current, play.id, -1))} className="flex h-6 items-center justify-center rounded text-text-muted hover:bg-surface-elevated hover:text-text-primary disabled:opacity-20" aria-label={`Move ${play.name} up`}><ArrowUp size={12} /></button><button type="button" disabled={orderIndex === order.length - 1} onClick={() => setOrder((current) => movePlay(current, play.id, 1))} className="flex h-6 items-center justify-center rounded text-text-muted hover:bg-surface-elevated hover:text-text-primary disabled:opacity-20" aria-label={`Move ${play.name} down`}><ArrowDown size={12} /></button></div></div>];
               })}
             </div>
           </section>
         </aside>
 
         <div className="min-w-0 overflow-x-auto rounded-xl bg-[#e2e8f0] p-3 md:p-4">
-          {!selectedPlays.length ? (
-            <div className="flex min-h-[520px] min-w-[720px] flex-col items-center justify-center bg-white p-8 text-center text-[#0f172a]">
-              <ClipboardList size={28} className="text-[#94a3b8]" />
-              <div className="mt-3 text-sm font-extrabold">Choose at least one play</div>
-              <div className="mt-1 max-w-sm text-xs leading-5 text-[#64748b]">Included Library plays are numbered in the order shown at left.</div>
-            </div>
-          ) : mode === "call-sheet" ? (
-            <div className="min-w-[940px]"><CallSheetOutput team={team} teamSubtitle={teamSubtitle} plays={selectedPlays} personnelByPlay={personnelByPlay} labelMode={labelMode} /></div>
-          ) : (
-            <div className="mx-auto min-w-[720px] max-w-[860px]"><WristbandOutput team={team} teamSubtitle={teamSubtitle} plays={selectedPlays} personnelByPlay={personnelByPlay} labelMode={labelMode} density={wristbandDensity} /></div>
-          )}
+          {!selectedPlays.length ? <div className="flex min-h-[520px] min-w-[720px] flex-col items-center justify-center bg-white p-8 text-center text-[#0f172a]"><ClipboardList size={28} className="text-[#94a3b8]" /><div className="mt-3 text-sm font-extrabold">Choose at least one play</div><div className="mt-1 max-w-sm text-xs leading-5 text-[#64748b]">Included Library plays are numbered in the order shown at left.</div></div> : mode === "call-sheet" ? <div className="min-w-[940px]"><CallSheetOutput team={team} teamSubtitle={teamSubtitle} plays={selectedPlays} personnelByPlay={personnelByPlay} labelMode={labelMode} /></div> : <div className="mx-auto min-w-[720px] max-w-[860px]"><WristbandOutput team={team} teamSubtitle={teamSubtitle} plays={selectedPlays} personnelByPlay={personnelByPlay} labelMode={labelMode} density={wristbandDensity} /></div>}
         </div>
       </div>
     </section>
