@@ -2,7 +2,7 @@ import { getActivePlaybookContext, type PlaybookFormat } from "@/features/playbo
 
 export type PlaySide = "offense" | "defense";
 export type AssignmentKind = "route" | "motion";
-export type RouteTemplate = "go" | "slant" | "out" | "in" | "post" | "corner" | "hitch" | "drag";
+export type RouteTemplate = "go" | "slant" | "out" | "in" | "post" | "corner" | "hitch" | "drag" | "wheel";
 
 export type Point = { x: number; y: number };
 export type DiagramPlayer = Point & { id: string; label: string };
@@ -54,6 +54,7 @@ export const ROUTE_TEMPLATES: Array<{ id: RouteTemplate; label: string; short: s
   { id: "corner", label: "Corner", short: "COR" },
   { id: "hitch", label: "Hitch", short: "HIT" },
   { id: "drag", label: "Drag", short: "DRAG" },
+  { id: "wheel", label: "Wheel", short: "WHL" },
 ];
 
 const FIVE_V_FIVE_FORMATIONS: FormationPreset[] = [
@@ -409,6 +410,8 @@ function semanticRouteEnd(template: RouteTemplate, start: Point, requestedEnd: P
       return point(forceHorizontalDirection(start, requestedEnd, "inside"), upfieldY(start, requestedEnd, 7));
     case "drag":
       return point(forceHorizontalDirection(start, requestedEnd, "inside"), upfieldY(start, requestedEnd, 4));
+    case "wheel":
+      return point(forceHorizontalDirection(start, requestedEnd, "outside"), upfieldY(start, requestedEnd, 24));
   }
 }
 
@@ -425,7 +428,39 @@ export function defaultRouteEnd(template: RouteTemplate, start: Point): Point {
     case "corner": return point(start.x + outside * 23, start.y - 35);
     case "hitch": return point(start.x + inside * 5, start.y - 11);
     case "drag": return point(start.x + inside * 33, start.y - 8);
+    case "wheel": return point(start.x + outside * 22, start.y - 35);
   }
+}
+
+function cubicBezierPoint(start: Point, control1: Point, control2: Point, end: Point, t: number): Point {
+  const inverse = 1 - t;
+  const x = (inverse ** 3 * start.x)
+    + (3 * inverse ** 2 * t * control1.x)
+    + (3 * inverse * t ** 2 * control2.x)
+    + (t ** 3 * end.x);
+  const y = (inverse ** 3 * start.y)
+    + (3 * inverse ** 2 * t * control1.y)
+    + (3 * inverse * t ** 2 * control2.y)
+    + (t ** 3 * end.y);
+  return point(x, y);
+}
+
+function buildWheelCurve(start: Point, end: Point): Point[] {
+  const normalizedStart = point(start.x, start.y);
+  const direction = Math.sign(end.x - start.x) || outsideSign(start);
+  const horizontalDistance = Math.max(10, Math.abs(end.x - start.x));
+  const control1 = point(
+    start.x + direction * Math.min(16, horizontalDistance * 0.7),
+    start.y,
+  );
+  const control2 = point(
+    end.x,
+    Math.max(end.y + 7, start.y - 4),
+  );
+
+  return Array.from({ length: 8 }, (_, index) => (
+    cubicBezierPoint(normalizedStart, control1, control2, end, index / 7)
+  ));
 }
 
 export function buildRoutePoints(template: RouteTemplate, start: Point, requestedEnd?: Point): Point[] {
@@ -450,6 +485,8 @@ export function buildRoutePoints(template: RouteTemplate, start: Point, requeste
     }
     case "hitch":
       return [normalizedStart, point(start.x, end.y - 5), end];
+    case "wheel":
+      return buildWheelCurve(normalizedStart, end);
   }
 }
 
