@@ -191,7 +191,7 @@ export function AthleteProfileScreen({
           </div>
           <div className="grid grid-cols-3 gap-2 sm:min-w-[290px]">
             <Stat label="Drills" value={groups.length} />
-            <Stat label="Results" value={totalResults} />
+            <Stat label="Sessions" value={totalResults} />
             <Stat label="Improving" value={improvingDrills} />
           </div>
         </div>
@@ -223,7 +223,7 @@ export function AthleteProfileScreen({
             <div className="flex min-h-[48px] items-center justify-between border-b border-border px-4">
               <div>
                 <h2 className="text-sm font-extrabold">Drill performance</h2>
-                <p className="text-[10px] text-text-muted">PB and latest result for this team</p>
+                <p className="text-[10px] text-text-muted">PB, latest and progress by drill</p>
               </div>
               <Trophy size={17} className="text-text-muted" />
             </div>
@@ -238,7 +238,7 @@ export function AthleteProfileScreen({
                       </span>
                       <div className="min-w-0">
                         <div className="truncate text-sm font-extrabold">{group.drill.name}</div>
-                        <div className="mt-0.5 text-[10px] text-text-muted">{group.drill.category} · {group.summary.result_count} result{group.summary.result_count === 1 ? "" : "s"}</div>
+                        <div className="mt-0.5 text-[10px] text-text-muted">{group.drill.category} · {group.summary.result_count} session{group.summary.result_count === 1 ? "" : "s"}</div>
                       </div>
                     </div>
                     <div className="mt-3 grid grid-cols-[0.8fr_0.8fr_1.4fr] items-end gap-3 sm:contents">
@@ -250,7 +250,7 @@ export function AthleteProfileScreen({
                           <div className={`mt-1 inline-flex max-w-full items-center gap-1 text-xs font-bold ${change.improved ? "text-success" : "text-text-secondary"}`}>
                             {change.improved ? <TrendingUp className="shrink-0" size={14} /> : <TrendingDown className="shrink-0" size={14} />}<span className="truncate">{change.text}</span>
                           </div>
-                        ) : <div className="mt-1 truncate text-xs font-semibold text-text-muted">Need another result</div>}
+                        ) : <div className="mt-1 truncate text-xs font-semibold text-text-muted">Need another session</div>}
                       </div>
                     </div>
                   </div>
