@@ -61,6 +61,15 @@ export async function listPlays(db: D1Database, teamId: string, includeArchived 
   return result.results.map(fromRow);
 }
 
+export async function getPlay(db: D1Database, teamId: string, playId: string): Promise<StoredPlay> {
+  const row = await db
+    .prepare("SELECT * FROM plays WHERE id = ? AND team_id = ?")
+    .bind(playId, teamId)
+    .first<PlayDbRow>();
+  if (!row) throw new RepositoryError("not_found", "Play not found.");
+  return fromRow(row);
+}
+
 export async function createPlay(db: D1Database, teamId: string, input: PlayInput): Promise<StoredPlay> {
   const timestamp = nowIso();
   const playId = id("play");
