@@ -1,10 +1,16 @@
 import { handleApi, type Env } from "./api";
 import { AuthError, authenticateRequest, authErrorResponse } from "./auth";
+import {
+  AuthorizationError,
+  authorizationErrorResponse,
+  authorizeApiRequest,
+  initializeAuthorization,
+} from "./authorization";
 import { handleDrillApi } from "./drills/routes";
 import { handleResultsApi } from "./results/routes";
 import { handleSessionRosterApi } from "./sessions/roster-routes";
 import { handleSessionApi } from "./sessions/routes";
-import { handleTeamAdminApi } from "./teams/admin-routes";
+import { handleOwnershipApi } from "./teams/ownership-routes";
 
 export type HealthPayload = {
   ok: true;
@@ -23,12 +29,10 @@ const worker = {
     }
 
     if (url.pathname.startsWith("/api/")) {
+      const authEnv = (env ?? {}) as Parameters<typeof authenticateRequest>[1];
       let coach;
       try {
-        coach = await authenticateRequest(
-          request,
-          (env ?? {}) as Parameters<typeof authenticateRequest>[1],
-        );
+        coach = await authenticateRequest(request, authEnv);
       } catch (error) {
         if (error instanceof AuthError) return authErrorResponse(error);
         console.error("Authentication failure", error instanceof Error ? error.name : "unknown");
@@ -57,6 +61,22 @@ const worker = {
         );
       }
 
+      let authorization;
+      try {
+        authorization = await initializeAuthorization(env.DB, coach, authEnv.AUTHORIZED_COACH_EMAILS);
+        await authorizeApiRequest(request, env.DB, authorization);
+      } catch (error) {
+        if (error instanceof AuthorizationError) return authorizationErrorResponse(error);
+        console.error("Team authorization failure", error instanceof Error ? error.name : "unknown");
+        return Response.json(
+          { error: { code: "auth_unavailable", message: "Team permissions are temporarily unavailable." } },
+          { status: 503, headers: { "Cache-Control": "no-store" } },
+        );
+      }
+
+      const ownershipResponse = await handleOwnershipApi(request, env.DB, authorization);
+      if (ownershipResponse) return ownershipResponse;
+
       const resultsResponse = await handleResultsApi(request, env.DB);
       if (resultsResponse) return resultsResponse;
 
@@ -66,11 +86,8 @@ const worker = {
       const sessionRosterResponse = await handleSessionRosterApi(request, env.DB);
       if (sessionRosterResponse) return sessionRosterResponse;
 
-      const sessionResponse = await handleSessionApi(request, env.DB);
+      const sessionResponse = await handleSessionApi(request, env.DB, authorization.coach.id);
       if (sessionResponse) return sessionResponse;
-
-      const teamAdminResponse = await handleTeamAdminApi(request, env.DB);
-      if (teamAdminResponse) return teamAdminResponse;
 
       const response = await handleApi(request, env);
       if (response) return response;

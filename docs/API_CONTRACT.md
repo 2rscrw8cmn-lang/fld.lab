@@ -28,15 +28,20 @@ Timestamps are UTC ISO-8601 strings, for example:
 
 Timed performance values are integer milliseconds. Non-timed attempts use `elapsed_ms: null`; their authoritative values live in Measurement rows defined by the session's immutable drill definition.
 
-## 2. Authentication
+## 2. Authentication + authorization
 
-Authentication provider/mechanism is intentionally not fixed yet.
+Production identity is provided by Cloudflare Access. Every protected `/api/*` request is verified by the Worker as described in `AUTH.md` and `SECURITY.md`.
 
-Local/mock development may operate without authentication.
+Authorization has two layers:
 
-Before real production use, all athlete/team endpoints must require authorized access as defined in `SECURITY.md`.
+1. the verified email must be present in the deployment `AUTHORIZED_COACH_EMAILS` allowlist
+2. team-scoped data requires an active `team_coaches` membership for the authenticated Coach
 
-The route shapes in this document should remain usable after authentication is added.
+A client-supplied team, athlete, membership, or session ID is never proof of access. Inaccessible team-scoped resources should normally return `404` so the API does not reveal whether another coach's resource exists. Owner-only mutations return `403` when the signed-in coach has team access but lacks the `owner` role.
+
+Cloudflare Access remains the login provider; fld.LAB does not store passwords.
+
+Local development may use the explicit localhost-only development identity described in `AUTH.md`.
 
 ## 3. Error format
 
@@ -66,6 +71,7 @@ unauthorized
 forbidden
 invalid_drill_definition
 active_session_conflict
+auth_unavailable
 internal_error
 ```
 
@@ -77,16 +83,16 @@ Use conventional meanings:
 
 - `200` — successful read/update or idempotent retry returning existing resource
 - `201` — resource created
-- `204` — successful action with no response body when appropriate
 - `400` — malformed request / validation failure
 - `401` — authentication required
-- `403` — authenticated but not authorized
-- `404` — resource not found in accessible scope
+- `403` — authenticated but not authorized for the requested action
+- `404` — resource not found in the coach's accessible scope
 - `409` — state/uniqueness conflict
 - `422` — structurally valid request that cannot satisfy drill/schema rules, when useful
 - `500` — unexpected server failure
+- `503` — authentication/authorization infrastructure unavailable or required permission schema not deployed
 
-## 5. Health
+## 5. Health + identity
 
 ### `GET /api/health`
 
@@ -98,13 +104,28 @@ Response:
 }
 ```
 
-This route must not expose sensitive environment details.
+This route is public and must not expose sensitive environment details.
+
+### `GET /api/auth/me`
+
+Protected. Returns only the verified operator identity needed by the UI:
+
+```json
+{
+  "coach": {
+    "email": "coach@example.com",
+    "provider": "cloudflare-access"
+  }
+}
+```
 
 ---
 
 # Phase 1 — Teams + Roster
 
 ## 6. Team resource
+
+Team list/create/update responses include the signed-in coach's access role:
 
 ```json
 {
@@ -113,10 +134,13 @@ This route must not expose sensitive environment details.
   "age_group": "U10",
   "season_label": "Fall 2026",
   "active": true,
+  "access_role": "owner",
   "created_at": "2026-08-18T01:30:00.000Z",
   "updated_at": "2026-08-18T01:30:00.000Z"
 }
 ```
+
+`access_role` is `owner | coach`.
 
 For MVP, Team is season-specific.
 
@@ -124,7 +148,7 @@ For MVP, Team is season-specific.
 
 ### `GET /api/teams`
 
-Response:
+Returns only active teams for which the signed-in coach has active team access:
 
 ```json
 {
@@ -132,7 +156,9 @@ Response:
 }
 ```
 
-Default behavior returns active teams.
+### `GET /api/team-admin/teams`
+
+Returns the signed-in coach's active and archived teams for Settings. It never returns teams the coach does not belong to.
 
 ## 8. Create team
 
@@ -148,7 +174,14 @@ Request:
 }
 ```
 
-Response: `201` with Team resource.
+Response: `201` with Team resource and `access_role: "owner"`.
+
+Server behavior:
+
+1. create Team
+2. create an active `team_coaches` row for the authenticated Coach
+3. assign role `owner`
+4. return the owned Team
 
 Validation:
 
@@ -159,6 +192,8 @@ Validation:
 ## 9. Update/archive team
 
 ### `PATCH /api/teams/:teamId`
+
+Requires `owner` role.
 
 Request may contain:
 
@@ -171,7 +206,54 @@ Request may contain:
 }
 ```
 
-Archiving does not delete roster or result history.
+Archiving does not delete roster, coach membership, session, or result history.
+
+## 9A. Team coach access
+
+### `GET /api/teams/:teamId/coaches`
+
+Requires team access. Returns active coach memberships:
+
+```json
+{
+  "coaches": [
+    {
+      "id": "coach_123",
+      "email": "coach@example.com",
+      "display_name": null,
+      "role": "owner"
+    }
+  ]
+}
+```
+
+### `POST /api/teams/:teamId/coaches`
+
+Requires `owner` role.
+
+```json
+{
+  "email": "second-coach@example.com"
+}
+```
+
+The target email must already be in the deployment's authorized coach allowlist. This endpoint grants team access; it does not change Cloudflare Access policy or Worker secrets. Newly added memberships use role `coach`.
+
+### `DELETE /api/teams/:teamId/coaches/:coachId`
+
+Requires `owner` role. Soft-deactivates the target team membership and returns:
+
+```json
+{
+  "removed": true
+}
+```
+
+Rules:
+
+- a coach cannot remove their own access through this v1 endpoint
+- the last active owner cannot be removed
+- removing access never deletes historical data
 
 ## 10. Athlete identity resource
 
@@ -188,7 +270,7 @@ Archiving does not delete roster or result history.
 }
 ```
 
-Athlete identity does **not** contain jersey number or positions for MVP.
+Athlete identity does **not** contain jersey number or positions.
 
 ## 11. Team membership resource
 
@@ -233,11 +315,11 @@ Roster endpoints return identity + membership together for display convenience:
 }
 ```
 
-This response shape does not change database ownership.
-
 ## 13. Get roster
 
 ### `GET /api/teams/:teamId/roster`
+
+Requires access to `:teamId`.
 
 Default response includes active memberships only:
 
@@ -254,7 +336,9 @@ Default response includes active memberships only:
 
 ### `POST /api/teams/:teamId/roster`
 
-The common MVP flow creates a new Athlete and TeamMembership together:
+Requires access to `:teamId`.
+
+The common flow creates a new Athlete and TeamMembership together:
 
 ```json
 {
@@ -276,7 +360,7 @@ Response: `201` with Roster Row resource.
 
 Server behavior:
 
-1. validate identity + membership
+1. validate team access + identity + membership
 2. create Athlete
 3. create TeamMembership
 4. commit together
@@ -297,13 +381,15 @@ To add an existing athlete to another team:
 }
 ```
 
-Exactly one of `athlete` or `athlete_id` must be provided. Existing membership on the same team returns `409 conflict`.
+The coach must already have access to the referenced Athlete through another accessible team. Exactly one of `athlete` or `athlete_id` must be provided. Existing membership on the same team returns `409 conflict`.
 
 ## 15. Update athlete identity
 
 ### `PATCH /api/athletes/:athleteId`
 
-Allowed MVP fields:
+The athlete must belong to at least one team accessible to the signed-in coach.
+
+Allowed fields:
 
 ```json
 {
@@ -321,6 +407,8 @@ Do not accept jersey number or position here.
 
 ### `PATCH /api/team-memberships/:membershipId`
 
+Requires access to the membership's team.
+
 Allowed fields:
 
 ```json
@@ -337,6 +425,8 @@ Archiving may set `left_at`; reactivation may clear it. Never delete athlete his
 ---
 
 # Phase 2 — Drills
+
+Drill definitions are deployment-wide configuration in Phase 6A rather than team-owned resources. Any authenticated/allowlisted coach may read the shared drill library and import a versioned drill definition.
 
 ## 17. Drill list
 
@@ -390,6 +480,8 @@ Invalid definition:
 
 # Phase 3 — Training
 
+All session routes require access to the session's team. Supplying a session ID from another coach's team must not bypass authorization.
+
 ## 20. Create session
 
 ### `POST /api/sessions`
@@ -405,11 +497,12 @@ Request:
 
 Server behavior:
 
-1. confirm team/drill access and active state
+1. confirm signed-in coach has team access and team/drill are active
 2. snapshot the drill's current `drill_version_id`
 3. create TrainingSession
-4. create ordered SessionAthlete rows from active roster membership
-5. return session + athlete queue + exact definition
+4. store the authenticated Coach id in `created_by`
+5. create ordered SessionAthlete rows from active roster membership
+6. return session + athlete queue + exact definition
 
 All v1 measurement types supported by `DRILL_SPEC.md` may start a session.
 
@@ -423,7 +516,8 @@ Response `201`:
     "drill_id": "drill_123",
     "drill_version_id": "drill_version_2",
     "status": "active",
-    "started_at": "2026-08-18T01:30:00.000Z"
+    "started_at": "2026-08-18T01:30:00.000Z",
+    "created_by": "coach_123"
   },
   "drill_definition": {},
   "athletes": [],
@@ -451,14 +545,16 @@ Returns the team's active SessionDetail, or `null` when no active session exists
 
 ### `PATCH /api/sessions/:sessionId`
 
-Allowed status transitions:
+Allowed stored status transitions:
 
 ```text
 active → completed
 active → abandoned
 ```
 
-Every session athlete must be complete or skipped before completion. Already-saved attempts remain when a session is abandoned.
+The UI labels the `abandoned` action as **Quit**. Quit sessions are retained internally but are not included in coach-facing performance history.
+
+Every session athlete must be complete or skipped before completion. Already-saved attempts remain when a session is quit.
 
 ## 23. Persist attempt
 
@@ -588,6 +684,7 @@ Request:
 
 Server rules:
 
+- signed-in coach must have access to the session's team
 - session must still be active
 - each requested athlete must be an active roster member of the session's team
 - existing session athletes are left unchanged
@@ -599,18 +696,19 @@ Server rules:
 
 # Phase 4 — Results
 
+Performance analytics use **completed sessions only**. Quit/abandoned and active sessions remain stored operationally but do not affect PB/latest/previous, athlete history, leaderboards, team trends, or Train prior-result context.
+
 ## 25. Athlete results
 
 ### `GET /api/athletes/:athleteId/results`
 
-Optional filters:
+`team_id` is required for the authorization boundary. Other filters are optional:
 
 ```text
-?drill_id=<id>
-?team_id=<id>
-?from=<iso-date-or-timestamp>
-?to=<iso-date-or-timestamp>
+?team_id=<id>&drill_id=<id>&from=<iso-date-or-timestamp>&to=<iso-date-or-timestamp>
 ```
+
+The signed-in coach must have access to `team_id`, and the athlete must belong to that team.
 
 Results are derived from saved valid Attempts and Measurements. The server does not persist PB/latest summary rows.
 
@@ -670,7 +768,7 @@ Response shape:
 
 Derivation rules:
 
-- each athlete/session produces at most one comparable result for a drill
+- each athlete/completed session produces at most one comparable result for a drill
 - the session's stored DrillVersion defines the primary metric and attempt aggregation
 - `best` uses the session definition's `direction` (`lower` = minimum, `higher` = maximum; `none` falls back to latest)
 - `average`, `latest`, and `total` use the configured attempt aggregation literally
@@ -680,13 +778,12 @@ Derivation rules:
 - `custom_numeric` uses the first configured numeric field as the v1 comparable metric; all raw Measurements remain preserved on Attempts
 - PB/latest summaries compare only historical results whose metric signature is compatible with the drill's current definition (type/key/unit/direction/aggregation and relevant denominator/range metadata)
 - `direction: none` returns `pb: null` because there is no ranked personal best
-- saved valid attempts from completed, abandoned, or still-active sessions remain part of history
 
 ## 26. Drill leaderboard
 
 ### `GET /api/drills/:drillId/leaderboard?team_id=:teamId`
 
-`team_id` is required.
+`team_id` is required and must be accessible to the signed-in coach.
 
 Response:
 
@@ -722,12 +819,26 @@ Response:
 
 Ranking rules:
 
+- leaderboard includes active team memberships only
 - leaderboard ranks each athlete by their compatible all-time PB for the selected team/drill
+- completed sessions only
 - `lower` → ascending
 - `higher` → descending
 - tied PB values share a rank
 - `none` → entries are returned unranked (`rank: null`)
 - only valid persisted results count
+
+## 26A. Team sessions, trends, and session context
+
+These routes are also team-authorized server-side:
+
+```text
+GET /api/teams/:teamId/sessions
+GET /api/teams/:teamId/drills/:drillId/trend
+GET /api/sessions/:sessionId/result-context
+```
+
+Coach-facing session lists contain completed sessions only. Team trends and prior-result context use completed compatible results only.
 
 ## 27. Validation boundary
 
@@ -735,7 +846,8 @@ Client validation improves UX. Server validation is authoritative.
 
 Never trust:
 
-- athlete/team IDs from browser without access checks
+- athlete/team/session/membership IDs from browser without access checks
+- `team_id` query parameters without checking `team_coaches`
 - drill definitions just because client validation passed
 - elapsed or measurement values to match a different drill's expected schema
 - archived/inactive relationships without explicit server rules

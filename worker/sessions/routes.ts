@@ -107,7 +107,11 @@ function parseAttempt(body: JsonObject): AttemptInput | null {
   };
 }
 
-export async function handleSessionApi(request: Request, db: D1Database): Promise<Response | null> {
+export async function handleSessionApi(
+  request: Request,
+  db: D1Database,
+  coachId?: string,
+): Promise<Response | null> {
   const url = new URL(request.url);
   const { pathname } = url;
 
@@ -127,7 +131,13 @@ export async function handleSessionApi(request: Request, db: D1Database): Promis
       if (!teamId) fields.team_id = "Required";
       if (!drillId) fields.drill_id = "Required";
       if (Object.keys(fields).length) return errorResponse("validation_error", "One or more fields are invalid.", 400, fields);
-      return Response.json(await createSession(db, teamId!, drillId!), { status: 201 });
+
+      const detail = await createSession(db, teamId!, drillId!);
+      if (coachId) {
+        await db.prepare("UPDATE training_sessions SET created_by = ? WHERE id = ?").bind(coachId, detail.session.id).run();
+        detail.session.created_by = coachId;
+      }
+      return Response.json(detail, { status: 201 });
     }
 
     const attemptMatch = pathname.match(/^\/api\/sessions\/([^/]+)\/attempts$/);

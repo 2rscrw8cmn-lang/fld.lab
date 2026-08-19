@@ -1,26 +1,49 @@
-# fld.LAB — Production Authentication Runbook
+# fld.LAB — Production Authentication + Team Authorization Runbook
 
-This document is the operational source of truth for the fld.LAB v1 production access gate.
+This document is the operational source of truth for fld.LAB production identity and team access.
 
 See also:
 
 - `SECURITY.md` for privacy/security requirements
+- `DATA_MODEL.md` for Coach / TeamCoach ownership
 - `CLOUDFLARE.md` for Worker/D1 deployment operations
 
-## 1. v1 authentication decision
+## 1. Current decision
 
-fld.LAB v1 uses **Cloudflare Access** in front of the deployed Worker and authorizes a **small explicit coach email allowlist**.
+fld.LAB uses **Cloudflare Access** for authentication and a **D1 Coach → TeamCoach authorization layer** for team permissions.
 
-This matches the current MVP data model: trusted coaches operate the same v1 app and its teams. Fine-grained team roles, invitations, and organization membership are intentionally deferred until the product requires them.
-
-Security is enforced twice:
+Security is enforced in order:
 
 1. Cloudflare Access protects the deployed application URL.
-2. The Worker independently validates the signed Access JWT on every protected `/api/*` request and checks the verified email against the configured coach allowlist.
+2. The Worker independently validates the signed Access JWT on every protected `/api/*` request.
+3. The verified email must be listed in `AUTHORIZED_COACH_EMAILS`.
+4. Team-scoped requests require an active `team_coaches` membership for that Coach.
+5. Team-management/sharing mutations require `role = owner`.
 
-The Worker does not trust a client-supplied email, local storage value, hidden route, or Cloudflare header that has not been cryptographically verified.
+The Worker does not trust a client-supplied email, local storage value, hidden route, team ID, athlete ID, membership ID, session ID, or unverified Cloudflare header as authorization.
 
-## 2. Protected routes
+## 2. Identity vs team access
+
+These are intentionally separate.
+
+`AUTHORIZED_COACH_EMAILS` means an email is eligible to authenticate into fld.LAB. It does **not** grant every Team in D1.
+
+Team access is stored in:
+
+```text
+Coach
+  └── TeamCoach (owner | coach)
+       └── Team
+```
+
+Roles:
+
+- `owner` — normal team use plus edit/archive/team-sharing controls
+- `coach` — roster, Train, Data, and history for that team; no team edit/archive/sharing
+
+A newly created Team is owned only by the Coach who creates it. An owner may explicitly share it with another already-approved fld.LAB coach from Settings.
+
+## 3. Protected routes
 
 Public:
 
@@ -35,7 +58,7 @@ Protected:
 all other /api/* routes
 ```
 
-`/api/auth/me` returns only the minimal identity used by the UI:
+`/api/auth/me` returns only the minimal verified identity used by the UI:
 
 ```json
 {
@@ -46,9 +69,11 @@ all other /api/* routes
 }
 ```
 
-## 3. Production Worker variables
+It does not return the deployment allowlist or TeamCoach memberships.
 
-Production requires all four variables:
+## 4. Production Worker variables
+
+Production requires:
 
 ```text
 AUTH_MODE=access
@@ -57,57 +82,31 @@ ACCESS_AUD=<Cloudflare Access application audience tag>
 AUTHORIZED_COACH_EMAILS=coach1@example.com,coach2@example.com
 ```
 
-`AUTHORIZED_COACH_EMAILS` is a comma-separated allowlist. Whitespace and email case are normalized by the Worker.
+`AUTHORIZED_COACH_EMAILS` is comma-separated. Whitespace/case are normalized by the Worker.
 
 Do not commit account-specific values to this public repository.
 
-If any required production auth value is absent or invalid, protected API routes fail closed instead of becoming anonymous.
+If a required production auth value is absent/invalid, protected API routes fail closed instead of becoming anonymous.
 
-## 4. Enable Cloudflare Access on workers.dev
+## 5. Cloudflare Access policy
 
 In Cloudflare:
 
-1. Open **Workers & Pages**.
-2. Open the `fld-lab` Worker.
-3. Go to **Settings → Domains & Routes** or the Worker **Access** tab.
-4. Protect **All traffic** for the Worker if production and previews should both require authentication.
-5. Attach the dedicated reusable fld.LAB Allow policy.
-6. Keep that policy limited to the same coach emails listed in `AUTHORIZED_COACH_EMAILS`.
-7. Do not reuse an unrelated application policy unless those users truly need both applications.
+1. Open **Workers & Pages** → `fld-lab`.
+2. Protect **All traffic** behind Access.
+3. Attach the dedicated reusable fld.LAB Allow policy.
+4. Keep the policy limited to the coach emails eligible to use fld.LAB.
+5. Keep the same eligible emails in `AUTHORIZED_COACH_EMAILS`.
 
-Cloudflare Access is deny-by-default once the application/policy is configured; only the explicit Allow policy should reach fld.LAB.
+Cloudflare Access admission and the Worker allowlist should agree. Team sharing in fld.LAB never edits the Cloudflare policy itself.
 
-## 5. Authentication method
+## 6. Authentication method
 
-Cloudflare Access One-Time PIN is acceptable for this small trusted-coach deployment and avoids fld.LAB storing passwords.
+Cloudflare Access One-Time PIN is acceptable for the current small trusted-coach deployment and avoids fld.LAB storing passwords.
 
 The coach signs in through Cloudflare Access. fld.LAB never receives or stores the PIN.
 
-A future external identity provider can replace OTP without changing the domain/data model, provided Access continues issuing the application JWT verified by the Worker.
-
-## 6. Get the Access values
-
-### Team domain
-
-Use the Cloudflare Zero Trust team domain:
-
-```text
-https://<team-name>.cloudflareaccess.com
-```
-
-Store the full HTTPS origin in `ACCESS_TEAM_DOMAIN` with no path.
-
-### Application Audience (AUD)
-
-In Cloudflare Zero Trust:
-
-1. Go to **Access controls → Applications**.
-2. Open the fld.LAB Access application.
-3. Open **Additional settings**.
-4. Copy the **Application Audience (AUD) Tag**.
-5. Store it in `ACCESS_AUD`.
-
-The Worker verifies both issuer and audience, so a valid token issued for another Access application is rejected.
+A future external identity provider may be configured behind Access without changing the team authorization model, provided Access continues issuing the application JWT verified by the Worker.
 
 ## 7. Worker JWT verification
 
@@ -121,21 +120,99 @@ The Worker:
 
 - requires RS256
 - reads the signing key ID (`kid`)
-- fetches the account JWKS from `<ACCESS_TEAM_DOMAIN>/cdn-cgi/access/certs`
+- fetches JWKS from `<ACCESS_TEAM_DOMAIN>/cdn-cgi/access/certs`
 - verifies the RSA signature with Web Crypto
 - verifies `iss`
 - verifies `aud`
 - verifies expiration / not-before timing
 - requires `sub` and `email`
-- compares the verified email to the comma-separated `AUTHORIZED_COACH_EMAILS` allowlist
+- compares normalized verified email to `AUTHORIZED_COACH_EMAILS`
 
-JWKS are cached in Worker memory for a bounded period. Access rotates signing keys; the application never commits a signing key.
+JWKS are cached in Worker memory for a bounded period. Access rotates signing keys; fld.LAB never commits a signing key.
 
-## 8. Local development
+## 8. D1 authorization migration
 
-Local development remains intentionally unauthenticated, but it must be explicit.
+Team permissions require:
 
-In local `.dev.vars` only:
+```text
+migrations/0004_coach_team_access.sql
+```
+
+This creates:
+
+- `coaches`
+- `team_coaches`
+- role/lookup indexes
+
+The migration intentionally contains no real coach emails.
+
+### Deployment order
+
+**Apply migration 0004 before deploying/merging Worker code that requires team permissions.**
+
+From a checkout containing the migration:
+
+```bash
+npm run db:migrate:remote
+```
+
+The currently deployed pre-ownership Worker safely ignores the new tables. Once ownership code is deployed, it expects the permission schema and fails closed with a generic 503 if the schema is missing.
+
+## 9. Existing-team bootstrap
+
+After migration 0004 and the ownership Worker are live, the first protected application request initializes minimal Coach records and checks for legacy Teams with zero TeamCoach rows.
+
+For each such legacy Team, every email currently in `AUTHORIZED_COACH_EMAILS` receives an active `owner` TeamCoach row.
+
+This is a compatibility bridge for teams that were intentionally shared before per-team authorization existed.
+
+Rules:
+
+- bootstrap only applies when a Team has no TeamCoach rows
+- it is idempotent
+- new Teams are not broadly shared
+- adding a new email to the deployment allowlist later does not grant existing Team access
+- ongoing sharing is explicit in Settings
+
+## 10. Adding a brand-new coach
+
+A Team owner cannot grant access to an email that is not already approved at the deployment gate.
+
+Operational order:
+
+1. add the email to the dedicated fld.LAB Cloudflare Access Allow policy
+2. add the email to `AUTHORIZED_COACH_EMAILS`
+3. deploy/save that Worker configuration
+4. sign in or open Settings as an existing owner
+5. open the intended Team → **Access**
+6. add the coach email
+
+The new membership is role `coach`.
+
+If the coach needs a different Team, grant it separately. Deployment eligibility must never silently imply access to all teams.
+
+## 11. Removing team access
+
+A Team owner may remove another Coach from a Team in Settings.
+
+Removal:
+
+- deactivates the TeamCoach relationship
+- does not remove the email from Cloudflare Access or the Worker allowlist
+- does not delete roster/session/result history
+- prevents that Coach from seeing the Team on future team lists/requests
+
+Current v1 guardrails:
+
+- self-removal is not supported
+- the last owner cannot be removed
+- owner transfer/promotion workflow is deferred
+
+To remove a coach from fld.LAB entirely, also remove the email from Cloudflare Access policy and `AUTHORIZED_COACH_EMAILS`.
+
+## 12. Local development
+
+Local development is explicit:
 
 ```text
 AUTH_MODE=development
@@ -143,9 +220,11 @@ AUTH_MODE=development
 
 Development bypass is accepted only for localhost/loopback requests. Setting `AUTH_MODE=development` on an internet hostname does not open the API; the Worker fails closed.
 
+The local fictional identity receives/uses TeamCoach records in the local D1 just like a production Coach.
+
 Do not commit `.dev.vars`.
 
-## 9. SPA/session-expiration behavior
+## 13. SPA/session-expiration behavior
 
 Browser API requests send:
 
@@ -159,7 +238,7 @@ This allows an expired Access session to surface as an HTTP authentication failu
 
 When the API returns 401, fld.LAB shows a session-expired error. Refreshing the application re-enters the Access authentication flow.
 
-## 10. Sign out
+## 14. Sign out
 
 Settings exposes **Sign out** for Cloudflare Access sessions.
 
@@ -171,77 +250,79 @@ It navigates to:
 
 Cloudflare clears/revokes the Access session. Local development does not show this action.
 
-## 11. Required production verification
+## 15. Required production verification
 
-Before real youth-athlete data is entered, verify against the deployed Worker.
+After introducing TeamCoach authorization, verify both identity and isolation.
 
-### Anonymous read
-
-In a private/incognito browser that is not signed into Access:
-
-```text
-GET /api/teams
-```
-
-Expected: blocked by Access. A direct request reaching the Worker without a valid Access JWT must return 401.
-
-### Anonymous write
+### Anonymous read/write
 
 Without a valid Access session:
 
 ```text
+GET /api/teams
 POST /api/teams
 ```
 
-Expected: blocked/401. The request must not reach D1 mutation logic.
+Expected: blocked by Access / Worker 401 and no D1 application data returned/mutated.
 
-### Non-allowed coach
+### Non-allowlisted coach
 
-Attempt sign-in with an email that is not in the Access Allow policy and not listed in `AUTHORIZED_COACH_EMAILS`.
+Attempt sign-in with an email not in the Access policy and Worker allowlist.
 
-Expected: no application access. Even if a valid Access JWT from that Access application reached the Worker, the Worker returns 403.
+Expected: no application access; a valid Access JWT that somehow reaches the Worker still receives 403.
 
-### Allowed coaches
+### Existing intended shared team
 
-For each configured coach account:
+For each coach who was intentionally sharing the team before migration:
 
-- Home loads
-- roster loads
-- Data loads
-- Settings shows the verified coach email
+- sign in
+- confirm the legacy team appears
+- confirm Settings shows the expected `Owner` access
+- confirm roster/Data/Train still load
 
-At least one allowed coach should also verify that a fictional athlete can be created and a fictional training result can be saved.
+### New-team isolation
 
-### Logout
+As Coach A:
 
-From Settings:
+1. create a fictional Team
+2. confirm Coach A is Owner
 
-1. choose **Sign out**
-2. confirm fld.LAB is no longer usable without authenticating again
-3. confirm an API request after logout does not return roster/results
+As Coach B before sharing:
 
-### Session expiration
+1. refresh/sign in
+2. confirm the new Team is absent
+3. directly request the known Team ID/roster/session if testing tools are available
+4. expect `404` accessible-scope behavior
 
-Use a short Access application session during verification.
+Then, as Coach A, share the Team with Coach B. Coach B should see it after refresh with `Coach` role and should not be able to edit/archive/share it.
 
-1. sign in
-2. leave fld.LAB open until the Access session expires
-3. trigger an API read
-4. verify the UI reports the expired session rather than rendering login HTML as data
-5. refresh and authenticate again
+### Team access removal
 
-## 12. Production readiness status
+Owner removes Coach B from the fictional Team.
 
-Merging the auth code does **not** by itself approve real athlete data.
+Expected after Coach B refresh:
 
-The production gate is complete only after:
+- Team disappears
+- direct team-scoped requests return 404
+- historical records remain intact for the owner
+
+### Logout/session expiry
+
+Re-run logout and session-expiration checks from the original Access gate verification.
+
+## 16. Production readiness status
+
+The production gate remains complete only when:
 
 - Access is enabled on the deployed hostname
-- the Allow policy is restricted to the intended coach accounts
-- all required Worker variables are configured
-- anonymous read/write verification passes
-- non-allowed-coach verification passes
-- logout and session-expiration behavior are tested on a real device
-- `SECURITY.md` production checklist is completed
+- Allow policy and Worker allowlist contain only intended eligible coaches
+- required Worker variables are configured
+- migration 0004 is applied
+- legacy bootstrap produced only intended shared memberships
+- new-team isolation has been tested between two authenticated coaches
+- coach-role owner restrictions have been tested
+- direct-ID cross-team reads/writes are blocked
+- logout/session-expiration behavior works on a real device
+- `SECURITY.md` checklist is satisfied
 
-Until those deployment checks pass, use fictional/sanitized athlete data only.
+Do not treat successful login alone as proof of correct team authorization.
