@@ -286,7 +286,7 @@ async function reconcileDatabasePlays(teamId: string): Promise<Play[]> {
 }
 
 function formatUpdated(value: string) {
-  return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(value));
+  return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(new Date(value));
 }
 
 function situationLabel(value: PlaySituation) {
@@ -306,45 +306,64 @@ function FieldLines() {
   ];
   return (
     <>
-      <rect x="3" y="3" width="94" height="94" rx="2" fill="none" className="stroke-border" strokeWidth="0.9" />
+      <rect x="3" y="3" width="94" height="94" rx="1.5" fill="none" className="stroke-border" strokeWidth="0.6" opacity="0.76" />
       {guides.map((guide) => (
         <g key={guide.y}>
-          <line x1="3" y1={guide.y} x2="97" y2={guide.y} className="stroke-border" strokeWidth="0.55" opacity="0.72" />
-          <text x="5" y={guide.y - 1.4} className="fill-text-muted text-[2.35px] font-bold">{guide.label}</text>
+          <line x1="3" y1={guide.y} x2="97" y2={guide.y} className="stroke-border" strokeWidth="0.38" opacity="0.5" />
+          <text x="5" y={guide.y - 1.35} className="fill-text-muted text-[2.05px] font-bold" opacity="0.68">{guide.label}</text>
         </g>
       ))}
-      <line x1="3" y1="55" x2="97" y2="55" className="stroke-text-muted" strokeWidth="0.6" strokeDasharray="2 2" opacity="0.7" />
-      <text x="95" y="53.3" textAnchor="end" className="fill-text-muted text-[2.25px] font-bold">7YD RUSH</text>
-      <line x1="3" y1="76" x2="97" y2="76" className="stroke-text-secondary" strokeWidth="1.35" />
-      <text x="5" y="74" className="fill-text-muted text-[2.45px] font-bold">LOS</text>
+      <line x1="3" y1="55" x2="97" y2="55" className="stroke-text-muted" strokeWidth="0.42" strokeDasharray="1.8 1.8" opacity="0.46" />
+      <text x="95" y="53.3" textAnchor="end" className="fill-text-muted text-[2px] font-bold" opacity="0.68">7YD RUSH</text>
+      <line x1="3" y1="76" x2="97" y2="76" className="stroke-text-secondary" strokeWidth="0.78" opacity="0.82" />
+      <text x="5" y="74.1" className="fill-text-muted text-[2.2px] font-bold">LOS</text>
     </>
   );
 }
 
-function AssignmentLines({ diagram, markerPrefix, compact = false }: { diagram: PlayDiagram; markerPrefix: string; compact?: boolean }) {
+function AssignmentLines({
+  diagram,
+  markerPrefix,
+  compact = false,
+  selectedAssignmentId = null,
+}: {
+  diagram: PlayDiagram;
+  markerPrefix: string;
+  compact?: boolean;
+  selectedAssignmentId?: string | null;
+}) {
   return (
     <>
       <defs>
-        <marker id={`${markerPrefix}-route`} viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+        <marker id={`${markerPrefix}-route`} viewBox="0 0 10 10" refX="8.2" refY="5" markerWidth={compact ? "2.7" : "3.1"} markerHeight={compact ? "2.7" : "3.1"} orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" className="fill-text-secondary" />
+        </marker>
+        <marker id={`${markerPrefix}-route-selected`} viewBox="0 0 10 10" refX="8.2" refY="5" markerWidth="3.2" markerHeight="3.2" orient="auto-start-reverse">
           <path d="M 0 0 L 10 5 L 0 10 z" className="fill-accent" />
         </marker>
-        <marker id={`${markerPrefix}-motion`} viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+        <marker id={`${markerPrefix}-motion`} viewBox="0 0 10 10" refX="8.2" refY="5" markerWidth={compact ? "2.4" : "2.8"} markerHeight={compact ? "2.4" : "2.8"} orient="auto-start-reverse">
           <path d="M 0 0 L 10 5 L 0 10 z" className="fill-text-muted" />
         </marker>
       </defs>
-      {diagram.assignments.map((assignment) => (
-        <polyline
-          key={assignment.id}
-          points={polylinePoints(assignment.points)}
-          fill="none"
-          markerEnd={`url(#${markerPrefix}-${assignment.kind})`}
-          className={assignment.kind === "route" ? "stroke-accent" : "stroke-text-muted"}
-          strokeWidth={compact ? 1.2 : 1.8}
-          strokeDasharray={assignment.kind === "motion" ? "3 2" : undefined}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      ))}
+      {diagram.assignments.map((assignment) => {
+        const selected = assignment.id === selectedAssignmentId;
+        const isRoute = assignment.kind === "route";
+        const marker = selected && isRoute ? `${markerPrefix}-route-selected` : `${markerPrefix}-${assignment.kind}`;
+        return (
+          <polyline
+            key={assignment.id}
+            points={polylinePoints(assignment.points)}
+            fill="none"
+            markerEnd={`url(#${marker})`}
+            className={selected ? "stroke-accent" : isRoute ? "stroke-text-secondary" : "stroke-text-muted"}
+            strokeWidth={compact ? (isRoute ? 0.72 : 0.54) : selected ? 1.05 : isRoute ? 0.9 : 0.68}
+            strokeDasharray={assignment.kind === "motion" ? "2.4 1.9" : undefined}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            opacity={selected ? 1 : isRoute ? 0.9 : 0.72}
+          />
+        );
+      })}
     </>
   );
 }
@@ -358,9 +377,9 @@ function FieldDiagram({ diagram, compact = false, markerPrefix = "play" }: { dia
         const primary = diagram.primary_target_player_id === player.id;
         return (
           <g key={player.id}>
-            {primary && <circle cx={player.x} cy={player.y} r={compact ? 4.7 : 6} fill="none" className="stroke-accent" strokeWidth={compact ? 0.7 : 1} opacity="0.8" />}
-            <circle cx={player.x} cy={player.y} r={compact ? 3.2 : 4.2} className="fill-surface stroke-text-secondary" strokeWidth="1.1" />
-            {!compact && <text x={player.x} y={player.y + 1.15} textAnchor="middle" className="fill-text-primary text-[3.2px] font-black">{player.label}</text>}
+            {primary && <circle cx={player.x} cy={player.y} r={compact ? 4.35 : 5.45} fill="none" className="stroke-accent" strokeWidth={compact ? 0.62 : 0.78} opacity="0.82" />}
+            <circle cx={player.x} cy={player.y} r={compact ? 2.85 : 3.85} className="fill-surface stroke-text-secondary" strokeWidth={compact ? 0.78 : 0.9} />
+            {!compact && <text x={player.x} y={player.y + 1.05} textAnchor="middle" className="fill-text-primary text-[2.85px] font-black">{player.label}</text>}
           </g>
         );
       })}
@@ -379,25 +398,29 @@ function FormationPreview({ formation }: { formation: FormationPreset }) {
 }
 
 function PlayCard({ play, onOpen }: { play: Play; onOpen: () => void }) {
+  const details = [
+    play.play_type.charAt(0).toUpperCase() + play.play_type.slice(1),
+    play.concept || null,
+    play.situation !== "any" ? situationLabel(play.situation) : null,
+  ].filter((value): value is string => Boolean(value));
+
   return (
-    <button type="button" onClick={onOpen} className="overflow-hidden rounded-xl border border-border bg-surface text-left transition-colors hover:border-[rgba(124,58,237,0.5)] hover:bg-surface-elevated">
-      <div className="aspect-[4/3] bg-background p-2">
+    <button type="button" onClick={onOpen} className="group overflow-hidden rounded-lg border border-border bg-surface text-left transition-colors hover:border-text-muted hover:bg-surface-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
+      <div className="aspect-[4/3] bg-background p-3">
         <FieldDiagram diagram={play.diagram} compact markerPrefix={`card-${play.id}`} />
       </div>
       <div className="border-t border-border px-3 py-2.5">
-        <div className="flex items-start justify-between gap-2">
+        <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="truncate text-sm font-extrabold">{play.name}</div>
-            <div className="mt-0.5 truncate text-[10px] text-text-muted">{play.formation || (play.side === "offense" ? "Offense" : "Defense")}</div>
+            <div className="truncate text-[13px] font-extrabold text-text-primary">{play.name}</div>
+            <div className="mt-0.5 truncate text-[9px] font-semibold uppercase tracking-[0.05em] text-text-muted">{play.formation || (play.side === "offense" ? "Offense" : "Defense")}</div>
           </div>
-          <span className="shrink-0 rounded-full border border-border bg-background px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.06em] text-text-muted">{play.side}</span>
+          <span className="shrink-0 text-[8px] font-bold uppercase tracking-[0.08em] text-text-muted">{play.side}</span>
         </div>
-        <div className="mt-2 flex flex-wrap gap-1">
-          <span className="rounded border border-border bg-background px-1.5 py-0.5 text-[8px] font-bold uppercase text-text-muted">{play.play_type}</span>
-          {play.concept && <span className="max-w-[100px] truncate rounded border border-border bg-background px-1.5 py-0.5 text-[8px] font-bold text-text-muted">{play.concept}</span>}
-          {play.situation !== "any" && <span className="rounded border border-border bg-background px-1.5 py-0.5 text-[8px] font-bold text-text-muted">{situationLabel(play.situation)}</span>}
+        <div className="mt-2 flex min-w-0 items-center justify-between gap-3 text-[9px] text-text-muted">
+          <span className="truncate">{details.join(" · ") || "Uncategorized"}</span>
+          <span className="shrink-0 tabular-nums opacity-70">{formatUpdated(play.updated_at)}</span>
         </div>
-        <div className="mt-2 text-[9px] text-text-muted">Updated {formatUpdated(play.updated_at)}</div>
       </div>
     </button>
   );
@@ -405,13 +428,13 @@ function PlayCard({ play, onOpen }: { play: Play; onOpen: () => void }) {
 
 function SegmentedFilter({ value, onChange }: { value: Filter; onChange: (value: Filter) => void }) {
   return (
-    <div className="inline-grid grid-cols-3 rounded-lg border border-border bg-background p-1 text-[11px] font-bold">
+    <div className="inline-grid grid-cols-3 rounded-md border border-border bg-background p-0.5 text-[10px] font-bold">
       {(["all", "offense", "defense"] as Filter[]).map((option) => (
         <button
           key={option}
           type="button"
           onClick={() => onChange(option)}
-          className={`min-h-8 rounded-md px-3 capitalize transition-colors ${value === option ? "bg-surface-elevated text-text-primary" : "text-text-muted hover:text-text-primary"}`}
+          className={`min-h-8 rounded-[5px] px-3 capitalize transition-colors ${value === option ? "bg-surface-elevated text-text-primary" : "text-text-muted hover:text-text-primary"}`}
         >
           {option}
         </button>
@@ -446,15 +469,15 @@ function FormationPicker({
           <button type="button" onClick={onClose} className="flex h-10 w-10 items-center justify-center rounded-md border border-border text-text-muted hover:bg-surface-elevated hover:text-text-primary" aria-label="Close"><X size={18} /></button>
         </div>
         <div className="p-3 sm:p-4">
-          <div className="mb-3 inline-grid grid-cols-2 rounded-lg border border-border bg-background p-1 text-xs font-bold">
+          <div className="mb-3 inline-grid grid-cols-2 rounded-md border border-border bg-background p-0.5 text-xs font-bold">
             {(["offense", "defense"] as PlaySide[]).map((option) => (
-              <button key={option} type="button" onClick={() => onSideChange(option)} className={`min-h-9 rounded-md px-4 capitalize ${side === option ? "bg-[rgba(124,58,237,0.16)] text-[#c4b5fd]" : "text-text-muted"}`}>{option}</button>
+              <button key={option} type="button" onClick={() => onSideChange(option)} className={`min-h-9 rounded-[5px] px-4 capitalize ${side === option ? "bg-[rgba(124,58,237,0.16)] text-[#c4b5fd]" : "text-text-muted"}`}>{option}</button>
             ))}
           </div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
             {formations.map((formation) => (
-              <button key={formation.id} type="button" onClick={() => onSelect(formation)} className="overflow-hidden rounded-xl border border-border bg-background text-left transition-colors hover:border-[rgba(124,58,237,0.5)] hover:bg-surface-elevated">
-                <div className="aspect-[4/3] p-2"><FormationPreview formation={formation} /></div>
+              <button key={formation.id} type="button" onClick={() => onSelect(formation)} className="overflow-hidden rounded-lg border border-border bg-background text-left transition-colors hover:border-text-muted hover:bg-surface-elevated">
+                <div className="aspect-[4/3] p-3"><FormationPreview formation={formation} /></div>
                 <div className="border-t border-border px-3 py-2 text-xs font-extrabold">{formation.name}</div>
               </button>
             ))}
@@ -621,30 +644,36 @@ export function PlaybookScreen({ team }: { team: Team | null }) {
 
   return (
     <section className="mx-auto max-w-[1220px] px-3 pb-8 pt-[18px] sm:px-4 md:px-6 md:pt-[22px]">
-      <div className="flex flex-wrap items-end justify-between gap-3">
+      <div className="flex flex-wrap items-end justify-between gap-3 border-b border-border pb-4">
         <div>
           <h1 className="text-[24px] font-extrabold leading-none tracking-[-0.035em] md:text-[30px]">Playbook</h1>
-          <p className="mt-1.5 text-[13px] text-text-muted">Keep the plays this team is running now separate from the larger library.</p>
+          <p className="mt-1.5 text-[12px] text-text-muted">Current install up front. Everything else stays in the Library.</p>
         </div>
         <Button onClick={() => { setPickerSide("offense"); setNewPlayPickerOpen(true); }}><FilePlus2 size={16} />New Play</Button>
       </div>
 
-      <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3">
-        <div className="inline-grid grid-cols-2 rounded-lg border border-border bg-background p-1 text-xs font-bold">
-          <button type="button" onClick={() => setView("active")} className={`min-h-9 rounded-md px-4 ${view === "active" ? "bg-[rgba(124,58,237,0.16)] text-[#c4b5fd]" : "text-text-muted"}`}>Active · {activeCount}</button>
-          <button type="button" onClick={() => setView("library")} className={`min-h-9 rounded-md px-4 ${view === "library" ? "bg-surface-elevated text-text-primary" : "text-text-muted"}`}>Library · {libraryCount}</button>
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-5 text-xs font-bold">
+          <button type="button" onClick={() => setView("active")} className={`relative min-h-9 px-0.5 ${view === "active" ? "text-text-primary" : "text-text-muted hover:text-text-primary"}`}>
+            Active <span className="ml-1 text-[10px] text-text-muted">{activeCount}</span>
+            {view === "active" && <span className="absolute inset-x-0 -bottom-[7px] h-0.5 bg-accent" />}
+          </button>
+          <button type="button" onClick={() => setView("library")} className={`relative min-h-9 px-0.5 ${view === "library" ? "text-text-primary" : "text-text-muted hover:text-text-primary"}`}>
+            Library <span className="ml-1 text-[10px] text-text-muted">{libraryCount}</span>
+            {view === "library" && <span className="absolute inset-x-0 -bottom-[7px] h-0.5 bg-accent" />}
+          </button>
         </div>
         <SegmentedFilter value={filter} onChange={setFilter} />
       </div>
 
       {filtered.length === 0 ? (
-        <div className="mt-4 flex min-h-[330px] flex-col items-center justify-center rounded-xl border border-dashed border-border bg-surface/60 p-8 text-center">
-          <Route size={34} className="text-text-muted" />
-          <h2 className="mt-4 text-lg font-extrabold">{view === "active" ? "No active plays yet" : "Library is empty"}</h2>
-          <p className="mt-1 max-w-sm text-sm leading-5 text-text-muted">
-            {view === "active" ? "New plays start active. Move plays to the Library when they are not in the current install." : "Move an active play to the Library when it is not in the current install."}
+        <div className="mt-4 flex min-h-[280px] flex-col items-center justify-center border border-dashed border-border bg-surface/40 p-8 text-center">
+          <Route size={30} className="text-text-muted" />
+          <h2 className="mt-3 text-base font-extrabold">{view === "active" ? "No active plays yet" : "Library is empty"}</h2>
+          <p className="mt-1 max-w-sm text-xs leading-5 text-text-muted">
+            {view === "active" ? "New plays start active. Move plays to the Library when they leave the current install." : "Move an active play to the Library when it is not in the current install."}
           </p>
-          {view === "active" && <Button className="mt-5" onClick={() => { setPickerSide("offense"); setNewPlayPickerOpen(true); }}><Plus size={16} />Create first play</Button>}
+          {view === "active" && <Button className="mt-4" onClick={() => { setPickerSide("offense"); setNewPlayPickerOpen(true); }}><Plus size={16} />Create first play</Button>}
         </div>
       ) : (
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
@@ -652,12 +681,12 @@ export function PlaybookScreen({ team }: { team: Team | null }) {
         </div>
       )}
 
-      <div className={`mt-5 rounded-lg border px-3 py-2.5 text-[10px] leading-4 ${persistenceMode === "local" ? "border-warning/45 bg-warning/5 text-warning" : "border-border bg-surface text-text-muted"}`}>
+      <div className={`mt-5 border-t border-border pt-3 text-[10px] leading-4 ${persistenceMode === "local" ? "text-warning" : "text-text-muted"}`}>
         {persistenceMode === "database"
-          ? "Saved to the team database. This playbook is available on any signed-in device with team access."
+          ? "Saved to the team database · available on signed-in team devices"
           : persistenceMode === "local"
-            ? "Team database is unavailable right now. Changes are cached on this device and will reconcile when the playbook reconnects."
-            : "Loading the team playbook…"}
+            ? "Team database unavailable · changes are cached on this device and will reconcile when it reconnects"
+            : "Loading team playbook…"}
       </div>
 
       {newPlayPickerOpen && (
@@ -988,7 +1017,7 @@ function PlayEditor({
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_330px]">
         <div className="min-w-0">
-          <div className="relative aspect-[4/5] max-h-[760px] min-h-[500px] overflow-hidden rounded-xl border border-border bg-background sm:aspect-[5/4] xl:aspect-[4/3]">
+          <div className="relative aspect-[4/5] max-h-[760px] min-h-[500px] overflow-hidden rounded-lg border border-border bg-background sm:aspect-[5/4] xl:aspect-[4/3]">
             <svg
               ref={svgRef}
               viewBox="0 0 100 100"
@@ -1000,7 +1029,7 @@ function PlayEditor({
               aria-label="Play editor field"
             >
               <FieldLines />
-              <AssignmentLines diagram={draft.diagram} markerPrefix="editor" />
+              <AssignmentLines diagram={draft.diagram} markerPrefix="editor" selectedAssignmentId={selectedAssignmentId} />
               {draft.diagram.assignments.map((assignment) => {
                 if (assignment.id !== selectedAssignmentId) return null;
                 const end = assignmentEnd(assignment);
@@ -1009,9 +1038,9 @@ function PlayEditor({
                     key={`handle-${assignment.id}`}
                     cx={end.x}
                     cy={end.y}
-                    r="3.2"
+                    r="2.6"
                     className="fill-background stroke-accent cursor-grab active:cursor-grabbing"
-                    strokeWidth="1.4"
+                    strokeWidth="1"
                     onPointerDown={(event) => handleAssignmentPointerDown(event, assignment.id)}
                   />
                 );
@@ -1021,10 +1050,10 @@ function PlayEditor({
                 const primary = draft.diagram.primary_target_player_id === player.id;
                 return (
                   <g key={player.id} onPointerDown={(event) => handlePlayerPointerDown(event, player.id)} className="cursor-grab active:cursor-grabbing">
-                    {primary && <circle cx={player.x} cy={player.y} r="7" fill="none" className="stroke-accent" strokeWidth="1" strokeDasharray="2 1.5" opacity="0.9" />}
-                    {selected && <circle cx={player.x} cy={player.y} r="6" fill="none" className="stroke-accent" strokeWidth="1.2" opacity="0.8" />}
-                    <circle cx={player.x} cy={player.y} r="4.5" className={selected ? "fill-accent stroke-background" : "fill-surface stroke-text-secondary"} strokeWidth="1.2" />
-                    <text x={player.x} y={player.y + 1.15} textAnchor="middle" className={selected ? "fill-white text-[3.2px] font-black" : "fill-text-primary text-[3.2px] font-black"}>{player.label}</text>
+                    {primary && <circle cx={player.x} cy={player.y} r="6.1" fill="none" className="stroke-accent" strokeWidth="0.82" strokeDasharray="2 1.5" opacity="0.9" />}
+                    {selected && <circle cx={player.x} cy={player.y} r="5.25" fill="none" className="stroke-accent" strokeWidth="1" opacity="0.82" />}
+                    <circle cx={player.x} cy={player.y} r="4" className={selected ? "fill-accent stroke-background" : "fill-surface stroke-text-secondary"} strokeWidth="1" />
+                    <text x={player.x} y={player.y + 1.05} textAnchor="middle" className={selected ? "fill-white text-[2.9px] font-black" : "fill-text-primary text-[2.9px] font-black"}>{player.label}</text>
                   </g>
                 );
               })}
