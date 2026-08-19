@@ -9,11 +9,14 @@ import {
   Eraser,
   FilePlus2,
   FlipHorizontal2,
+  Footprints,
+  GitFork,
   MoveRight,
   Plus,
   Redo2,
   Route,
   Save,
+  Send,
   Target,
   Trash2,
   Undo2,
@@ -22,6 +25,7 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { PlaybookGameDay } from "@/features/playbook/playbook-gameday";
+import { routePathData } from "@/features/playbook/playbook-path";
 import { PlayViewer } from "@/features/playbook/play-viewer";
 import {
   isPrimaryPlayer,
@@ -42,7 +46,6 @@ import {
   LOS_Y,
   ROUTE_TEMPLATES,
   buildMotionPoints,
-  buildRoutePoints,
   constrainPlayerPoint,
   createFormationPlayers,
   flipDiagram,
@@ -52,6 +55,7 @@ import {
   replacePlayerMotion,
   replacePlayerRoute,
   shiftAssignment,
+  updateRouteEndpoint,
   type DiagramAssignment,
   type DiagramPlayer,
   type FormationPreset,
@@ -266,6 +270,20 @@ function playInput(play: Play) {
   };
 }
 
+function editablePlayState(play: Play) {
+  return {
+    name: play.name,
+    side: play.side,
+    formation_id: play.formation_id,
+    formation: play.formation,
+    play_type: play.play_type,
+    concept: play.concept,
+    situation: play.situation,
+    notes: play.notes,
+    diagram: play.diagram,
+  };
+}
+
 async function reconcileDatabasePlays(teamId: string): Promise<Play[]> {
   const remoteValues = await listTeamPlays(teamId);
   const localPlays = parseStoredPlays(teamId);
@@ -306,10 +324,6 @@ function situationLabel(value: PlaySituation) {
   return SITUATIONS.find((option) => option.value === value)?.label ?? "Any";
 }
 
-function polylinePoints(points: Point[]) {
-  return points.map((point) => `${point.x},${point.y}`).join(" ");
-}
-
 function FieldLines() {
   const guides = [
     { y: 16, label: "+20" },
@@ -345,7 +359,7 @@ function AssignmentLines({
   markerPrefix: string;
   compact?: boolean;
   selectedAssignmentId?: string | null;
-  onAssignmentSelect?: (event: ReactPointerEvent<SVGPolylineElement>, assignment: DiagramAssignment) => void;
+  onAssignmentSelect?: (event: ReactPointerEvent<SVGPathElement>, assignment: DiagramAssignment) => void;
 }) {
   return (
     <>
@@ -369,22 +383,35 @@ function AssignmentLines({
         const player = playerForAssignment(diagram, assignment.player_id);
         const primary = player ? isPrimaryPlayer(diagram, player.id) : false;
         const color = player ? playerColor(player, primary) : "var(--text-secondary)";
+        const pathData = routePathData(assignment.template, assignment.points);
         return (
-          <polyline
-            key={assignment.id}
-            points={polylinePoints(assignment.points)}
-            fill="none"
-            markerEnd={`url(#${markerPrefix}-${assignment.id})`}
-            stroke={color}
-            strokeWidth={compact ? (isRoute ? 0.68 : 0.5) : selected ? 1.05 : isRoute ? 0.8 : 0.6}
-            strokeDasharray={assignment.kind === "motion" ? "2.3 1.9" : undefined}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            opacity={selected ? 1 : isRoute ? 0.78 : 0.58}
-            pointerEvents={onAssignmentSelect ? "stroke" : undefined}
-            className={onAssignmentSelect ? "cursor-pointer" : undefined}
-            onPointerDown={onAssignmentSelect ? (event) => onAssignmentSelect(event, assignment) : undefined}
-          />
+          <g key={assignment.id}>
+            {onAssignmentSelect && (
+              <path
+                d={pathData}
+                fill="none"
+                stroke="transparent"
+                strokeWidth={compact ? 3 : 5.5}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                pointerEvents="stroke"
+                className="cursor-pointer"
+                onPointerDown={(event) => onAssignmentSelect(event, assignment)}
+              />
+            )}
+            <path
+              d={pathData}
+              fill="none"
+              markerEnd={`url(#${markerPrefix}-${assignment.id})`}
+              stroke={color}
+              strokeWidth={compact ? (isRoute ? 0.68 : 0.5) : selected ? 1.05 : isRoute ? 0.8 : 0.6}
+              strokeDasharray={assignment.kind === "motion" ? "2.3 1.9" : undefined}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              opacity={selected ? 1 : isRoute ? 0.78 : 0.58}
+              pointerEvents="none"
+            />
+          </g>
         );
       })}
     </>
@@ -546,7 +573,7 @@ function FormationPicker({
   );
 }
 
-export function PlaybookScreen({ team }: { team: Team | null }) {
+export function PlaybookScreen({ team, onEditingDirtyChange }: { team: Team | null; onEditingDirtyChange?: (dirty: boolean) => void }) {
   const [plays, setPlays] = useState<Play[]>([]);
   const [filter, setFilter] = useState<Filter>("all");
   const [view, setView] = useState<LibraryView>("editor");
@@ -721,6 +748,7 @@ export function PlaybookScreen({ team }: { team: Team | null }) {
         onCancel={() => setDraft(null)}
         onSave={savePlay}
         onDuplicate={duplicatePlay}
+        onDirtyChange={onEditingDirtyChange}
       />
     );
   }
@@ -812,16 +840,23 @@ function snapshotsEqual(a: EditorSnapshot, b: EditorSnapshot) {
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
+function PlayTypeIcon({ type }: { type: PlayType }) {
+  const Icon = type === "pass" ? Send : type === "run" ? Footprints : GitFork;
+  return <Icon size={17} strokeWidth={2} aria-hidden={true} />;
+}
+
 function PlayEditor({
   play,
   onCancel,
   onSave,
   onDuplicate,
+  onDirtyChange,
 }: {
   play: Play;
   onCancel: () => void;
   onSave: (play: Play) => void;
   onDuplicate: (play: Play) => void;
+  onDirtyChange?: (dirty: boolean) => void;
 }) {
   const [draft, setDraft] = useState<Play>(() => structuredClone(play));
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(draft.diagram.players[0]?.id ?? null);
@@ -831,6 +866,8 @@ function PlayEditor({
   const [future, setFuture] = useState<EditorSnapshot[]>([]);
   const [formationPickerOpen, setFormationPickerOpen] = useState(false);
   const [pickerSide, setPickerSide] = useState<PlaySide>(draft.side);
+  const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
+  const initialEditRef = useRef(JSON.stringify(editablePlayState(play)));
   const dragStartRef = useRef<EditorSnapshot | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
 
@@ -842,6 +879,20 @@ function PlayEditor({
     ? draft.diagram.assignments.find((assignment) => assignment.player_id === selectedPlayer.id && assignment.kind === "motion") ?? null
     : null;
   const selectedAssignment = draft.diagram.assignments.find((assignment) => assignment.id === selectedAssignmentId) ?? null;
+  const isDirty = JSON.stringify(editablePlayState(draft)) !== initialEditRef.current;
+
+  useEffect(() => {
+    onDirtyChange?.(isDirty);
+  }, [isDirty, onDirtyChange]);
+
+  useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
+
+  useEffect(() => {
+    if (!isDirty) return;
+    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [isDirty]);
 
   const pointFromEvent = (event: ReactPointerEvent<SVGSVGElement | SVGGElement | SVGCircleElement>): Point => {
     const rect = svgRef.current?.getBoundingClientRect();
@@ -1025,7 +1076,7 @@ function PlayEditor({
     event.currentTarget.setPointerCapture(event.pointerId);
   };
 
-  const handleAssignmentSelect = (event: ReactPointerEvent<SVGPolylineElement>, assignment: DiagramAssignment) => {
+  const handleAssignmentSelect = (event: ReactPointerEvent<SVGPathElement>, assignment: DiagramAssignment) => {
     event.stopPropagation();
     setSelectedPlayerId(assignment.player_id);
     setSelectedAssignmentId(assignment.id);
@@ -1072,9 +1123,7 @@ function PlayEditor({
       if (dragState.pointIndex === lastPointIndex) {
         points = assignment.kind === "motion"
           ? buildMotionPoints(player, nextPoint)
-          : assignment.template
-            ? buildRoutePoints(assignment.template, player, nextPoint)
-            : assignment.points.map((point, index) => index === dragState.pointIndex ? nextPoint : point);
+          : updateRouteEndpoint(assignment, player, nextPoint);
       } else {
         points = assignment.points.map((point, index) => index === dragState.pointIndex ? nextPoint : point);
       }
@@ -1111,10 +1160,18 @@ function PlayEditor({
     });
   };
 
+  const requestCancel = () => {
+    if (isDirty) {
+      setDiscardConfirmOpen(true);
+      return;
+    }
+    onCancel();
+  };
+
   return (
     <section className="mx-auto max-w-[1320px] px-3 pb-8 pt-3 sm:px-4 md:px-6 md:pt-5">
       <div className="mb-3 flex items-center justify-between gap-2">
-        <button type="button" onClick={onCancel} className="inline-flex min-h-10 items-center gap-2 text-xs font-bold text-text-muted hover:text-text-primary"><ArrowLeft size={16} />Playbook</button>
+        <button type="button" onClick={requestCancel} className="inline-flex min-h-10 items-center gap-2 text-xs font-bold text-text-muted hover:text-text-primary"><ArrowLeft size={16} />Playbook</button>
         <div className="flex items-center gap-1.5">
           <button type="button" onClick={undo} disabled={!past.length} className="flex h-10 w-10 items-center justify-center rounded-md border border-border text-text-muted transition-colors hover:bg-surface hover:text-text-primary disabled:opacity-35" aria-label="Undo" title="Undo"><Undo2 size={16} /></button>
           <button type="button" onClick={redo} disabled={!future.length} className="flex h-10 w-10 items-center justify-center rounded-md border border-border text-text-muted transition-colors hover:bg-surface hover:text-text-primary disabled:opacity-35" aria-label="Redo" title="Redo"><Redo2 size={16} /></button>
@@ -1196,7 +1253,7 @@ function PlayEditor({
             </svg>
 
             <div className="pointer-events-none absolute left-3 top-3 rounded-md border border-border bg-surface/90 px-2 py-1 text-[9px] font-bold uppercase tracking-[0.06em] text-text-muted backdrop-blur">
-              Drag players behind LOS · tap a route line to adjust handles
+              Tap a route to edit · drag handles without resetting your bends
             </div>
           </div>
 
@@ -1248,8 +1305,15 @@ function PlayEditor({
             <div className="mt-4 text-[9px] font-bold uppercase tracking-[0.08em] text-text-muted">Type</div>
             <div className="mt-2 grid grid-cols-3 gap-1.5">
               {PLAY_TYPES.map((option) => (
-                <button key={option.value} type="button" onClick={() => setDraft((current) => ({ ...current, play_type: option.value }))} className={`min-h-8 rounded-md border text-[10px] font-extrabold ${draft.play_type === option.value ? "border-[rgba(124,58,237,0.45)] bg-[rgba(124,58,237,0.12)] text-[#c4b5fd]" : "border-border bg-background text-text-secondary"}`}>
-                  {option.label}
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setDraft((current) => ({ ...current, play_type: option.value }))}
+                  aria-label={`${option.label} play`}
+                  className={`flex min-h-12 flex-col items-center justify-center gap-1 rounded-md border text-[9px] font-extrabold transition-colors ${draft.play_type === option.value ? "border-[rgba(124,58,237,0.55)] bg-[rgba(124,58,237,0.13)] text-[#c4b5fd]" : "border-border bg-background text-text-secondary hover:bg-surface-elevated"}`}
+                >
+                  <PlayTypeIcon type={option.value} />
+                  <span>{option.label}</span>
                 </button>
               ))}
             </div>
@@ -1285,6 +1349,21 @@ function PlayEditor({
           onSelect={applyFormation}
           title="Change formation"
         />
+      )}
+
+      {discardConfirmOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4" role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target) setDiscardConfirmOpen(false); }}>
+          <section className="w-full max-w-[430px] overflow-hidden rounded-xl border border-border bg-surface shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="discard-play-title">
+            <div className="border-b border-border px-5 py-4">
+              <h2 id="discard-play-title" className="text-lg font-extrabold">Discard unsaved changes?</h2>
+              <p className="mt-1 text-sm leading-5 text-text-muted">This play has changes that have not been saved. Leaving now will lose them.</p>
+            </div>
+            <div className="grid gap-2 p-4 sm:grid-cols-2">
+              <Button type="button" variant="secondary" onClick={() => setDiscardConfirmOpen(false)}>Keep Editing</Button>
+              <Button type="button" variant="destructive" onClick={() => { setDiscardConfirmOpen(false); onCancel(); }}>Discard Changes</Button>
+            </div>
+          </section>
+        </div>
       )}
     </section>
   );
@@ -1380,7 +1459,7 @@ function PlayerControls({
                 <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
                 <div className="text-[9px] font-black uppercase tracking-[0.1em] text-text-muted">Route</div>
               </div>
-              <div className="text-[9px] text-text-muted">Wheel curves automatically · tap line to edit</div>
+              <div className="text-[9px] text-text-muted">Tap a route to select its handles</div>
             </div>
             <div className="mt-2 grid grid-cols-3 gap-1.5">
               {ROUTE_TEMPLATES.map((template) => {
@@ -1403,6 +1482,11 @@ function PlayerControls({
                 );
               })}
             </div>
+            {route?.template === "wheel" && (
+              <div className="mt-2 rounded-md border border-border bg-background px-2.5 py-2 text-[9px] leading-4 text-text-muted">
+                Wheel uses three handles: flat release, turn, and endpoint. Drag any handle directly to shape the curve.
+              </div>
+            )}
           </section>
 
           <section className="mt-4 border-t border-border pt-4">
