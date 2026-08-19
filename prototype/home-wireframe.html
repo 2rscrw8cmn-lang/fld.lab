@@ -1,0 +1,555 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>fld.LAB — Home Wireframe</title>
+  <style>
+    :root {
+      --background: #0f172a;
+      --sidebar-bg: #0c1425;
+      --surface: #141e32;
+      --surface-2: #19243a;
+      --border: #2a3650;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --muted-2: #64748b;
+      --accent: #7c3aed;
+      --accent-soft: rgba(124, 58, 237, 0.14);
+      --sidebar: 188px;
+      --radius: 11px;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { min-height: 100%; }
+
+    body {
+      margin: 0;
+      background: var(--background);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    button, select { font: inherit; }
+    button { color: inherit; cursor: pointer; }
+
+    button:focus:not(:focus-visible),
+    select:focus:not(:focus-visible) {
+      outline: none;
+    }
+
+    button:focus-visible,
+    select:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    .app {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: var(--sidebar) minmax(0, 1fr);
+    }
+
+    .sidebar {
+      min-height: 100vh;
+      padding: 18px 12px;
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      background: var(--sidebar-bg);
+    }
+
+    .brand {
+      display: flex;
+      align-items: baseline;
+      gap: 2px;
+      padding: 3px 10px 9px;
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: -0.04em;
+    }
+
+    .brand .dot { color: var(--accent); }
+    .brand .lab { letter-spacing: 0.02em; }
+
+    .nav {
+      display: grid;
+      gap: 4px;
+    }
+
+    .nav-button {
+      width: 100%;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 0 11px;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--muted);
+      text-align: left;
+      font-size: 14px;
+    }
+
+    .nav-button:hover {
+      color: var(--text);
+      background: var(--surface);
+    }
+
+    .nav-button.active {
+      color: var(--text);
+      border-color: rgba(124, 58, 237, 0.36);
+      background: var(--accent-soft);
+    }
+
+    /* Wireframe placeholders only. Production UI will use Lucide icons. */
+    .icon-placeholder {
+      width: 17px;
+      height: 17px;
+      flex: 0 0 17px;
+      border: 1.4px solid currentColor;
+      border-radius: 4px;
+      opacity: 0.68;
+    }
+
+    .nav-bottom { margin-top: auto; }
+
+    .main {
+      min-width: 0;
+      padding: 0 28px 28px;
+    }
+
+    .topbar {
+      min-height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .team-select { min-width: 0; }
+
+    .team-select select {
+      max-width: 270px;
+      height: 38px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0 34px 0 11px;
+      background: var(--surface);
+      color: var(--text);
+      font-weight: 650;
+    }
+
+    .top-meta {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .coach-menu {
+      border: 0;
+      padding: 6px 0;
+      background: transparent;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .coach-menu:hover { color: var(--text); }
+
+    .content {
+      max-width: 1160px;
+      margin: 0 auto;
+      padding-top: 22px;
+    }
+
+    .page-heading { margin-bottom: 15px; }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(23px, 2.5vw, 29px);
+      letter-spacing: -0.035em;
+      line-height: 1.08;
+    }
+
+    .subhead {
+      margin: 5px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .home-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.62fr) minmax(290px, 0.88fr);
+      gap: 14px;
+      align-items: stretch;
+    }
+
+    .panel {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      overflow: hidden;
+    }
+
+    .panel-header {
+      min-height: 46px;
+      padding: 0 15px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .panel-title {
+      font-size: 13px;
+      font-weight: 760;
+    }
+
+    .text-button {
+      border: 0;
+      padding: 4px 0;
+      background: transparent;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .text-button:hover { color: var(--text); }
+
+    .quick-start {
+      min-height: 286px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .quick-start-body {
+      flex: 1;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 20px;
+    }
+
+    .drill-name {
+      font-size: clamp(28px, 3.8vw, 39px);
+      line-height: 1;
+      font-weight: 800;
+      letter-spacing: -0.05em;
+    }
+
+    .drill-meta {
+      margin-top: 12px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+    }
+
+    .pill {
+      min-height: 25px;
+      display: inline-flex;
+      align-items: center;
+      padding: 0 9px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 700;
+    }
+
+    .pill.accent {
+      border-color: rgba(124, 58, 237, 0.42);
+      background: var(--accent-soft);
+      color: #c4b5fd;
+    }
+
+    .primary-action {
+      width: 100%;
+      min-height: 60px;
+      border: 0;
+      border-radius: 9px;
+      background: var(--accent);
+      color: white;
+      font-size: 16px;
+      font-weight: 800;
+    }
+
+    .primary-action:hover { filter: brightness(1.08); }
+
+    .quick-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .secondary-action {
+      min-height: 40px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface-2);
+      color: var(--text);
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .secondary-action:hover { border-color: #455572; }
+
+    .roster-list,
+    .session-list { display: grid; }
+
+    .roster-row {
+      min-height: 46px;
+      padding: 0 13px;
+      display: grid;
+      grid-template-columns: 34px minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .roster-row:last-child { border-bottom: 0; }
+
+    .number {
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    .athlete-name {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .position {
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 700;
+    }
+
+    .recent { margin-top: 14px; }
+
+    .session-row {
+      min-height: 48px;
+      padding: 0 15px;
+      display: grid;
+      grid-template-columns: minmax(180px, 1.4fr) minmax(100px, .75fr) minmax(85px, .6fr) 18px;
+      align-items: center;
+      gap: 14px;
+      border-bottom: 1px solid var(--border);
+      font-size: 11px;
+    }
+
+    .session-row:last-child { border-bottom: 0; }
+
+    .session-name {
+      font-size: 12px;
+      font-weight: 750;
+    }
+
+    .session-meta { color: var(--muted); }
+    .chevron { color: var(--muted); text-align: right; }
+
+    .bottom-nav { display: none; }
+
+    .wireframe-note {
+      margin-top: 12px;
+      color: var(--muted-2);
+      font-size: 10px;
+      line-height: 1.45;
+    }
+
+    @media (max-width: 960px) {
+      :root { --sidebar: 170px; }
+      .main { padding-inline: 20px; }
+      .home-grid { grid-template-columns: minmax(0, 1.3fr) minmax(260px, .85fr); }
+    }
+
+    @media (max-width: 780px) {
+      .app { display: block; padding-bottom: 66px; }
+      .sidebar { display: none; }
+      .main { padding: 0 16px 24px; }
+      .topbar { min-height: 60px; }
+      .top-meta .date { display: none; }
+      .home-grid { grid-template-columns: 1fr; }
+      .quick-start { min-height: 272px; }
+      .recent { margin-top: 12px; }
+
+      .bottom-nav {
+        position: fixed;
+        inset: auto 0 0 0;
+        z-index: 20;
+        height: 62px;
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        border-top: 1px solid var(--border);
+        background: rgba(12, 20, 37, 0.98);
+      }
+
+      .bottom-nav button {
+        border: 0;
+        background: transparent;
+        color: var(--muted);
+        font-size: 10px;
+        font-weight: 750;
+      }
+
+      .bottom-nav button.active { color: #c4b5fd; }
+    }
+
+    @media (max-width: 560px) {
+      .content { padding-top: 18px; }
+      .page-heading { margin-bottom: 13px; }
+      .quick-start-body { padding: 17px; }
+      .quick-actions { grid-template-columns: 1fr; }
+
+      .session-row {
+        min-height: 48px;
+        grid-template-columns: minmax(0, 1fr) auto 16px;
+        gap: 9px;
+      }
+
+      .session-row .athletes { display: none; }
+      .team-select select { max-width: 205px; }
+      .coach-menu { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar" aria-label="Primary navigation">
+      <div class="brand" aria-label="fld.LAB">
+        <span>fld</span><span class="dot">.</span><span class="lab">LAB</span>
+      </div>
+
+      <nav class="nav">
+        <button class="nav-button active" type="button"><span class="icon-placeholder" aria-hidden="true"></span>Home</button>
+        <button class="nav-button" type="button"><span class="icon-placeholder" aria-hidden="true"></span>Roster</button>
+        <button class="nav-button" type="button"><span class="icon-placeholder" aria-hidden="true"></span>Train</button>
+        <button class="nav-button" type="button"><span class="icon-placeholder" aria-hidden="true"></span>Data</button>
+        <button class="nav-button" type="button"><span class="icon-placeholder" aria-hidden="true"></span>Drills</button>
+      </nav>
+
+      <nav class="nav nav-bottom">
+        <button class="nav-button" type="button"><span class="icon-placeholder" aria-hidden="true"></span>Settings</button>
+      </nav>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div class="team-select">
+          <select id="team" aria-label="Current team">
+            <option>U10 Purple — Fall 2026</option>
+            <option>U10 White — Fall 2026</option>
+          </select>
+        </div>
+        <div class="top-meta">
+          <span class="date">Tuesday, Aug 18</span>
+          <button class="coach-menu" type="button">Coach</button>
+        </div>
+      </header>
+
+      <section class="content">
+        <div class="page-heading">
+          <h1>Ready for practice.</h1>
+          <p class="subhead">Start where you left off or choose another drill.</p>
+        </div>
+
+        <div class="home-grid">
+          <section class="panel quick-start" aria-labelledby="quick-start-title">
+            <div class="panel-header">
+              <div id="quick-start-title" class="panel-title">Quick Start</div>
+              <button class="text-button" type="button">Change drill</button>
+            </div>
+
+            <div class="quick-start-body">
+              <div>
+                <div class="drill-name">20-Yard Sprint</div>
+                <div class="drill-meta">
+                  <span class="pill accent">Speed</span>
+                  <span class="pill">2 attempts</span>
+                  <span class="pill">10 yd split</span>
+                </div>
+              </div>
+
+              <div>
+                <button class="primary-action" type="button">Start Session</button>
+                <div class="quick-actions">
+                  <button class="secondary-action" type="button">Resume Last Session</button>
+                  <button class="secondary-action" type="button">Open Drill Library</button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel" aria-labelledby="roster-title">
+            <div class="panel-header">
+              <div id="roster-title" class="panel-title">Roster Snapshot</div>
+              <button class="text-button" type="button">View roster</button>
+            </div>
+
+            <div class="roster-list">
+              <div class="roster-row"><span class="number">12</span><span class="athlete-name">Emma Johnson</span><span class="position">WR / DB</span></div>
+              <div class="roster-row"><span class="number">7</span><span class="athlete-name">Mia Carter</span><span class="position">QB / DB</span></div>
+              <div class="roster-row"><span class="number">3</span><span class="athlete-name">Ava Smith</span><span class="position">C / WR</span></div>
+              <div class="roster-row"><span class="number">18</span><span class="athlete-name">Zoey Davis</span><span class="position">WR</span></div>
+              <div class="roster-row"><span class="number">4</span><span class="athlete-name">Nora Reed</span><span class="position">DB</span></div>
+            </div>
+          </section>
+        </div>
+
+        <section class="panel recent" aria-labelledby="recent-title">
+          <div class="panel-header">
+            <div id="recent-title" class="panel-title">Recent Sessions</div>
+            <button class="text-button" type="button">View all</button>
+          </div>
+
+          <div class="session-list">
+            <div class="session-row">
+              <div><div class="session-name">20-Yard Sprint</div><div class="session-meta">Yesterday · 5:42 PM</div></div>
+              <div class="session-meta athletes">9 athletes</div>
+              <div class="session-meta">Completed</div>
+              <div class="chevron">›</div>
+            </div>
+            <div class="session-row">
+              <div><div class="session-name">Quick Catch</div><div class="session-meta">Aug 14 · 6:08 PM</div></div>
+              <div class="session-meta athletes">10 athletes</div>
+              <div class="session-meta">Completed</div>
+              <div class="chevron">›</div>
+            </div>
+            <div class="session-row">
+              <div><div class="session-name">5-10-5 Shuttle</div><div class="session-meta">Aug 11 · 5:51 PM</div></div>
+              <div class="session-meta athletes">8 athletes</div>
+              <div class="session-meta">Completed</div>
+              <div class="chevron">›</div>
+            </div>
+          </div>
+        </section>
+
+        <p class="wireframe-note">Wireframe only. Icon squares are placeholders; production UI will use the approved Lucide icon set.</p>
+      </section>
+    </main>
+  </div>
+
+  <nav class="bottom-nav" aria-label="Mobile navigation">
+    <button class="active" type="button">Home</button>
+    <button type="button">Roster</button>
+    <button type="button">Train</button>
+    <button type="button">Data</button>
+    <button type="button">Drills</button>
+  </nav>
+</body>
+</html>
