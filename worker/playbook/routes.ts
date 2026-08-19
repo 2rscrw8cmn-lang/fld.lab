@@ -28,7 +28,7 @@ type PlayDiagram = {
   primary_target_player_id: string | null;
 };
 
-const ROUTE_TEMPLATES = new Set(["go", "slant", "out", "in", "post", "corner", "hitch", "drag"]);
+const ROUTE_TEMPLATES = new Set(["go", "slant", "out", "in", "post", "corner", "hitch", "drag", "wheel"]);
 const PLAY_TYPES = new Set<PlayType>(["pass", "run", "option"]);
 const PLAY_SITUATIONS = new Set<PlaySituation>(["any", "short", "medium", "deep", "no-run", "goal-line", "conversion"]);
 const PLAYBOOK_FORMATS = new Set<PlaybookFormat>(["5v5", "6v6"]);
