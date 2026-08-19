@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Check, Pause, Pencil, Play, RotateCcw, Search, Undo2, Users, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import type { DiagramAssignment, DiagramPlayer, PlayDiagram, Point } from "@/features/playbook/playbook-model";
+import { LOS_Y, type DiagramAssignment, type DiagramPlayer, type PlayDiagram, type Point } from "@/features/playbook/playbook-model";
 import {
   isPrimaryPlayer,
   playerColor,
@@ -103,6 +103,14 @@ function translatedRoute(route: DiagramAssignment, from: Point): Point[] {
   return route.points.map((point) => ({ x: point.x + dx, y: point.y + dy }));
 }
 
+function renderedAssignmentPoints(diagram: PlayDiagram, assignment: DiagramAssignment): Point[] {
+  if (assignment.kind !== "route") return assignment.points;
+  const motion = assignmentFor(diagram, assignment.player_id, "motion");
+  if (!motion) return assignment.points;
+  const motionEnd = motion.points[motion.points.length - 1];
+  return motionEnd ? translatedRoute(assignment, motionEnd) : assignment.points;
+}
+
 function animatedPlayerPoint(player: DiagramPlayer, diagram: PlayDiagram, progress: number, hasMotion: boolean): Point {
   const motion = assignmentFor(diagram, player.id, "motion");
   const route = assignmentFor(diagram, player.id, "route");
@@ -163,8 +171,8 @@ function FieldLines() {
       ))}
       <line x1="3" y1="55" x2="97" y2="55" className="stroke-text-muted" strokeWidth="0.36" strokeDasharray="1.8 1.8" opacity="0.4" />
       <text x="95" y="53.3" textAnchor="end" className="fill-text-muted text-[2px] font-bold" opacity="0.62">7YD RUSH</text>
-      <line x1="3" y1="76" x2="97" y2="76" className="stroke-text-secondary" strokeWidth="0.68" opacity="0.78" />
-      <text x="5" y="74.1" className="fill-text-muted text-[2.15px] font-bold">LOS</text>
+      <line x1="3" y1={LOS_Y} x2="97" y2={LOS_Y} className="stroke-text-secondary" strokeWidth="0.68" opacity="0.78" />
+      <text x="5" y={LOS_Y - 1.9} className="fill-text-muted text-[2.15px] font-bold">LOS</text>
     </>
   );
 }
@@ -211,10 +219,11 @@ function AnimatedField({
         const primary = player ? isPrimaryPlayer(diagram, player.id) : false;
         const color = player ? playerColor(player, primary) : "var(--text-secondary)";
         const isMotion = assignment.kind === "motion";
+        const displayPoints = renderedAssignmentPoints(diagram, assignment);
         return (
           <g key={assignment.id}>
             <polyline
-              points={polylinePoints(assignment.points)}
+              points={polylinePoints(displayPoints)}
               fill="none"
               stroke={color}
               strokeWidth={isMotion ? 0.5 : 0.72}
@@ -225,7 +234,7 @@ function AnimatedField({
               markerEnd={`url(#viewer-arrow-${assignment.id})`}
             />
             <polyline
-              points={polylinePoints(assignment.points)}
+              points={polylinePoints(displayPoints)}
               fill="none"
               stroke={color}
               strokeWidth={isMotion ? 0.62 : 0.88}
@@ -593,8 +602,8 @@ export function PlayViewer({ play, onBack, onEdit, onMoveToEditor }: Props) {
           <div className="mt-5 border-t border-border pt-4">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.1em] text-text-muted"><Users size={12} />Personnel</div>
-              {play.active_play && personnelStatus === "ready" && (
-                <button type="button" onClick={() => setPersonnelEditorOpen(true)} className="text-[10px] font-bold text-text-muted underline decoration-border underline-offset-4 hover:text-text-primary">Manage</button>
+              {!play.active_play && personnelStatus === "ready" && (
+                <button type="button" onClick={() => setPersonnelEditorOpen(true)} className="text-[10px] font-bold text-[#c4b5fd] hover:text-text-primary">Manage personnel</button>
               )}
             </div>
 
@@ -634,7 +643,7 @@ export function PlayViewer({ play, onBack, onEdit, onMoveToEditor }: Props) {
 
           {!play.active_play && (
             <div className="mt-5 border-t border-border pt-4 text-[11px] leading-5 text-text-muted">
-              Library plays are view-only. Move this play to Editor before changing the diagram, assignments, or personnel.
+              Library locks the diagram and play setup. Personnel is assigned here; move the play to Editor only when the football structure itself needs to change.
             </div>
           )}
         </aside>
