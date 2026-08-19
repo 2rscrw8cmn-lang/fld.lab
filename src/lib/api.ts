@@ -4,6 +4,7 @@ export type Team = {
   age_group: string | null;
   season_label: string | null;
   active: boolean;
+  access_role?: "owner" | "coach";
   created_at: string;
   updated_at: string;
 };
