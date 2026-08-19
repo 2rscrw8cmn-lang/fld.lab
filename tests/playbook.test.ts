@@ -10,7 +10,6 @@ import {
   mirroredFormationId,
   replacePlayerRoute,
   updateRouteEndpoint,
-  type DiagramAssignment,
   type PlayDiagram,
 } from "../src/features/playbook/playbook-model";
 
@@ -87,44 +86,47 @@ describe("smart route geometry", () => {
     expect(points[2]).toEqual({ x: 48, y: 40 });
   });
 
-  it("builds a wheel with three useful editable handles instead of sampled-point clutter", () => {
+  it("builds a wheel with meaningful release, turn, and endpoint control points", () => {
     const wheelStart = { x: 70, y: 86 };
     const points = buildRoutePoints("wheel", wheelStart);
     expect(points).toHaveLength(4);
     expect(points[0]).toEqual(wheelStart);
     expect(points[1].x).toBeGreaterThan(wheelStart.x);
     expect(points[1].y).toBe(wheelStart.y);
-    expect(points[2].x).toBe(points[3].x);
-    expect(points[2].y).toBeGreaterThan(points[3].y);
+    expect(points[2].x).toBeGreaterThan(wheelStart.x);
     expect(points.at(-1)?.x).toBeGreaterThan(wheelStart.x);
     expect(points.at(-1)?.y).toBeLessThan(LOS_Y);
   });
 
-  it("keeps a dragged wheel endpoint outside", () => {
+  it("keeps a dragged wheel endpoint outside while preserving interior controls", () => {
     const wheelStart = { x: 70, y: 86 };
-    const points = buildRoutePoints("wheel", wheelStart, { x: 35, y: 44 });
-    expect(points).toHaveLength(4);
-    expect(points.at(-1)?.x).toBeGreaterThan(wheelStart.x);
-    expect(points.at(-1)?.y).toBe(44);
+    const points = buildRoutePoints("wheel", wheelStart);
+    const assignment = {
+      id: "wheel_1",
+      player_id: "player_y",
+      kind: "route" as const,
+      template: "wheel" as const,
+      points,
+    };
+    const adjusted = updateRouteEndpoint(assignment, wheelStart, { x: 35, y: 44 });
+    expect(adjusted).toHaveLength(4);
+    expect(adjusted[1]).toEqual(points[1]);
+    expect(adjusted[2]).toEqual(points[2]);
+    expect(adjusted.at(-1)?.x).toBeGreaterThan(wheelStart.x);
+    expect(adjusted.at(-1)?.y).toBe(44);
   });
 
-  it("moves only the route endpoint after a coach customizes the middle bend", () => {
-    const assignment: DiagramAssignment = {
-      id: "route_post",
+  it("preserves a customized post bend when the endpoint changes", () => {
+    const assignment = {
+      id: "route_1",
       player_id: "player_x",
-      kind: "route",
-      template: "post",
-      points: [
-        { x: 20, y: 80 },
-        { x: 27, y: 63 },
-        { x: 45, y: 42 },
-      ],
+      kind: "route" as const,
+      template: "post" as const,
+      points: [{ x: 20, y: 80 }, { x: 29, y: 61 }, { x: 44, y: 42 }],
     };
-
-    const points = updateRouteEndpoint(assignment, start, { x: 52, y: 36 });
-    expect(points[0]).toEqual({ x: 20, y: 80 });
-    expect(points[1]).toEqual({ x: 27, y: 63 });
-    expect(points[2]).toEqual({ x: 52, y: 36 });
+    const adjusted = updateRouteEndpoint(assignment, start, { x: 52, y: 36 });
+    expect(adjusted[1]).toEqual({ x: 29, y: 61 });
+    expect(adjusted[2]).toEqual({ x: 52, y: 36 });
   });
 
   it("replaces a player's existing route instead of stacking routes", () => {
