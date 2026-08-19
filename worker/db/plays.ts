@@ -8,6 +8,7 @@ export type PlaySituation = "any" | "short" | "medium" | "deep" | "no-run" | "go
 export type StoredPlay = {
   id: string;
   team_id: string;
+  playbook_id: string;
   name: string;
   side: "offense" | "defense";
   formation_id: string | null;
@@ -23,13 +24,15 @@ export type StoredPlay = {
   updated_at: string;
 };
 
-type PlayDbRow = Omit<StoredPlay, "diagram" | "archived" | "active_play"> & {
+type PlayDbRow = Omit<StoredPlay, "diagram" | "archived" | "active_play" | "playbook_id"> & {
+  playbook_id: string | null;
   diagram_json: string;
   archived: number;
   active_play: number;
 };
 
 export type PlayInput = {
+  playbook_id: string;
   name: string;
   side: "offense" | "defense";
   formation_id: string | null;
@@ -49,6 +52,7 @@ function fromRow(row: PlayDbRow): StoredPlay {
   return {
     id: row.id,
     team_id: row.team_id,
+    playbook_id: row.playbook_id ?? "",
     name: row.name,
     side: row.side,
     formation_id: row.formation_id,
@@ -65,14 +69,21 @@ function fromRow(row: PlayDbRow): StoredPlay {
   };
 }
 
-export async function listPlays(db: D1Database, teamId: string, includeArchived = false): Promise<StoredPlay[]> {
+export async function listPlays(
+  db: D1Database,
+  teamId: string,
+  includeArchived = false,
+  playbookId: string | null = null,
+): Promise<StoredPlay[]> {
   const result = await db
     .prepare(
       `SELECT * FROM plays
-       WHERE team_id = ? AND (? = 1 OR archived = 0)
+       WHERE team_id = ?
+         AND (? = 1 OR archived = 0)
+         AND (? IS NULL OR playbook_id = ?)
        ORDER BY archived ASC, active_play DESC, updated_at DESC, name ASC`,
     )
-    .bind(teamId, includeArchived ? 1 : 0)
+    .bind(teamId, includeArchived ? 1 : 0, playbookId, playbookId)
     .all<PlayDbRow>();
   return result.results.map(fromRow);
 }
@@ -92,12 +103,13 @@ export async function createPlay(db: D1Database, teamId: string, input: PlayInpu
   await db
     .prepare(
       `INSERT INTO plays
-        (id, team_id, name, side, formation_id, formation, play_type, concept, situation, active_play, notes, diagram_json, archived, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
+        (id, team_id, playbook_id, name, side, formation_id, formation, play_type, concept, situation, active_play, notes, diagram_json, archived, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
     )
     .bind(
       playId,
       teamId,
+      input.playbook_id,
       input.name,
       input.side,
       input.formation_id,
@@ -139,11 +151,12 @@ export async function updatePlay(
   await db
     .prepare(
       `UPDATE plays
-       SET name = ?, side = ?, formation_id = ?, formation = ?, play_type = ?, concept = ?, situation = ?, active_play = ?,
+       SET playbook_id = ?, name = ?, side = ?, formation_id = ?, formation = ?, play_type = ?, concept = ?, situation = ?, active_play = ?,
            notes = ?, diagram_json = ?, archived = COALESCE(?, archived), updated_at = ?
        WHERE id = ? AND team_id = ?`,
     )
     .bind(
+      input.playbook_id,
       input.name,
       input.side,
       input.formation_id,
