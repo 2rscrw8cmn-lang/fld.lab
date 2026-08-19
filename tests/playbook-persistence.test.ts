@@ -35,6 +35,10 @@ describe("playbook migrations", () => {
     fileURLToPath(new URL("../migrations/0006_playbook_organization.sql", import.meta.url)),
     "utf8",
   );
+  const playbooksMigration = readFileSync(
+    fileURLToPath(new URL("../migrations/0008_playbooks.sql", import.meta.url)),
+    "utf8",
+  );
 
   it("creates team-scoped archived plays", () => {
     expect(persistenceMigration).toContain("CREATE TABLE plays");
@@ -51,6 +55,15 @@ describe("playbook migrations", () => {
     expect(organizationMigration).toContain("concept TEXT NOT NULL DEFAULT ''");
     expect(organizationMigration).toContain("CHECK (situation IN ('any', 'short', 'medium', 'deep', 'no-run', 'goal-line', 'conversion'))");
   });
+
+  it("adds multiple 5v5/6v6 playbooks and migrates existing plays", () => {
+    expect(playbooksMigration).toContain("CREATE TABLE playbooks");
+    expect(playbooksMigration).toContain("CHECK (format IN ('5v5', '6v6'))");
+    expect(playbooksMigration).toContain("'5v5 Playbook'");
+    expect(playbooksMigration).toContain("ALTER TABLE plays ADD COLUMN playbook_id TEXT");
+    expect(playbooksMigration).toContain("SET playbook_id = 'playbook_default_' || team_id");
+    expect(playbooksMigration).toContain("idx_plays_playbook_active_updated");
+  });
 });
 
 describe("playbook API validation", () => {
@@ -60,6 +73,7 @@ describe("playbook API validation", () => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          playbook_id: "playbook_1",
           name: "Trips Flood",
           side: "offense",
           formation_id: "trips-right",
@@ -82,6 +96,7 @@ describe("playbook API validation", () => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          playbook_id: "playbook_1",
           name: "Trips Flood",
           side: "offense",
           formation_id: "trips-right",
@@ -102,6 +117,7 @@ describe("playbook API validation", () => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          playbook_id: "playbook_1",
           name: "Trips Flood",
           side: "offense",
           formation_id: "trips-right",
@@ -120,5 +136,20 @@ describe("playbook API validation", () => {
     expect(response?.status).toBe(400);
     const body = await response?.json() as { error: { fields?: Record<string, string> } };
     expect(body.error.fields?.play_type).toContain("pass, run, or option");
+  });
+
+  it("rejects unsupported playbook formats before touching D1", async () => {
+    const response = await handlePlaybookApi(
+      new Request("https://fld-lab.test/api/teams/team_1/playbooks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "7v7", format: "7v7" }),
+      }),
+      noDatabaseCalls,
+    );
+
+    expect(response?.status).toBe(400);
+    const body = await response?.json() as { error: { fields?: Record<string, string> } };
+    expect(body.error.fields?.format).toContain("5v5 or 6v6");
   });
 });
