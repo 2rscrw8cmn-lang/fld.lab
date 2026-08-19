@@ -130,6 +130,8 @@ Motion is a separate pre-snap assignment and renders as a dashed path. It is not
 
 When a player has Motion, the editor keeps the solid pre-snap player marker at the original formation location and shows a quieter ghost marker at the completed Motion location. The route is rendered and edited from that ghost location, matching how the play is consumed during playback and in Game Day outputs. Motion itself remains directly selectable by tapping its dashed line.
 
+If a coach chooses a new route after Motion is set, route-template semantics are calculated from the completed Motion location rather than the original pre-snap marker. This matters when Motion crosses the center of the formation: Post, Corner, In, Out, Wheel, and similar directional routes should behave relative to where the receiver actually begins the route.
+
 During playback, a player's route begins from the completed motion endpoint so the animated player and displayed route remain aligned.
 
 ### Target
