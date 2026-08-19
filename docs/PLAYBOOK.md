@@ -38,7 +38,7 @@ A coach may drag players after choosing a preset.
 - Position markers use football-role labels such as `X`, `Y`, `Z`, `C`, and `QB`.
 - Dragging a player moves that player and its assignments together.
 - Labels remain editable.
-- The play stores position roles, not athlete identity. Roster-to-position personnel mapping is a later layer.
+- The play stores position roles, not athlete identity. Personnel mapping is a separate roster layer.
 - Standard position roles use stable, distinct colors so routes remain easy to follow when they cross.
 - The primary target overrides its normal position color with fld.LAB purple.
 - Color is supplemental; player labels remain visible so state never depends on color alone.
@@ -156,6 +156,8 @@ Each stored play belongs to exactly one team and contains:
 
 `active_play` remains the persistence field for compatibility, but the product language is **Editor** vs **Library**.
 
+Personnel is stored separately from the play diagram. A personnel row binds one play diagram `player_id` to one team `athlete_id`. The play remains valid and reusable without personnel assignments.
+
 Rules:
 
 - play access follows the existing authenticated TeamCoach permission model
@@ -164,6 +166,8 @@ Rules:
 - archive instead of destructive delete
 - the server validates schema-v2 diagram structure before persistence
 - new persistent IDs are generated server-side
+- personnel assignments may only reference player IDs in the saved play diagram and active athletes on the same team
+- one athlete may fill at most one position within a play
 - browser storage may be retained temporarily only as a migration/cache fallback; it is not the authoritative source after D1 persistence is active
 
 ## Phase 2 — playbook organization
@@ -200,6 +204,21 @@ Opening a play should prioritize consuming the play, not editing it.
 
 The same viewer should become the basis of the game-day/sideline play surface rather than creating a second visualization system.
 
+### Personnel mapping
+
+A play keeps football roles and roster personnel as separate layers.
+
+- diagram players remain `X`, `Y`, `Z`, `C`, `QB`, or other coach-defined labels
+- an Editor play may optionally map each diagram player to an active athlete on the team roster
+- an athlete may only occupy one diagram position in the same play
+- Library plays display saved personnel but remain view-only
+- the viewer can switch between **Positions** and **Players** without changing route geometry or route color
+- route colors remain tied to the football role; swapping an athlete does not change the visual language of the concept
+- in Players mode, the marker uses the athlete jersey number when available and shows the athlete first name adjacent to the marker
+- personnel data is intended to feed later wristband and call-sheet outputs
+
+Personnel mapping should never make a generic play unusable. Unassigned positions continue to display their football role.
+
 ### Football metadata
 
 Each play stores compact football-specific organization fields:
@@ -214,7 +233,6 @@ Library cards should surface the useful metadata without turning into tall gener
 
 ### Still in Phase 2
 
-- roster personnel mapping to position roles
 - defensive man/zone/rush assignment tools
 - archive/restore UI
 
