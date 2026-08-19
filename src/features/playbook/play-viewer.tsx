@@ -120,20 +120,20 @@ function FieldLines() {
 
   return (
     <>
-      <rect x="3" y="3" width="94" height="94" rx="1.5" fill="none" className="stroke-border" strokeWidth="0.55" opacity="0.72" />
+      <rect x="3" y="3" width="94" height="94" rx="1.5" fill="none" className="stroke-border" strokeWidth="0.48" opacity="0.66" />
       {guides.map((guide) => (
         <g key={guide.y}>
-          <line x1="3" y1={guide.y} x2="97" y2={guide.y} className="stroke-border" strokeWidth="0.36" opacity="0.48" />
-          <text x="5" y={guide.y - 1.35} className="fill-text-muted text-[2px] font-bold" opacity="0.66">{guide.label}</text>
+          <line x1="3" y1={guide.y} x2="97" y2={guide.y} className="stroke-border" strokeWidth="0.31" opacity="0.42" />
+          <text x="5" y={guide.y - 1.35} className="fill-text-muted text-[2px] font-bold" opacity="0.62">{guide.label}</text>
           {[25, 50, 75].map((x) => (
-            <line key={x} x1={x} y1={guide.y - 0.7} x2={x} y2={guide.y + 0.7} className="stroke-border" strokeWidth="0.45" opacity="0.6" />
+            <line key={x} x1={x} y1={guide.y - 0.65} x2={x} y2={guide.y + 0.65} className="stroke-border" strokeWidth="0.38" opacity="0.5" />
           ))}
         </g>
       ))}
-      <line x1="3" y1="55" x2="97" y2="55" className="stroke-text-muted" strokeWidth="0.4" strokeDasharray="1.8 1.8" opacity="0.42" />
-      <text x="95" y="53.3" textAnchor="end" className="fill-text-muted text-[2px] font-bold" opacity="0.68">7YD RUSH</text>
-      <line x1="3" y1="76" x2="97" y2="76" className="stroke-text-secondary" strokeWidth="0.72" opacity="0.82" />
-      <text x="5" y="74.1" className="fill-text-muted text-[2.2px] font-bold">LOS</text>
+      <line x1="3" y1="55" x2="97" y2="55" className="stroke-text-muted" strokeWidth="0.34" strokeDasharray="1.8 1.8" opacity="0.38" />
+      <text x="95" y="53.3" textAnchor="end" className="fill-text-muted text-[2px] font-bold" opacity="0.62">7YD RUSH</text>
+      <line x1="3" y1="76" x2="97" y2="76" className="stroke-text-secondary" strokeWidth="0.64" opacity="0.76" />
+      <text x="5" y="74.1" className="fill-text-muted text-[2.15px] font-bold">LOS</text>
     </>
   );
 }
@@ -147,10 +147,10 @@ function AnimatedField({ diagram, progress }: { diagram: PlayDiagram; progress: 
     <svg viewBox="0 0 100 100" className="h-full w-full" role="img" aria-label="Animated play diagram">
       <FieldLines />
       <defs>
-        <marker id="viewer-route-arrow" viewBox="0 0 10 10" refX="8.2" refY="5" markerWidth="2.8" markerHeight="2.8" orient="auto-start-reverse">
+        <marker id="viewer-route-arrow" viewBox="0 0 10 10" refX="8.2" refY="5" markerWidth="2.45" markerHeight="2.45" orient="auto-start-reverse">
           <path d="M 0 0 L 10 5 L 0 10 z" className="fill-text-secondary" />
         </marker>
-        <marker id="viewer-motion-arrow" viewBox="0 0 10 10" refX="8.2" refY="5" markerWidth="2.5" markerHeight="2.5" orient="auto-start-reverse">
+        <marker id="viewer-motion-arrow" viewBox="0 0 10 10" refX="8.2" refY="5" markerWidth="2.2" markerHeight="2.2" orient="auto-start-reverse">
           <path d="M 0 0 L 10 5 L 0 10 z" className="fill-text-muted" />
         </marker>
       </defs>
@@ -164,24 +164,24 @@ function AnimatedField({ diagram, progress }: { diagram: PlayDiagram; progress: 
               points={polylinePoints(assignment.points)}
               fill="none"
               className={isMotion ? "stroke-text-muted" : "stroke-text-secondary"}
-              strokeWidth={isMotion ? 0.48 : 0.68}
+              strokeWidth={isMotion ? 0.42 : 0.59}
               strokeDasharray={isMotion ? "2.2 1.8" : undefined}
               strokeLinecap="round"
               strokeLinejoin="round"
-              opacity={isMotion ? 0.3 : 0.22}
+              opacity={isMotion ? 0.28 : 0.2}
               markerEnd={`url(#viewer-${assignment.kind}-arrow)`}
             />
             <polyline
               points={polylinePoints(assignment.points)}
               fill="none"
               className={isMotion ? "stroke-text-secondary" : "stroke-text-primary"}
-              strokeWidth={isMotion ? 0.58 : 0.82}
+              strokeWidth={isMotion ? 0.5 : 0.71}
               strokeDasharray="1"
               strokeDashoffset={1 - assignmentProgress}
               pathLength="1"
               strokeLinecap="round"
               strokeLinejoin="round"
-              opacity={assignmentProgress > 0 ? 0.92 : 0}
+              opacity={assignmentProgress > 0 ? 0.9 : 0}
             />
           </g>
         );
@@ -192,9 +192,14 @@ function AnimatedField({ diagram, progress }: { diagram: PlayDiagram; progress: 
         const primary = diagram.primary_target_player_id === player.id;
         return (
           <g key={player.id}>
-            {primary && <circle cx={point.x} cy={point.y} r="5.35" fill="none" className="stroke-accent" strokeWidth="0.72" opacity="0.82" />}
-            <circle cx={point.x} cy={point.y} r="3.65" className="fill-surface stroke-text-primary" strokeWidth="0.82" />
-            <text x={point.x} y={point.y + 1} textAnchor="middle" className="fill-text-primary text-[2.75px] font-black">{player.label}</text>
+            <circle cx={point.x} cy={point.y} r="3.55" className="fill-surface stroke-text-primary" strokeWidth="0.78" />
+            <text x={point.x} y={point.y + 0.98} textAnchor="middle" className="fill-text-primary text-[2.7px] font-black">{player.label}</text>
+            {primary && (
+              <g>
+                <circle cx={point.x + 4.45} cy={point.y - 4.45} r="1.45" className="fill-accent stroke-background" strokeWidth="0.45" />
+                <text x={point.x + 4.45} y={point.y - 3.92} textAnchor="middle" className="fill-white text-[1.35px] font-black">1</text>
+              </g>
+            )}
           </g>
         );
       })}
@@ -266,7 +271,7 @@ export function PlayViewer({ play, onBack, onEdit, onMoveToActive }: Props) {
           : "Routes";
 
   return (
-    <section className="mx-auto max-w-[1220px] px-3 pb-8 pt-3 sm:px-4 md:px-6 md:pt-5">
+    <section className="mx-auto max-w-[1080px] px-3 pb-8 pt-3 sm:px-4 md:px-6 md:pt-5">
       <div className="flex min-h-10 items-center justify-between gap-3">
         <button type="button" onClick={onBack} className="inline-flex min-h-10 items-center gap-2 text-xs font-bold text-text-muted transition-colors hover:text-text-primary">
           <ArrowLeft size={16} />Playbook
@@ -291,9 +296,9 @@ export function PlayViewer({ play, onBack, onEdit, onMoveToActive }: Props) {
         </div>
       </header>
 
-      <div className="mt-4 grid gap-5 lg:grid-cols-[minmax(0,1fr)_250px]">
+      <div className="mt-4 grid gap-5 lg:grid-cols-[minmax(0,1fr)_225px]">
         <div className="min-w-0">
-          <div className="aspect-[5/4] max-h-[700px] overflow-hidden rounded-lg border border-border bg-background p-1">
+          <div className="aspect-[5/4] max-h-[650px] overflow-hidden rounded-lg border border-border bg-background p-1">
             <AnimatedField diagram={play.diagram} progress={progress} />
           </div>
 
@@ -303,10 +308,7 @@ export function PlayViewer({ play, onBack, onEdit, onMoveToActive }: Props) {
               {playing ? "Pause" : progress > 0 && progress < 1 ? "Resume" : "Run Play"}
             </Button>
             <div className="min-w-0 flex-1">
-              <div className="mb-1.5 flex items-center justify-between gap-3 text-[9px] font-bold uppercase tracking-[0.08em] text-text-muted">
-                <span>{phaseLabel}</span>
-                <span className="tabular-nums">{Math.round(progress * 100)}%</span>
-              </div>
+              <div className="mb-1.5 text-[9px] font-bold uppercase tracking-[0.08em] text-text-muted">{phaseLabel}</div>
               <div className="h-1 overflow-hidden rounded-full bg-surface-elevated">
                 <div className="h-full bg-accent transition-[width] duration-75" style={{ width: `${progress * 100}%` }} />
               </div>
