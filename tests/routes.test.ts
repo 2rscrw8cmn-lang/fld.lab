@@ -22,14 +22,52 @@ describe("application scaffold", () => {
     expect(getRoute("/not-a-route").path).toBe("/");
   });
 
-  it("creates the documented health payload", () => {
-    expect(createHealthPayload()).toEqual({ ok: true });
+  it("creates a safe health payload when auth bindings are missing", () => {
+    expect(createHealthPayload()).toEqual({
+      ok: true,
+      auth: {
+        diagnostic: "auth-runtime-v1",
+        configured: false,
+        mode: null,
+        missing: ["AUTH_MODE", "ACCESS_TEAM_DOMAIN", "ACCESS_AUD", "AUTHORIZED_COACH_EMAILS"],
+        invalid: [],
+      },
+    });
+  });
+
+  it("reports configured auth bindings without exposing their values", () => {
+    const payload = createHealthPayload({
+      DB: {} as never,
+      AUTH_MODE: "access",
+      ACCESS_TEAM_DOMAIN: "https://example.cloudflareaccess.com",
+      ACCESS_AUD: "aud-secret-value",
+      AUTHORIZED_COACH_EMAILS: "coach@example.com",
+    } as never);
+
+    expect(payload.auth).toEqual({
+      diagnostic: "auth-runtime-v1",
+      configured: true,
+      mode: "access",
+      missing: [],
+      invalid: [],
+    });
+    expect(JSON.stringify(payload)).not.toContain("aud-secret-value");
+    expect(JSON.stringify(payload)).not.toContain("coach@example.com");
   });
 
   it("serves the Worker health endpoint without requiring D1", async () => {
     const response = await worker.fetch(new Request("https://fld-lab.test/api/health"));
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({ ok: true });
+    await expect(response.json()).resolves.toEqual({
+      ok: true,
+      auth: {
+        diagnostic: "auth-runtime-v1",
+        configured: false,
+        mode: null,
+        missing: ["AUTH_MODE", "ACCESS_TEAM_DOMAIN", "ACCESS_AUD", "AUTHORIZED_COACH_EMAILS"],
+        invalid: [],
+      },
+    });
   });
 });
 
