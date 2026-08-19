@@ -1,3 +1,5 @@
+import { getActivePlaybookContext, type PlaybookFormat } from "@/features/playbook/playbook-context";
+
 export type PlaySide = "offense" | "defense";
 export type AssignmentKind = "route" | "motion";
 export type RouteTemplate = "go" | "slant" | "out" | "in" | "post" | "corner" | "hitch" | "drag";
@@ -24,6 +26,7 @@ export type FormationPreset = {
   id: string;
   name: string;
   side: PlaySide;
+  format: PlaybookFormat;
   players: FormationPlayer[];
 };
 
@@ -53,11 +56,12 @@ export const ROUTE_TEMPLATES: Array<{ id: RouteTemplate; label: string; short: s
   { id: "drag", label: "Drag", short: "DRAG" },
 ];
 
-export const FORMATIONS: FormationPreset[] = [
+const FIVE_V_FIVE_FORMATIONS: FormationPreset[] = [
   {
     id: "spread",
     name: "Spread",
     side: "offense",
+    format: "5v5",
     players: [
       { label: "X", x: 12, y: 77 },
       { label: "C", x: 50, y: 77 },
@@ -70,6 +74,7 @@ export const FORMATIONS: FormationPreset[] = [
     id: "trips-right",
     name: "Trips Right",
     side: "offense",
+    format: "5v5",
     players: [
       { label: "X", x: 13, y: 77 },
       { label: "C", x: 46, y: 77 },
@@ -82,6 +87,7 @@ export const FORMATIONS: FormationPreset[] = [
     id: "trips-left",
     name: "Trips Left",
     side: "offense",
+    format: "5v5",
     players: [
       { label: "Z", x: 17, y: 77 },
       { label: "Y", x: 34, y: 77 },
@@ -94,6 +100,7 @@ export const FORMATIONS: FormationPreset[] = [
     id: "bunch-right",
     name: "Bunch Right",
     side: "offense",
+    format: "5v5",
     players: [
       { label: "X", x: 14, y: 77 },
       { label: "C", x: 48, y: 77 },
@@ -106,6 +113,7 @@ export const FORMATIONS: FormationPreset[] = [
     id: "bunch-left",
     name: "Bunch Left",
     side: "offense",
+    format: "5v5",
     players: [
       { label: "Z", x: 30, y: 84 },
       { label: "Y", x: 36, y: 78 },
@@ -118,6 +126,7 @@ export const FORMATIONS: FormationPreset[] = [
     id: "stack-right",
     name: "Stack Right",
     side: "offense",
+    format: "5v5",
     players: [
       { label: "X", x: 14, y: 77 },
       { label: "C", x: 46, y: 77 },
@@ -130,6 +139,7 @@ export const FORMATIONS: FormationPreset[] = [
     id: "stack-left",
     name: "Stack Left",
     side: "offense",
+    format: "5v5",
     players: [
       { label: "Z", x: 23, y: 86 },
       { label: "Y", x: 23, y: 77 },
@@ -142,6 +152,7 @@ export const FORMATIONS: FormationPreset[] = [
     id: "custom-offense",
     name: "Custom",
     side: "offense",
+    format: "5v5",
     players: [
       { label: "X", x: 14, y: 77 },
       { label: "C", x: 50, y: 77 },
@@ -154,6 +165,7 @@ export const FORMATIONS: FormationPreset[] = [
     id: "defense-man",
     name: "Man",
     side: "defense",
+    format: "5v5",
     players: [
       { label: "L", x: 14, y: 60 },
       { label: "M", x: 34, y: 56 },
@@ -166,6 +178,7 @@ export const FORMATIONS: FormationPreset[] = [
     id: "defense-shell",
     name: "Zone Shell",
     side: "defense",
+    format: "5v5",
     players: [
       { label: "L", x: 18, y: 52 },
       { label: "M", x: 38, y: 46 },
@@ -176,6 +189,151 @@ export const FORMATIONS: FormationPreset[] = [
   },
 ];
 
+const SIX_V_SIX_FORMATIONS: FormationPreset[] = [
+  {
+    id: "spread-6",
+    name: "Spread",
+    side: "offense",
+    format: "6v6",
+    players: [
+      { label: "X", x: 10, y: 77 },
+      { label: "C", x: 50, y: 77 },
+      { label: "Z", x: 90, y: 77 },
+      { label: "H", x: 31, y: 85 },
+      { label: "Y", x: 69, y: 85 },
+      { label: "QB", x: 50, y: 92 },
+    ],
+  },
+  {
+    id: "trips-right-6",
+    name: "Trips Right",
+    side: "offense",
+    format: "6v6",
+    players: [
+      { label: "X", x: 10, y: 77 },
+      { label: "C", x: 43, y: 77 },
+      { label: "H", x: 62, y: 77 },
+      { label: "Y", x: 76, y: 82 },
+      { label: "Z", x: 90, y: 77 },
+      { label: "QB", x: 43, y: 92 },
+    ],
+  },
+  {
+    id: "trips-left-6",
+    name: "Trips Left",
+    side: "offense",
+    format: "6v6",
+    players: [
+      { label: "Z", x: 10, y: 77 },
+      { label: "Y", x: 24, y: 82 },
+      { label: "H", x: 38, y: 77 },
+      { label: "C", x: 57, y: 77 },
+      { label: "X", x: 90, y: 77 },
+      { label: "QB", x: 57, y: 92 },
+    ],
+  },
+  {
+    id: "bunch-right-6",
+    name: "Bunch Right",
+    side: "offense",
+    format: "6v6",
+    players: [
+      { label: "X", x: 10, y: 77 },
+      { label: "C", x: 45, y: 77 },
+      { label: "H", x: 65, y: 78 },
+      { label: "Y", x: 72, y: 84 },
+      { label: "Z", x: 82, y: 79 },
+      { label: "QB", x: 45, y: 92 },
+    ],
+  },
+  {
+    id: "bunch-left-6",
+    name: "Bunch Left",
+    side: "offense",
+    format: "6v6",
+    players: [
+      { label: "Z", x: 18, y: 79 },
+      { label: "Y", x: 28, y: 84 },
+      { label: "H", x: 35, y: 78 },
+      { label: "C", x: 55, y: 77 },
+      { label: "X", x: 90, y: 77 },
+      { label: "QB", x: 55, y: 92 },
+    ],
+  },
+  {
+    id: "stack-right-6",
+    name: "Stack Right",
+    side: "offense",
+    format: "6v6",
+    players: [
+      { label: "X", x: 10, y: 77 },
+      { label: "C", x: 43, y: 77 },
+      { label: "H", x: 69, y: 77 },
+      { label: "Y", x: 82, y: 77 },
+      { label: "Z", x: 82, y: 86 },
+      { label: "QB", x: 43, y: 92 },
+    ],
+  },
+  {
+    id: "stack-left-6",
+    name: "Stack Left",
+    side: "offense",
+    format: "6v6",
+    players: [
+      { label: "Z", x: 18, y: 86 },
+      { label: "Y", x: 18, y: 77 },
+      { label: "H", x: 31, y: 77 },
+      { label: "C", x: 57, y: 77 },
+      { label: "X", x: 90, y: 77 },
+      { label: "QB", x: 57, y: 92 },
+    ],
+  },
+  {
+    id: "custom-offense-6",
+    name: "Custom",
+    side: "offense",
+    format: "6v6",
+    players: [
+      { label: "X", x: 10, y: 77 },
+      { label: "C", x: 50, y: 77 },
+      { label: "Z", x: 90, y: 77 },
+      { label: "H", x: 31, y: 85 },
+      { label: "Y", x: 69, y: 85 },
+      { label: "QB", x: 50, y: 92 },
+    ],
+  },
+  {
+    id: "defense-man-6",
+    name: "Man",
+    side: "defense",
+    format: "6v6",
+    players: [
+      { label: "L", x: 10, y: 60 },
+      { label: "M", x: 28, y: 55 },
+      { label: "N", x: 45, y: 52 },
+      { label: "S", x: 62, y: 52 },
+      { label: "R", x: 86, y: 60 },
+      { label: "D", x: 50, y: 39 },
+    ],
+  },
+  {
+    id: "defense-shell-6",
+    name: "Zone Shell",
+    side: "defense",
+    format: "6v6",
+    players: [
+      { label: "L", x: 13, y: 53 },
+      { label: "M", x: 31, y: 47 },
+      { label: "N", x: 46, y: 45 },
+      { label: "S", x: 64, y: 47 },
+      { label: "R", x: 84, y: 53 },
+      { label: "D", x: 50, y: 32 },
+    ],
+  },
+];
+
+export const FORMATIONS: FormationPreset[] = [...FIVE_V_FIVE_FORMATIONS, ...SIX_V_SIX_FORMATIONS];
+
 const mirroredFormationIds: Record<string, string> = {
   "trips-right": "trips-left",
   "trips-left": "trips-right",
@@ -183,14 +341,24 @@ const mirroredFormationIds: Record<string, string> = {
   "bunch-left": "bunch-right",
   "stack-right": "stack-left",
   "stack-left": "stack-right",
+  "trips-right-6": "trips-left-6",
+  "trips-left-6": "trips-right-6",
+  "bunch-right-6": "bunch-left-6",
+  "bunch-left-6": "bunch-right-6",
+  "stack-right-6": "stack-left-6",
+  "stack-left-6": "stack-right-6",
 };
 
 export function formationById(formationId: string | null | undefined) {
   return FORMATIONS.find((formation) => formation.id === formationId) ?? null;
 }
 
-export function formationsForSide(side: PlaySide) {
-  return FORMATIONS.filter((formation) => formation.side === side);
+export function formationsForSide(side: PlaySide, format: PlaybookFormat = getActivePlaybookContext()?.format ?? "5v5") {
+  return FORMATIONS.filter((formation) => formation.side === side && formation.format === format);
+}
+
+export function defaultFormationId(format: PlaybookFormat, side: PlaySide = "offense") {
+  return formationsForSide(side, format)[0]?.id ?? (side === "offense" ? "spread" : "defense-man");
 }
 
 export function createFormationPlayers(formationId: string, makeId: (prefix: string) => string): DiagramPlayer[] {
