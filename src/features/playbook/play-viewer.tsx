@@ -4,6 +4,12 @@ import { ArrowLeft, Pause, Pencil, Play, RotateCcw, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { PlaySituation, PlayType } from "@/lib/playbook-api";
 import type { DiagramAssignment, DiagramPlayer, PlayDiagram, Point } from "@/features/playbook/playbook-model";
+import {
+  isPrimaryPlayer,
+  playerColor,
+  playerForAssignment,
+  playerTextColor,
+} from "@/features/playbook/playbook-visuals";
 
 export type PlayViewerPlay = {
   id: string;
@@ -22,10 +28,12 @@ type Props = {
   play: PlayViewerPlay;
   onBack: () => void;
   onEdit?: () => void;
-  onMoveToActive?: () => void;
+  onMoveToEditor?: () => void;
 };
 
-const PLAY_DURATION_MS = 3300;
+const PLAY_DURATION_MS = 2500;
+const SNAP_HOLD_MS = 180;
+const SNAP_HOLD_FRACTION = SNAP_HOLD_MS / PLAY_DURATION_MS;
 const MOTION_PHASE = 0.22;
 
 const SITUATION_LABELS: Record<PlaySituation, string> = {
@@ -89,10 +97,7 @@ function animatedPlayerPoint(player: DiagramPlayer, diagram: PlayDiagram, progre
   const route = assignmentFor(diagram, player.id, "route");
 
   if (motion && hasMotion) {
-    if (progress <= MOTION_PHASE) {
-      return pointAlongPolyline(motion.points, progress / MOTION_PHASE);
-    }
-
+    if (progress <= MOTION_PHASE) return pointAlongPolyline(motion.points, progress / MOTION_PHASE);
     const motionEnd = motion.points[motion.points.length - 1] ?? player;
     if (!route) return motionEnd;
     return pointAlongPolyline(translatedRoute(route, motionEnd), (progress - MOTION_PHASE) / (1 - MOTION_PHASE));
@@ -120,19 +125,19 @@ function FieldLines() {
 
   return (
     <>
-      <rect x="3" y="3" width="94" height="94" rx="1.5" fill="none" className="stroke-border" strokeWidth="0.48" opacity="0.66" />
+      <rect x="3" y="3" width="94" height="94" rx="1.5" fill="none" className="stroke-border" strokeWidth="0.5" opacity="0.68" />
       {guides.map((guide) => (
         <g key={guide.y}>
-          <line x1="3" y1={guide.y} x2="97" y2={guide.y} className="stroke-border" strokeWidth="0.31" opacity="0.42" />
+          <line x1="3" y1={guide.y} x2="97" y2={guide.y} className="stroke-border" strokeWidth="0.32" opacity="0.44" />
           <text x="5" y={guide.y - 1.35} className="fill-text-muted text-[2px] font-bold" opacity="0.62">{guide.label}</text>
           {[25, 50, 75].map((x) => (
-            <line key={x} x1={x} y1={guide.y - 0.65} x2={x} y2={guide.y + 0.65} className="stroke-border" strokeWidth="0.38" opacity="0.5" />
+            <line key={x} x1={x} y1={guide.y - 0.65} x2={x} y2={guide.y + 0.65} className="stroke-border" strokeWidth="0.4" opacity="0.55" />
           ))}
         </g>
       ))}
-      <line x1="3" y1="55" x2="97" y2="55" className="stroke-text-muted" strokeWidth="0.34" strokeDasharray="1.8 1.8" opacity="0.38" />
+      <line x1="3" y1="55" x2="97" y2="55" className="stroke-text-muted" strokeWidth="0.36" strokeDasharray="1.8 1.8" opacity="0.4" />
       <text x="95" y="53.3" textAnchor="end" className="fill-text-muted text-[2px] font-bold" opacity="0.62">7YD RUSH</text>
-      <line x1="3" y1="76" x2="97" y2="76" className="stroke-text-secondary" strokeWidth="0.64" opacity="0.76" />
+      <line x1="3" y1="76" x2="97" y2="76" className="stroke-text-secondary" strokeWidth="0.68" opacity="0.78" />
       <text x="5" y="74.1" className="fill-text-muted text-[2.15px] font-bold">LOS</text>
     </>
   );
@@ -140,66 +145,69 @@ function FieldLines() {
 
 function AnimatedField({ diagram, progress }: { diagram: PlayDiagram; progress: number }) {
   const hasMotion = diagram.assignments.some((assignment) => assignment.kind === "motion");
-  const routeProgress = hasMotion ? clamp01((progress - MOTION_PHASE) / (1 - MOTION_PHASE)) : progress;
-  const motionProgress = hasMotion ? clamp01(progress / MOTION_PHASE) : 1;
+  const movementProgress = clamp01((progress - SNAP_HOLD_FRACTION) / (1 - SNAP_HOLD_FRACTION));
+  const routeProgress = hasMotion ? clamp01((movementProgress - MOTION_PHASE) / (1 - MOTION_PHASE)) : movementProgress;
+  const motionProgress = hasMotion ? clamp01(movementProgress / MOTION_PHASE) : 1;
 
   return (
     <svg viewBox="0 0 100 100" className="h-full w-full" role="img" aria-label="Animated play diagram">
       <FieldLines />
       <defs>
-        <marker id="viewer-route-arrow" viewBox="0 0 10 10" refX="8.2" refY="5" markerWidth="2.45" markerHeight="2.45" orient="auto-start-reverse">
-          <path d="M 0 0 L 10 5 L 0 10 z" className="fill-text-secondary" />
-        </marker>
-        <marker id="viewer-motion-arrow" viewBox="0 0 10 10" refX="8.2" refY="5" markerWidth="2.2" markerHeight="2.2" orient="auto-start-reverse">
-          <path d="M 0 0 L 10 5 L 0 10 z" className="fill-text-muted" />
-        </marker>
+        {diagram.assignments.map((assignment) => {
+          const player = playerForAssignment(diagram, assignment.player_id);
+          const primary = player ? isPrimaryPlayer(diagram, player.id) : false;
+          const color = player ? playerColor(player, primary) : "var(--text-secondary)";
+          return (
+            <marker key={assignment.id} id={`viewer-arrow-${assignment.id}`} viewBox="0 0 10 10" refX="8" refY="5" markerWidth={assignment.kind === "route" ? "4" : "3.5"} markerHeight={assignment.kind === "route" ? "4" : "3.5"} orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill={color} />
+            </marker>
+          );
+        })}
       </defs>
 
       {diagram.assignments.map((assignment) => {
         const assignmentProgress = assignment.kind === "motion" ? motionProgress : routeProgress;
+        const player = playerForAssignment(diagram, assignment.player_id);
+        const primary = player ? isPrimaryPlayer(diagram, player.id) : false;
+        const color = player ? playerColor(player, primary) : "var(--text-secondary)";
         const isMotion = assignment.kind === "motion";
         return (
           <g key={assignment.id}>
             <polyline
               points={polylinePoints(assignment.points)}
               fill="none"
-              className={isMotion ? "stroke-text-muted" : "stroke-text-secondary"}
-              strokeWidth={isMotion ? 0.42 : 0.59}
+              stroke={color}
+              strokeWidth={isMotion ? 0.5 : 0.72}
               strokeDasharray={isMotion ? "2.2 1.8" : undefined}
               strokeLinecap="round"
               strokeLinejoin="round"
-              opacity={isMotion ? 0.28 : 0.2}
-              markerEnd={`url(#viewer-${assignment.kind}-arrow)`}
+              opacity={isMotion ? 0.28 : 0.26}
+              markerEnd={`url(#viewer-arrow-${assignment.id})`}
             />
             <polyline
               points={polylinePoints(assignment.points)}
               fill="none"
-              className={isMotion ? "stroke-text-secondary" : "stroke-text-primary"}
-              strokeWidth={isMotion ? 0.5 : 0.71}
+              stroke={color}
+              strokeWidth={isMotion ? 0.62 : 0.88}
               strokeDasharray="1"
               strokeDashoffset={1 - assignmentProgress}
               pathLength="1"
               strokeLinecap="round"
               strokeLinejoin="round"
-              opacity={assignmentProgress > 0 ? 0.9 : 0}
+              opacity={assignmentProgress > 0 ? 0.96 : 0}
             />
           </g>
         );
       })}
 
       {diagram.players.map((player) => {
-        const point = animatedPlayerPoint(player, diagram, progress, hasMotion);
-        const primary = diagram.primary_target_player_id === player.id;
+        const point = animatedPlayerPoint(player, diagram, movementProgress, hasMotion);
+        const primary = isPrimaryPlayer(diagram, player.id);
+        const color = playerColor(player, primary);
         return (
           <g key={player.id}>
-            <circle cx={point.x} cy={point.y} r="3.55" className="fill-surface stroke-text-primary" strokeWidth="0.78" />
-            <text x={point.x} y={point.y + 0.98} textAnchor="middle" className="fill-text-primary text-[2.7px] font-black">{player.label}</text>
-            {primary && (
-              <g>
-                <circle cx={point.x + 4.45} cy={point.y - 4.45} r="1.45" className="fill-accent stroke-background" strokeWidth="0.45" />
-                <text x={point.x + 4.45} y={point.y - 3.92} textAnchor="middle" className="fill-white text-[1.35px] font-black">1</text>
-              </g>
-            )}
+            <circle cx={point.x} cy={point.y} r="3.75" fill={color} className="stroke-background" strokeWidth="0.9" />
+            <text x={point.x} y={point.y + 1.02} textAnchor="middle" fill={playerTextColor(primary)} className="text-[2.75px] font-black">{player.label}</text>
           </g>
         );
       })}
@@ -207,7 +215,7 @@ function AnimatedField({ diagram, progress }: { diagram: PlayDiagram; progress: 
   );
 }
 
-export function PlayViewer({ play, onBack, onEdit, onMoveToActive }: Props) {
+export function PlayViewer({ play, onBack, onEdit, onMoveToEditor }: Props) {
   const [progress, setProgress] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [runId, setRunId] = useState(0);
@@ -266,9 +274,11 @@ export function PlayViewer({ play, onBack, onEdit, onMoveToActive }: Props) {
       ? "Paused"
       : progress === 0
         ? "Ready"
-        : hasMotion && progress < MOTION_PHASE
-          ? "Pre-snap motion"
-          : "Routes";
+        : progress < SNAP_HOLD_FRACTION
+          ? "Set"
+          : hasMotion && ((progress - SNAP_HOLD_FRACTION) / (1 - SNAP_HOLD_FRACTION)) < MOTION_PHASE
+            ? "Motion"
+            : "Routes";
 
   return (
     <section className="mx-auto max-w-[1080px] px-3 pb-8 pt-3 sm:px-4 md:px-6 md:pt-5">
@@ -277,7 +287,7 @@ export function PlayViewer({ play, onBack, onEdit, onMoveToActive }: Props) {
           <ArrowLeft size={16} />Playbook
         </button>
         <div className="flex items-center gap-2">
-          {onMoveToActive && <Button variant="secondary" className="min-h-9 px-3 text-xs" onClick={onMoveToActive}><Undo2 size={15} />Move to Active</Button>}
+          {onMoveToEditor && <Button variant="secondary" className="min-h-9 px-3 text-xs" onClick={onMoveToEditor}><Undo2 size={15} />Move to Editor</Button>}
           {onEdit && <Button variant="secondary" className="min-h-9 px-3 text-xs" onClick={onEdit}><Pencil size={15} />Edit</Button>}
         </div>
       </div>
@@ -285,7 +295,7 @@ export function PlayViewer({ play, onBack, onEdit, onMoveToActive }: Props) {
       <header className="mt-3 border-b border-border pb-4">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div className="min-w-0">
-            <div className="text-[9px] font-bold uppercase tracking-[0.11em] text-text-muted">{play.active_play ? "Active play" : "Library"}</div>
+            <div className="text-[9px] font-bold uppercase tracking-[0.11em] text-text-muted">{play.active_play ? "Editor" : "Library"}</div>
             <h1 className="mt-1 truncate text-[26px] font-extrabold leading-none tracking-[-0.035em] md:text-[31px]">{play.name}</h1>
           </div>
           <div className="flex flex-wrap justify-end gap-x-3 gap-y-1 text-[10px] font-semibold text-text-muted">
@@ -296,7 +306,7 @@ export function PlayViewer({ play, onBack, onEdit, onMoveToActive }: Props) {
         </div>
       </header>
 
-      <div className="mt-4 grid gap-5 lg:grid-cols-[minmax(0,1fr)_225px]">
+      <div className="mt-4 grid gap-5 lg:grid-cols-[minmax(0,1fr)_230px]">
         <div className="min-w-0">
           <div className="aspect-[5/4] max-h-[650px] overflow-hidden rounded-lg border border-border bg-background p-1">
             <AnimatedField diagram={play.diagram} progress={progress} />
@@ -337,7 +347,7 @@ export function PlayViewer({ play, onBack, onEdit, onMoveToActive }: Props) {
 
           {!play.active_play && (
             <div className="mt-5 border-t border-border pt-4 text-[11px] leading-5 text-text-muted">
-              Library plays are view-only. Move this play back to Active before changing the diagram or assignments.
+              Library plays are view-only. Move this play to Editor before changing the diagram or assignments.
             </div>
           )}
         </aside>
