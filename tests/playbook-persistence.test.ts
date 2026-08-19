@@ -26,19 +26,30 @@ const validDiagram = {
 
 const noDatabaseCalls = {} as D1Database;
 
-describe("playbook migration", () => {
-  const migration = readFileSync(
+describe("playbook migrations", () => {
+  const persistenceMigration = readFileSync(
     fileURLToPath(new URL("../migrations/0005_playbook.sql", import.meta.url)),
+    "utf8",
+  );
+  const organizationMigration = readFileSync(
+    fileURLToPath(new URL("../migrations/0006_playbook_organization.sql", import.meta.url)),
     "utf8",
   );
 
   it("creates team-scoped archived plays", () => {
-    expect(migration).toContain("CREATE TABLE plays");
-    expect(migration).toContain("team_id TEXT NOT NULL");
-    expect(migration).toContain("CHECK (side IN ('offense', 'defense'))");
-    expect(migration).toContain("diagram_json TEXT NOT NULL");
-    expect(migration).toContain("archived INTEGER NOT NULL DEFAULT 0");
-    expect(migration).toContain("FOREIGN KEY (team_id) REFERENCES teams(id)");
+    expect(persistenceMigration).toContain("CREATE TABLE plays");
+    expect(persistenceMigration).toContain("team_id TEXT NOT NULL");
+    expect(persistenceMigration).toContain("CHECK (side IN ('offense', 'defense'))");
+    expect(persistenceMigration).toContain("diagram_json TEXT NOT NULL");
+    expect(persistenceMigration).toContain("archived INTEGER NOT NULL DEFAULT 0");
+    expect(persistenceMigration).toContain("FOREIGN KEY (team_id) REFERENCES teams(id)");
+  });
+
+  it("adds active/library and football-specific organization fields", () => {
+    expect(organizationMigration).toContain("active_play INTEGER NOT NULL DEFAULT 1");
+    expect(organizationMigration).toContain("CHECK (play_type IN ('pass', 'run', 'option'))");
+    expect(organizationMigration).toContain("concept TEXT NOT NULL DEFAULT ''");
+    expect(organizationMigration).toContain("CHECK (situation IN ('any', 'short', 'medium', 'deep', 'no-run', 'goal-line', 'conversion'))");
   });
 });
 
@@ -83,5 +94,31 @@ describe("playbook API validation", () => {
     );
 
     expect(response?.status).toBe(400);
+  });
+
+  it("rejects unsupported play types before touching D1", async () => {
+    const response = await handlePlaybookApi(
+      new Request("https://fld-lab.test/api/teams/team_1/plays", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: "Trips Flood",
+          side: "offense",
+          formation_id: "trips-right",
+          formation: "Trips Right",
+          play_type: "screen-pass",
+          concept: "Flood",
+          situation: "medium",
+          active_play: true,
+          notes: "",
+          diagram: validDiagram,
+        }),
+      }),
+      noDatabaseCalls,
+    );
+
+    expect(response?.status).toBe(400);
+    const body = await response?.json() as { error: { fields?: Record<string, string> } };
+    expect(body.error.fields?.play_type).toContain("pass, run, or option");
   });
 });

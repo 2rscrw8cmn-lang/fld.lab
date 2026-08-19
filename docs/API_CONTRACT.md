@@ -856,10 +856,16 @@ Every Playbook route is team-scoped and requires active access to `:teamId`. A p
   "side": "offense",
   "formation_id": "trips-right",
   "formation": "Trips Right",
+  "play_type": "pass",
+  "concept": "Flood",
+  "situation": "medium",
+  "active_play": true,
   "notes": "Read outside-in.",
   "diagram": {
     "schema_version": 2,
-    "players": [],
+    "players": [
+      { "id": "player_x", "label": "X", "x": 20, "y": 80 }
+    ],
     "assignments": [],
     "primary_target_player_id": null
   },
@@ -871,11 +877,13 @@ Every Playbook route is team-scoped and requires active access to `:teamId`. A p
 
 `diagram` is the parsed API representation of the D1 `diagram_json` column. The client never sends or receives `diagram_json` as an encoded JSON string.
 
+`active_play` and `archived` are separate states: `active_play: false` means the play remains editable in the Library; `archived: true` removes it from normal Playbook browsing.
+
 ## 28. List/create team plays
 
 ### `GET /api/teams/:teamId/plays`
 
-Returns active plays by default, newest updated first:
+Returns non-archived plays by default. Active plays sort before Library plays, then newest updated first:
 
 ```json
 {
@@ -895,10 +903,16 @@ Request:
   "side": "offense",
   "formation_id": "trips-right",
   "formation": "Trips Right",
+  "play_type": "pass",
+  "concept": "Flood",
+  "situation": "medium",
+  "active_play": true,
   "notes": "Read outside-in.",
   "diagram": {
     "schema_version": 2,
-    "players": [],
+    "players": [
+      { "id": "player_x", "label": "X", "x": 20, "y": 80 }
+    ],
     "assignments": [],
     "primary_target_player_id": null
   }
@@ -906,6 +920,13 @@ Request:
 ```
 
 Response: `201` with the created Play. The server generates the persistent Play ID; a browser-generated prototype ID is not authoritative.
+
+Organization fields:
+
+- `play_type` is `pass | run | option`; omitted legacy requests default to `pass`
+- `concept` is a short free-text football concept label; omitted legacy requests default to empty
+- `situation` is `any | short | medium | deep | no-run | goal-line | conversion`; omitted legacy requests default to `any`
+- `active_play` is boolean; omitted legacy requests default to `true`
 
 ## 29. Read/update/archive play
 
@@ -915,7 +936,7 @@ Returns the Play when it belongs to the authorized team.
 
 ### `PUT /api/teams/:teamId/plays/:playId`
 
-Replaces the editable play payload (`name`, `side`, formation fields, notes, and diagram) while preserving ID/team/created timestamp.
+Replaces the editable play payload (`name`, `side`, formation fields, organization fields, notes, and diagram) while preserving ID/team/created timestamp.
 
 ### `PATCH /api/teams/:teamId/plays/:playId`
 
@@ -929,7 +950,7 @@ Archive/restore only:
 
 There is no destructive delete endpoint in the first persistent Playbook phase.
 
-## 30. Play diagram validation
+## 30. Play diagram and metadata validation
 
 Client editing constraints improve UX, but server validation is authoritative.
 
@@ -944,9 +965,10 @@ For schema v2:
 - route template, when present, is one of `go | slant | out | in | post | corner | hitch | drag`
 - each assignment contains 2–8 points
 - `primary_target_player_id` is null or references a player in the diagram
-- play name is required and bounded; formation/notes are bounded server-side
+- play name is required and bounded; formation/notes/concept are bounded server-side
+- `play_type`, `situation`, and `active_play` must match their documented types when supplied
 
-Malformed diagram input returns `400 validation_error` with `fields.diagram`.
+Malformed diagram or organization input returns `400 validation_error` with field-specific details.
 
 ## 31. Browser-cache reconciliation
 
@@ -957,6 +979,7 @@ Rules:
 - local cache remains team-keyed
 - matching persistent IDs may update D1 only when the local `updated_at` is newer
 - browser-only IDs create new server-owned Play resources
+- legacy browser plays without organization fields normalize to Pass / Any / Active
 - after reconciliation, the client replaces its cache with the server-normalized play list
 - when D1 persistence is temporarily unavailable, the client may retain edits locally rather than discarding coach work; it must clearly communicate that fallback state
 

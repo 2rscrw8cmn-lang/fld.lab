@@ -2,6 +2,9 @@ import type { D1Database } from "@cloudflare/workers-types";
 
 import { RepositoryError } from "./repository";
 
+export type PlayType = "pass" | "run" | "option";
+export type PlaySituation = "any" | "short" | "medium" | "deep" | "no-run" | "goal-line" | "conversion";
+
 export type StoredPlay = {
   id: string;
   team_id: string;
@@ -9,6 +12,10 @@ export type StoredPlay = {
   side: "offense" | "defense";
   formation_id: string | null;
   formation: string;
+  play_type: PlayType;
+  concept: string;
+  situation: PlaySituation;
+  active_play: boolean;
   notes: string;
   diagram: unknown;
   archived: boolean;
@@ -16,9 +23,10 @@ export type StoredPlay = {
   updated_at: string;
 };
 
-type PlayDbRow = Omit<StoredPlay, "diagram" | "archived"> & {
+type PlayDbRow = Omit<StoredPlay, "diagram" | "archived" | "active_play"> & {
   diagram_json: string;
   archived: number;
+  active_play: number;
 };
 
 export type PlayInput = {
@@ -26,6 +34,10 @@ export type PlayInput = {
   side: "offense" | "defense";
   formation_id: string | null;
   formation: string;
+  play_type: PlayType;
+  concept: string;
+  situation: PlaySituation;
+  active_play: boolean;
   notes: string;
   diagram: unknown;
 };
@@ -41,6 +53,10 @@ function fromRow(row: PlayDbRow): StoredPlay {
     side: row.side,
     formation_id: row.formation_id,
     formation: row.formation,
+    play_type: row.play_type,
+    concept: row.concept,
+    situation: row.situation,
+    active_play: row.active_play === 1,
     notes: row.notes,
     diagram: JSON.parse(row.diagram_json) as unknown,
     archived: row.archived === 1,
@@ -54,7 +70,7 @@ export async function listPlays(db: D1Database, teamId: string, includeArchived 
     .prepare(
       `SELECT * FROM plays
        WHERE team_id = ? AND (? = 1 OR archived = 0)
-       ORDER BY archived ASC, updated_at DESC, name ASC`,
+       ORDER BY archived ASC, active_play DESC, updated_at DESC, name ASC`,
     )
     .bind(teamId, includeArchived ? 1 : 0)
     .all<PlayDbRow>();
@@ -76,8 +92,8 @@ export async function createPlay(db: D1Database, teamId: string, input: PlayInpu
   await db
     .prepare(
       `INSERT INTO plays
-        (id, team_id, name, side, formation_id, formation, notes, diagram_json, archived, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
+        (id, team_id, name, side, formation_id, formation, play_type, concept, situation, active_play, notes, diagram_json, archived, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
     )
     .bind(
       playId,
@@ -86,6 +102,10 @@ export async function createPlay(db: D1Database, teamId: string, input: PlayInpu
       input.side,
       input.formation_id,
       input.formation,
+      input.play_type,
+      input.concept,
+      input.situation,
+      input.active_play ? 1 : 0,
       input.notes,
       JSON.stringify(input.diagram),
       timestamp,
@@ -119,8 +139,8 @@ export async function updatePlay(
   await db
     .prepare(
       `UPDATE plays
-       SET name = ?, side = ?, formation_id = ?, formation = ?, notes = ?, diagram_json = ?,
-           archived = COALESCE(?, archived), updated_at = ?
+       SET name = ?, side = ?, formation_id = ?, formation = ?, play_type = ?, concept = ?, situation = ?, active_play = ?,
+           notes = ?, diagram_json = ?, archived = COALESCE(?, archived), updated_at = ?
        WHERE id = ? AND team_id = ?`,
     )
     .bind(
@@ -128,6 +148,10 @@ export async function updatePlay(
       input.side,
       input.formation_id,
       input.formation,
+      input.play_type,
+      input.concept,
+      input.situation,
+      input.active_play ? 1 : 0,
       input.notes,
       JSON.stringify(input.diagram),
       input.archived === undefined ? null : input.archived ? 1 : 0,
@@ -137,10 +161,5 @@ export async function updatePlay(
     )
     .run();
 
-  const row = await db
-    .prepare("SELECT * FROM plays WHERE id = ? AND team_id = ?")
-    .bind(playId, teamId)
-    .first<PlayDbRow>();
-  if (!row) throw new RepositoryError("not_found", "Play not found.");
-  return fromRow(row);
+  return getPlay(db, teamId, playId);
 }

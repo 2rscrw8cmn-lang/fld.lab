@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, useEffect } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import {
   ArrowLeft,
@@ -19,8 +19,21 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { PlayViewer } from "@/features/playbook/play-viewer";
+import {
+  isPrimaryPlayer,
+  playerColor,
+  playerForAssignment,
+  playerTextColor,
+} from "@/features/playbook/playbook-visuals";
 import type { Team } from "@/lib/api";
-import { createTeamPlay, listTeamPlays, updateTeamPlay } from "@/lib/playbook-api";
+import {
+  createTeamPlay,
+  listTeamPlays,
+  updateTeamPlay,
+  type PlaySituation,
+  type PlayType,
+} from "@/lib/playbook-api";
 import {
   FORMATIONS,
   ROUTE_TEMPLATES,
@@ -51,6 +64,10 @@ type Play = {
   side: PlaySide;
   formation_id: string | null;
   formation: string;
+  play_type: PlayType;
+  concept: string;
+  situation: PlaySituation;
+  active_play: boolean;
   notes: string;
   diagram: PlayDiagram;
   created_at: string;
@@ -58,9 +75,26 @@ type Play = {
 };
 
 type Filter = "all" | PlaySide;
+type LibraryView = "editor" | "library";
 type PersistenceMode = "loading" | "database" | "local";
 type EditorSnapshot = Pick<Play, "side" | "formation_id" | "formation" | "diagram">;
 type DragState = { kind: "player" | "assignment"; id: string } | null;
+
+const PLAY_TYPES: Array<{ value: PlayType; label: string }> = [
+  { value: "pass", label: "Pass" },
+  { value: "run", label: "Run" },
+  { value: "option", label: "Option" },
+];
+
+const SITUATIONS: Array<{ value: PlaySituation; label: string }> = [
+  { value: "any", label: "Any" },
+  { value: "short", label: "Short" },
+  { value: "medium", label: "Medium" },
+  { value: "deep", label: "Deep" },
+  { value: "no-run", label: "No-run" },
+  { value: "goal-line", label: "Goal line" },
+  { value: "conversion", label: "Conversion" },
+];
 
 const id = (prefix: string) => `${prefix}_${crypto.randomUUID()}`;
 const clamp = (value: number) => Math.max(5, Math.min(95, value));
@@ -88,6 +122,10 @@ function newPlay(teamId: string, formationId = "spread"): Play {
     side: formation.side,
     formation_id: formation.id,
     formation: formation.name,
+    play_type: "pass",
+    concept: "",
+    situation: "any",
+    active_play: true,
     notes: "",
     diagram: diagramForFormation(formation.id),
     created_at: timestamp,
@@ -164,6 +202,10 @@ function normalizePlay(value: unknown, teamId: string): Play | null {
   const storedFormationId = typeof raw.formation_id === "string" ? raw.formation_id : null;
   const inferred = FORMATIONS.find((formation) => formation.side === side && formation.name.toLowerCase() === formationText.toLowerCase()) ?? null;
   const formationId = formationById(storedFormationId)?.side === side ? storedFormationId : inferred?.id ?? null;
+  const playType: PlayType = raw.play_type === "run" || raw.play_type === "option" ? raw.play_type : "pass";
+  const situation: PlaySituation = SITUATIONS.some((option) => option.value === raw.situation)
+    ? raw.situation as PlaySituation
+    : "any";
   const timestamp = new Date().toISOString();
   return {
     id: raw.id,
@@ -172,6 +214,10 @@ function normalizePlay(value: unknown, teamId: string): Play | null {
     side,
     formation_id: formationId,
     formation: formationText || formationById(formationId)?.name || (side === "offense" ? "Custom" : "Defense"),
+    play_type: playType,
+    concept: typeof raw.concept === "string" ? raw.concept : "",
+    situation,
+    active_play: typeof raw.active_play === "boolean" ? raw.active_play : true,
     notes: typeof raw.notes === "string" ? raw.notes : "",
     diagram,
     created_at: typeof raw.created_at === "string" ? raw.created_at : timestamp,
@@ -204,13 +250,18 @@ function playInput(play: Play) {
     side: play.side,
     formation_id: play.formation_id,
     formation: play.formation.trim(),
+    play_type: play.play_type,
+    concept: play.concept.trim(),
+    situation: play.situation,
+    active_play: play.active_play,
     notes: play.notes.trim(),
     diagram: play.diagram,
   };
 }
 
-async function reconcileDatabasePlays(teamId: string, localPlays: Play[]): Promise<Play[]> {
+async function reconcileDatabasePlays(teamId: string): Promise<Play[]> {
   const remoteValues = await listTeamPlays(teamId);
+  const localPlays = parseStoredPlays(teamId);
   const remotePlays = remoteValues.flatMap((value) => {
     const play = normalizePlay(value, teamId);
     return play ? [play] : [];
@@ -241,7 +292,11 @@ async function reconcileDatabasePlays(teamId: string, localPlays: Play[]): Promi
 }
 
 function formatUpdated(value: string) {
-  return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(value));
+  return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(new Date(value));
+}
+
+function situationLabel(value: PlaySituation) {
+  return SITUATIONS.find((option) => option.value === value)?.label ?? "Any";
 }
 
 function polylinePoints(points: Point[]) {
@@ -257,61 +312,98 @@ function FieldLines() {
   ];
   return (
     <>
-      <rect x="3" y="3" width="94" height="94" rx="2" fill="none" className="stroke-border" strokeWidth="0.9" />
+      <rect x="3" y="3" width="94" height="94" rx="1.5" fill="none" className="stroke-border" strokeWidth="0.5" opacity="0.68" />
       {guides.map((guide) => (
         <g key={guide.y}>
-          <line x1="3" y1={guide.y} x2="97" y2={guide.y} className="stroke-border" strokeWidth="0.55" opacity="0.72" />
-          <text x="5" y={guide.y - 1.4} className="fill-text-muted text-[2.35px] font-bold">{guide.label}</text>
+          <line x1="3" y1={guide.y} x2="97" y2={guide.y} className="stroke-border" strokeWidth="0.32" opacity="0.44" />
+          <text x="5" y={guide.y - 1.35} className="fill-text-muted text-[2px] font-bold" opacity="0.62">{guide.label}</text>
         </g>
       ))}
-      <line x1="3" y1="55" x2="97" y2="55" className="stroke-text-muted" strokeWidth="0.6" strokeDasharray="2 2" opacity="0.7" />
-      <text x="95" y="53.3" textAnchor="end" className="fill-text-muted text-[2.25px] font-bold">7YD RUSH</text>
-      <line x1="3" y1="76" x2="97" y2="76" className="stroke-text-secondary" strokeWidth="1.35" />
-      <text x="5" y="74" className="fill-text-muted text-[2.45px] font-bold">LOS</text>
+      <line x1="3" y1="55" x2="97" y2="55" className="stroke-text-muted" strokeWidth="0.36" strokeDasharray="1.8 1.8" opacity="0.4" />
+      <text x="95" y="53.3" textAnchor="end" className="fill-text-muted text-[2px] font-bold" opacity="0.62">7YD RUSH</text>
+      <line x1="3" y1="76" x2="97" y2="76" className="stroke-text-secondary" strokeWidth="0.68" opacity="0.78" />
+      <text x="5" y="74.1" className="fill-text-muted text-[2.15px] font-bold">LOS</text>
     </>
   );
 }
 
-function AssignmentLines({ diagram, markerPrefix, compact = false }: { diagram: PlayDiagram; markerPrefix: string; compact?: boolean }) {
+function AssignmentLines({
+  diagram,
+  markerPrefix,
+  compact = false,
+  selectedAssignmentId = null,
+}: {
+  diagram: PlayDiagram;
+  markerPrefix: string;
+  compact?: boolean;
+  selectedAssignmentId?: string | null;
+}) {
   return (
     <>
       <defs>
-        <marker id={`${markerPrefix}-route`} viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
-          <path d="M 0 0 L 10 5 L 0 10 z" className="fill-accent" />
-        </marker>
-        <marker id={`${markerPrefix}-motion`} viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
-          <path d="M 0 0 L 10 5 L 0 10 z" className="fill-text-muted" />
-        </marker>
+        {diagram.assignments.map((assignment) => {
+          const player = playerForAssignment(diagram, assignment.player_id);
+          const primary = player ? isPrimaryPlayer(diagram, player.id) : false;
+          const color = player ? playerColor(player, primary) : "var(--text-secondary)";
+          const selected = assignment.id === selectedAssignmentId;
+          const markerSize = compact ? 3.25 : selected ? 4.3 : assignment.kind === "route" ? 4.05 : 3.45;
+          return (
+            <marker key={assignment.id} id={`${markerPrefix}-${assignment.id}`} viewBox="0 0 10 10" refX="8" refY="5" markerWidth={markerSize} markerHeight={markerSize} orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill={color} />
+            </marker>
+          );
+        })}
       </defs>
-      {diagram.assignments.map((assignment) => (
-        <polyline
-          key={assignment.id}
-          points={polylinePoints(assignment.points)}
-          fill="none"
-          markerEnd={`url(#${markerPrefix}-${assignment.kind})`}
-          className={assignment.kind === "route" ? "stroke-accent" : "stroke-text-muted"}
-          strokeWidth={compact ? 1.2 : 1.8}
-          strokeDasharray={assignment.kind === "motion" ? "3 2" : undefined}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      ))}
+      {diagram.assignments.map((assignment) => {
+        const selected = assignment.id === selectedAssignmentId;
+        const isRoute = assignment.kind === "route";
+        const player = playerForAssignment(diagram, assignment.player_id);
+        const primary = player ? isPrimaryPlayer(diagram, player.id) : false;
+        const color = player ? playerColor(player, primary) : "var(--text-secondary)";
+        return (
+          <polyline
+            key={assignment.id}
+            points={polylinePoints(assignment.points)}
+            fill="none"
+            markerEnd={`url(#${markerPrefix}-${assignment.id})`}
+            stroke={color}
+            strokeWidth={compact ? (isRoute ? 0.68 : 0.5) : selected ? 0.98 : isRoute ? 0.8 : 0.6}
+            strokeDasharray={assignment.kind === "motion" ? "2.3 1.9" : undefined}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            opacity={selected ? 1 : isRoute ? 0.78 : 0.58}
+          />
+        );
+      })}
     </>
   );
 }
 
-function FieldDiagram({ diagram, compact = false, markerPrefix = "play" }: { diagram: PlayDiagram; compact?: boolean; markerPrefix?: string }) {
+function FieldDiagram({
+  diagram,
+  compact = false,
+  markerPrefix = "play",
+  showLabels = false,
+}: {
+  diagram: PlayDiagram;
+  compact?: boolean;
+  markerPrefix?: string;
+  showLabels?: boolean;
+}) {
   return (
     <svg viewBox="0 0 100 100" className="h-full w-full" aria-hidden={true}>
       <FieldLines />
       <AssignmentLines diagram={diagram} compact={compact} markerPrefix={markerPrefix} />
       {diagram.players.map((player) => {
-        const primary = diagram.primary_target_player_id === player.id;
+        const primary = isPrimaryPlayer(diagram, player.id);
+        const color = playerColor(player, primary);
+        const radius = compact ? 3.15 : 3.85;
         return (
           <g key={player.id}>
-            {primary && <circle cx={player.x} cy={player.y} r={compact ? 4.7 : 6} fill="none" className="stroke-accent" strokeWidth={compact ? 0.7 : 1} opacity="0.8" />}
-            <circle cx={player.x} cy={player.y} r={compact ? 3.2 : 4.2} className="fill-surface stroke-text-secondary" strokeWidth="1.1" />
-            {!compact && <text x={player.x} y={player.y + 1.15} textAnchor="middle" className="fill-text-primary text-[3.2px] font-black">{player.label}</text>}
+            <circle cx={player.x} cy={player.y} r={radius} fill={color} className="stroke-background" strokeWidth={compact ? 0.72 : 0.86} />
+            {(!compact || showLabels) && (
+              <text x={player.x} y={player.y + (compact ? 0.88 : 1.02)} textAnchor="middle" fill={playerTextColor(primary)} className={`${compact ? "text-[2.25px]" : "text-[2.8px]"} font-black`}>{player.label}</text>
+            )}
           </g>
         );
       })}
@@ -330,20 +422,29 @@ function FormationPreview({ formation }: { formation: FormationPreset }) {
 }
 
 function PlayCard({ play, onOpen }: { play: Play; onOpen: () => void }) {
+  const details = [
+    play.play_type.charAt(0).toUpperCase() + play.play_type.slice(1),
+    play.concept || null,
+    play.situation !== "any" ? situationLabel(play.situation) : null,
+  ].filter((value): value is string => Boolean(value));
+
   return (
-    <button type="button" onClick={onOpen} className="overflow-hidden rounded-xl border border-border bg-surface text-left transition-colors hover:border-[rgba(124,58,237,0.5)] hover:bg-surface-elevated">
-      <div className="aspect-[4/3] bg-background p-2">
-        <FieldDiagram diagram={play.diagram} compact markerPrefix={`card-${play.id}`} />
+    <button type="button" onClick={onOpen} className="group overflow-hidden rounded-lg border border-border bg-surface text-left transition-colors hover:border-text-muted hover:bg-surface-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
+      <div className="aspect-[4/3] bg-background p-3">
+        <FieldDiagram diagram={play.diagram} compact showLabels markerPrefix={`card-${play.id}`} />
       </div>
       <div className="border-t border-border px-3 py-2.5">
-        <div className="flex items-start justify-between gap-2">
+        <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="truncate text-sm font-extrabold">{play.name}</div>
-            <div className="mt-0.5 truncate text-[10px] text-text-muted">{play.formation || (play.side === "offense" ? "Offense" : "Defense")}</div>
+            <div className="truncate text-[13px] font-extrabold text-text-primary">{play.name}</div>
+            <div className="mt-0.5 truncate text-[9px] font-semibold uppercase tracking-[0.05em] text-text-muted">{play.formation || (play.side === "offense" ? "Offense" : "Defense")}</div>
           </div>
-          <span className="shrink-0 rounded-full border border-border bg-background px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.06em] text-text-muted">{play.side}</span>
+          <span className="shrink-0 text-[8px] font-bold uppercase tracking-[0.08em] text-text-muted">{play.side}</span>
         </div>
-        <div className="mt-2 text-[9px] text-text-muted">Updated {formatUpdated(play.updated_at)}</div>
+        <div className="mt-2 flex min-w-0 items-center justify-between gap-3 text-[9px] text-text-muted">
+          <span className="truncate">{details.join(" · ") || "Uncategorized"}</span>
+          <span className="shrink-0 tabular-nums opacity-70">{formatUpdated(play.updated_at)}</span>
+        </div>
       </div>
     </button>
   );
@@ -351,13 +452,13 @@ function PlayCard({ play, onOpen }: { play: Play; onOpen: () => void }) {
 
 function SegmentedFilter({ value, onChange }: { value: Filter; onChange: (value: Filter) => void }) {
   return (
-    <div className="inline-grid grid-cols-3 rounded-lg border border-border bg-background p-1 text-[11px] font-bold">
+    <div className="inline-grid grid-cols-3 rounded-md border border-border bg-background p-0.5 text-[10px] font-bold">
       {(["all", "offense", "defense"] as Filter[]).map((option) => (
         <button
           key={option}
           type="button"
           onClick={() => onChange(option)}
-          className={`min-h-8 rounded-md px-3 capitalize transition-colors ${value === option ? "bg-surface-elevated text-text-primary" : "text-text-muted hover:text-text-primary"}`}
+          className={`min-h-8 rounded-[5px] px-3 capitalize transition-colors ${value === option ? "bg-surface-elevated text-text-primary" : "text-text-muted hover:text-text-primary"}`}
         >
           {option}
         </button>
@@ -392,15 +493,15 @@ function FormationPicker({
           <button type="button" onClick={onClose} className="flex h-10 w-10 items-center justify-center rounded-md border border-border text-text-muted hover:bg-surface-elevated hover:text-text-primary" aria-label="Close"><X size={18} /></button>
         </div>
         <div className="p-3 sm:p-4">
-          <div className="mb-3 inline-grid grid-cols-2 rounded-lg border border-border bg-background p-1 text-xs font-bold">
+          <div className="mb-3 inline-grid grid-cols-2 rounded-md border border-border bg-background p-0.5 text-xs font-bold">
             {(["offense", "defense"] as PlaySide[]).map((option) => (
-              <button key={option} type="button" onClick={() => onSideChange(option)} className={`min-h-9 rounded-md px-4 capitalize ${side === option ? "bg-[rgba(124,58,237,0.16)] text-[#c4b5fd]" : "text-text-muted"}`}>{option}</button>
+              <button key={option} type="button" onClick={() => onSideChange(option)} className={`min-h-9 rounded-[5px] px-4 capitalize ${side === option ? "bg-[rgba(124,58,237,0.16)] text-[#c4b5fd]" : "text-text-muted"}`}>{option}</button>
             ))}
           </div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
             {formations.map((formation) => (
-              <button key={formation.id} type="button" onClick={() => onSelect(formation)} className="overflow-hidden rounded-xl border border-border bg-background text-left transition-colors hover:border-[rgba(124,58,237,0.5)] hover:bg-surface-elevated">
-                <div className="aspect-[4/3] p-2"><FormationPreview formation={formation} /></div>
+              <button key={formation.id} type="button" onClick={() => onSelect(formation)} className="overflow-hidden rounded-lg border border-border bg-background text-left transition-colors hover:border-text-muted hover:bg-surface-elevated">
+                <div className="aspect-[4/3] p-3"><FormationPreview formation={formation} /></div>
                 <div className="border-t border-border px-3 py-2 text-xs font-extrabold">{formation.name}</div>
               </button>
             ))}
@@ -414,6 +515,8 @@ function FormationPicker({
 export function PlaybookScreen({ team }: { team: Team | null }) {
   const [plays, setPlays] = useState<Play[]>([]);
   const [filter, setFilter] = useState<Filter>("all");
+  const [view, setView] = useState<LibraryView>("editor");
+  const [viewer, setViewer] = useState<Play | null>(null);
   const [draft, setDraft] = useState<Play | null>(null);
   const [newPlayPickerOpen, setNewPlayPickerOpen] = useState(false);
   const [pickerSide, setPickerSide] = useState<PlaySide>("offense");
@@ -421,8 +524,10 @@ export function PlaybookScreen({ team }: { team: Team | null }) {
 
   useEffect(() => {
     let cancelled = false;
+    setViewer(null);
     setDraft(null);
     setFilter("all");
+    setView("editor");
     setNewPlayPickerOpen(false);
     setPersistenceMode("loading");
 
@@ -434,7 +539,7 @@ export function PlaybookScreen({ team }: { team: Team | null }) {
     const localPlays = parseStoredPlays(team.id);
     setPlays(localPlays);
 
-    void reconcileDatabasePlays(team.id, localPlays)
+    void reconcileDatabasePlays(team.id)
       .then((databasePlays) => {
         if (cancelled) return;
         setPlays(databasePlays);
@@ -443,7 +548,7 @@ export function PlaybookScreen({ team }: { team: Team | null }) {
       })
       .catch(() => {
         if (cancelled) return;
-        setPlays(localPlays);
+        setPlays(parseStoredPlays(team.id));
         setPersistenceMode("local");
       });
 
@@ -466,6 +571,7 @@ export function PlaybookScreen({ team }: { team: Team | null }) {
       persistLocal(localNext);
       setPersistenceMode("local");
       setDraft(null);
+      setView(saved.active_play ? "editor" : "library");
       return;
     }
 
@@ -480,10 +586,12 @@ export function PlaybookScreen({ team }: { team: Team | null }) {
         : [persisted, ...plays];
       persistLocal(next);
       setDraft(null);
+      setView(persisted.active_play ? "editor" : "library");
     } catch {
       persistLocal(localNext);
       setPersistenceMode("local");
       setDraft(null);
+      setView(saved.active_play ? "editor" : "library");
     }
   };
 
@@ -513,12 +621,37 @@ export function PlaybookScreen({ team }: { team: Team | null }) {
   };
 
   const filtered = useMemo(
-    () => plays.filter((play) => filter === "all" || play.side === filter).sort((a, b) => b.updated_at.localeCompare(a.updated_at)),
-    [filter, plays],
+    () => plays
+      .filter((play) => view === "editor" ? play.active_play : !play.active_play)
+      .filter((play) => filter === "all" || play.side === filter)
+      .sort((a, b) => b.updated_at.localeCompare(a.updated_at)),
+    [filter, plays, view],
   );
+
+  const editorCount = plays.filter((play) => play.active_play).length;
+  const libraryCount = plays.length - editorCount;
 
   if (!team) {
     return <section className="p-6 text-sm text-text-muted">Create or select a team to build a playbook.</section>;
+  }
+
+  if (viewer) {
+    return (
+      <PlayViewer
+        key={`viewer-${viewer.id}`}
+        play={viewer}
+        onBack={() => setViewer(null)}
+        onEdit={viewer.active_play ? () => {
+          setViewer(null);
+          setDraft(structuredClone(viewer));
+        } : undefined}
+        onMoveToEditor={!viewer.active_play ? () => {
+          const promoted = { ...structuredClone(viewer), active_play: true, updated_at: new Date().toISOString() };
+          setViewer(null);
+          void savePlay(promoted);
+        } : undefined}
+      />
+    );
   }
 
   if (draft) {
@@ -535,38 +668,49 @@ export function PlaybookScreen({ team }: { team: Team | null }) {
 
   return (
     <section className="mx-auto max-w-[1220px] px-3 pb-8 pt-[18px] sm:px-4 md:px-6 md:pt-[22px]">
-      <div className="flex flex-wrap items-end justify-between gap-3">
+      <div className="flex flex-wrap items-end justify-between gap-3 border-b border-border pb-4">
         <div>
           <h1 className="text-[24px] font-extrabold leading-none tracking-[-0.035em] md:text-[30px]">Playbook</h1>
-          <p className="mt-1.5 text-[13px] text-text-muted">Build clean, readable plays for {team.name}.</p>
+          <p className="mt-1.5 text-[12px] text-text-muted">Build and manage plays in Editor. Library is for clean viewing and playback.</p>
         </div>
         <Button onClick={() => { setPickerSide("offense"); setNewPlayPickerOpen(true); }}><FilePlus2 size={16} />New Play</Button>
       </div>
 
-      <div className="mt-5 flex items-center justify-between gap-3">
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-5 text-xs font-bold">
+          <button type="button" onClick={() => setView("editor")} className={`relative min-h-9 px-0.5 focus-visible:outline-none focus-visible:underline focus-visible:underline-offset-4 ${view === "editor" ? "text-text-primary" : "text-text-muted hover:text-text-primary"}`}>
+            Editor <span className="ml-1 text-[10px] text-text-muted">{editorCount}</span>
+            {view === "editor" && <span className="absolute inset-x-0 -bottom-[7px] h-0.5 bg-accent" />}
+          </button>
+          <button type="button" onClick={() => setView("library")} className={`relative min-h-9 px-0.5 focus-visible:outline-none focus-visible:underline focus-visible:underline-offset-4 ${view === "library" ? "text-text-primary" : "text-text-muted hover:text-text-primary"}`}>
+            Library <span className="ml-1 text-[10px] text-text-muted">{libraryCount}</span>
+            {view === "library" && <span className="absolute inset-x-0 -bottom-[7px] h-0.5 bg-accent" />}
+          </button>
+        </div>
         <SegmentedFilter value={filter} onChange={setFilter} />
-        <span className="text-[10px] font-bold text-text-muted">{filtered.length} play{filtered.length === 1 ? "" : "s"}</span>
       </div>
 
       {filtered.length === 0 ? (
-        <div className="mt-4 flex min-h-[360px] flex-col items-center justify-center rounded-xl border border-dashed border-border bg-surface/60 p-8 text-center">
-          <Route size={34} className="text-text-muted" />
-          <h2 className="mt-4 text-lg font-extrabold">{plays.length ? `No ${filter} plays yet` : "Start the playbook"}</h2>
-          <p className="mt-1 max-w-sm text-sm leading-5 text-text-muted">Choose a formation, assign real football routes, then adjust the geometry on the field.</p>
-          <Button className="mt-5" onClick={() => { setPickerSide("offense"); setNewPlayPickerOpen(true); }}><Plus size={16} />Create first play</Button>
+        <div className="mt-5 flex min-h-[200px] flex-col items-center justify-center py-8 text-center">
+          <Route size={24} className="text-text-muted" />
+          <h2 className="mt-3 text-sm font-extrabold">{view === "editor" ? "No plays in Editor" : "Library is empty"}</h2>
+          <p className="mt-1 max-w-sm text-xs leading-5 text-text-muted">
+            {view === "editor" ? "New plays start here. Move finished or reference plays to Library." : "Move a play from Editor to Library when you only need to view and run it."}
+          </p>
+          {view === "editor" && <Button className="mt-4" onClick={() => { setPickerSide("offense"); setNewPlayPickerOpen(true); }}><Plus size={16} />Create play</Button>}
         </div>
       ) : (
-        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-          {filtered.map((play) => <PlayCard key={play.id} play={play} onOpen={() => setDraft(structuredClone(play))} />)}
+        <div className="mt-4 grid grid-cols-[repeat(auto-fill,minmax(250px,290px))] justify-start gap-3">
+          {filtered.map((play) => <PlayCard key={play.id} play={play} onOpen={() => setViewer(structuredClone(play))} />)}
         </div>
       )}
 
-      <div className={`mt-5 rounded-lg border px-3 py-2.5 text-[10px] leading-4 ${persistenceMode === "local" ? "border-warning/45 bg-warning/5 text-warning" : "border-border bg-surface text-text-muted"}`}>
+      <div className="mt-5 text-[10px] leading-4 text-text-muted">
         {persistenceMode === "database"
-          ? "Saved to the team database. This playbook is available on any signed-in device with team access."
+          ? <span><span className="mr-1 text-success">●</span>Saved to team database</span>
           : persistenceMode === "local"
-            ? "Team database is unavailable right now. Changes are cached on this device and will reconcile when the playbook reconnects."
-            : "Loading the team playbook…"}
+            ? <span title="Changes are cached on this device and will reconcile automatically when the team database reconnects."><span className="mr-1 text-warning">●</span>Saved locally — database unavailable</span>
+            : <span>Loading team playbook…</span>}
       </div>
 
       {newPlayPickerOpen && (
@@ -620,7 +764,6 @@ function PlayEditor({
   const svgRef = useRef<SVGSVGElement | null>(null);
 
   const selectedPlayer = draft.diagram.players.find((player) => player.id === selectedPlayerId) ?? null;
-  const selectedAssignment = draft.diagram.assignments.find((assignment) => assignment.id === selectedAssignmentId) ?? null;
   const selectedRoute = selectedPlayer
     ? draft.diagram.assignments.find((assignment) => assignment.player_id === selectedPlayer.id && assignment.kind === "route") ?? null
     : null;
@@ -860,6 +1003,7 @@ function PlayEditor({
       ...draft,
       name: draft.name.trim() || "Untitled Play",
       formation: draft.formation.trim(),
+      concept: draft.concept.trim(),
       notes: draft.notes.trim(),
       updated_at: timestamp,
     });
@@ -897,7 +1041,7 @@ function PlayEditor({
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_330px]">
         <div className="min-w-0">
-          <div className="relative aspect-[4/5] max-h-[760px] min-h-[500px] overflow-hidden rounded-xl border border-border bg-background sm:aspect-[5/4] xl:aspect-[4/3]">
+          <div className="relative aspect-[4/5] max-h-[760px] min-h-[500px] overflow-hidden rounded-lg border border-border bg-background sm:aspect-[5/4] xl:aspect-[4/3]">
             <svg
               ref={svgRef}
               viewBox="0 0 100 100"
@@ -909,31 +1053,36 @@ function PlayEditor({
               aria-label="Play editor field"
             >
               <FieldLines />
-              <AssignmentLines diagram={draft.diagram} markerPrefix="editor" />
+              <AssignmentLines diagram={draft.diagram} markerPrefix="editor" selectedAssignmentId={selectedAssignmentId} />
               {draft.diagram.assignments.map((assignment) => {
                 if (assignment.id !== selectedAssignmentId) return null;
                 const end = assignmentEnd(assignment);
+                const player = playerForAssignment(draft.diagram, assignment.player_id);
+                const primary = player ? isPrimaryPlayer(draft.diagram, player.id) : false;
+                const color = player ? playerColor(player, primary) : "var(--text-primary)";
                 return (
                   <circle
                     key={`handle-${assignment.id}`}
                     cx={end.x}
                     cy={end.y}
-                    r="3.2"
-                    className="fill-background stroke-accent cursor-grab active:cursor-grabbing"
-                    strokeWidth="1.4"
+                    r="2.55"
+                    fill="var(--background)"
+                    stroke={color}
+                    className="cursor-grab active:cursor-grabbing"
+                    strokeWidth="0.95"
                     onPointerDown={(event) => handleAssignmentPointerDown(event, assignment.id)}
                   />
                 );
               })}
               {draft.diagram.players.map((player) => {
                 const selected = player.id === selectedPlayerId;
-                const primary = draft.diagram.primary_target_player_id === player.id;
+                const primary = isPrimaryPlayer(draft.diagram, player.id);
+                const color = playerColor(player, primary);
                 return (
                   <g key={player.id} onPointerDown={(event) => handlePlayerPointerDown(event, player.id)} className="cursor-grab active:cursor-grabbing">
-                    {primary && <circle cx={player.x} cy={player.y} r="7" fill="none" className="stroke-accent" strokeWidth="1" strokeDasharray="2 1.5" opacity="0.9" />}
-                    {selected && <circle cx={player.x} cy={player.y} r="6" fill="none" className="stroke-accent" strokeWidth="1.2" opacity="0.8" />}
-                    <circle cx={player.x} cy={player.y} r="4.5" className={selected ? "fill-accent stroke-background" : "fill-surface stroke-text-secondary"} strokeWidth="1.2" />
-                    <text x={player.x} y={player.y + 1.15} textAnchor="middle" className={selected ? "fill-white text-[3.2px] font-black" : "fill-text-primary text-[3.2px] font-black"}>{player.label}</text>
+                    {selected && <circle cx={player.x} cy={player.y} r="5.25" fill="none" className="stroke-text-primary" strokeWidth="0.85" opacity="0.82" />}
+                    <circle cx={player.x} cy={player.y} r="3.95" fill={color} className="stroke-background" strokeWidth="0.95" />
+                    <text x={player.x} y={player.y + 1.03} textAnchor="middle" fill={playerTextColor(primary)} className="text-[2.85px] font-black">{player.label}</text>
                   </g>
                 );
               })}
@@ -963,7 +1112,7 @@ function PlayEditor({
           </div>
         </div>
 
-        <aside className="space-y-3">
+        <aside className="space-y-4">
           <section className="hidden rounded-xl border border-border bg-surface p-4 xl:block">
             <PlayerControls
               side={draft.side}
@@ -982,13 +1131,53 @@ function PlayEditor({
             />
           </section>
 
-          <section className="rounded-xl border border-border bg-surface p-4">
-            <div className="text-sm font-extrabold">Notes</div>
-            <textarea value={draft.notes} onChange={(event) => setDraft((current) => ({ ...current, notes: event.target.value }))} placeholder="Read, progression, coaching point…" rows={5} className="mt-3 w-full resize-none rounded-lg border border-border bg-background p-3 text-sm leading-5 text-text-primary outline-none placeholder:text-text-muted focus:border-accent" />
+          <section className="border-t border-border pt-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-sm font-extrabold">Play details</div>
+                <div className="mt-0.5 text-[10px] text-text-muted">Editor plays can be changed. Library plays are view-only.</div>
+              </div>
+              <button type="button" onClick={() => setDraft((current) => ({ ...current, active_play: !current.active_play }))} className="shrink-0 text-[10px] font-bold text-text-muted underline decoration-border underline-offset-4 transition-colors hover:text-text-primary">
+                {draft.active_play ? "Move to Library" : "Move to Editor"}
+              </button>
+            </div>
+
+            <div className="mt-4 flex items-center justify-between border-b border-border pb-3 text-[10px]">
+              <span className="font-bold uppercase tracking-[0.08em] text-text-muted">Location</span>
+              <span className="font-extrabold text-text-primary">{draft.active_play ? "Editor" : "Library"}</span>
+            </div>
+
+            <div className="mt-3 text-[9px] font-bold uppercase tracking-[0.08em] text-text-muted">Type</div>
+            <div className="mt-2 grid grid-cols-3 gap-1.5">
+              {PLAY_TYPES.map((option) => (
+                <button key={option.value} type="button" onClick={() => setDraft((current) => ({ ...current, play_type: option.value }))} className={`min-h-8 rounded-md border text-[10px] font-extrabold ${draft.play_type === option.value ? "border-[rgba(124,58,237,0.45)] bg-[rgba(124,58,237,0.12)] text-[#c4b5fd]" : "border-border bg-background text-text-secondary"}`}>
+                  {option.label}
+                </button>
+              ))}
+            </div>
+
+            <label className="mt-3 grid gap-1 text-[9px] font-bold uppercase tracking-[0.08em] text-text-muted">
+              Concept
+              <input value={draft.concept} onChange={(event) => setDraft((current) => ({ ...current, concept: event.target.value.slice(0, 80) }))} placeholder="Flood, Mesh, Slant…" className="h-9 rounded-md border border-border bg-background px-3 text-sm font-semibold normal-case tracking-normal text-text-primary outline-none placeholder:text-text-muted focus:border-accent" />
+            </label>
+
+            <div className="mt-3 text-[9px] font-bold uppercase tracking-[0.08em] text-text-muted">Situation</div>
+            <div className="mt-2 grid grid-cols-2 gap-1.5">
+              {SITUATIONS.map((option) => (
+                <button key={option.value} type="button" onClick={() => setDraft((current) => ({ ...current, situation: option.value }))} className={`min-h-8 rounded-md border px-2 text-[10px] font-bold ${draft.situation === option.value ? "border-[rgba(124,58,237,0.45)] bg-[rgba(124,58,237,0.12)] text-[#c4b5fd]" : "border-border bg-background text-text-secondary"}`}>
+                  {option.label}
+                </button>
+              ))}
+            </div>
           </section>
 
-          <section className="rounded-xl border border-border bg-surface p-4 text-xs leading-5 text-text-muted">
-            <strong className="text-text-primary">Smart routes:</strong> select a player, tap a route, then drag the route endpoint. fld.LAB keeps the route geometry clean while you change depth and direction.
+          <section className="border-t border-border pt-4">
+            <div className="text-sm font-extrabold">Notes</div>
+            <textarea value={draft.notes} onChange={(event) => setDraft((current) => ({ ...current, notes: event.target.value }))} placeholder="Read, progression, coaching point…" rows={4} className="mt-3 w-full resize-none rounded-md border border-border bg-background p-3 text-sm leading-5 text-text-primary outline-none placeholder:text-text-muted focus:border-accent" />
+          </section>
+
+          <section className="border-t border-border pt-4 text-[11px] leading-5 text-text-muted">
+            <strong className="text-text-primary">Smart routes:</strong> select a player, tap a route, then drag the endpoint. fld.LAB keeps the route geometry clean.
           </section>
         </aside>
       </div>
@@ -1067,7 +1256,7 @@ function PlayerControls({
             {ROUTE_TEMPLATES.map((template) => {
               const active = route?.template === template.id;
               return (
-                <button key={template.id} type="button" onClick={() => onChooseRoute(template.id)} className={`min-h-11 rounded-lg border px-1 text-[10px] font-extrabold transition-colors ${active ? "border-[rgba(124,58,237,0.55)] bg-[rgba(124,58,237,0.18)] text-[#c4b5fd]" : "border-border bg-background text-text-secondary hover:bg-surface-elevated"}`}>
+                <button key={template.id} type="button" onClick={() => onChooseRoute(template.id)} className={`min-h-10 rounded-md border px-1 text-[10px] font-extrabold transition-colors ${active ? "border-[rgba(124,58,237,0.5)] bg-[rgba(124,58,237,0.14)] text-[#c4b5fd]" : "border-border bg-background text-text-secondary hover:bg-surface-elevated"}`}>
                   {template.label}
                 </button>
               );
@@ -1075,8 +1264,8 @@ function PlayerControls({
           </div>
 
           <div className="mt-3 grid grid-cols-2 gap-2">
-            <Button variant={motion ? "default" : "secondary"} className="min-h-10 px-3 text-xs" onClick={onToggleMotion}><MoveRight size={15} />{motion ? "Motion on" : "Motion"}</Button>
-            <Button variant={primary ? "default" : "secondary"} className="min-h-10 px-3 text-xs" onClick={onTogglePrimary}><Target size={15} />{primary ? "Primary" : "Set primary"}</Button>
+            <Button variant={motion ? "default" : "secondary"} className="min-h-9 px-3 text-xs" onClick={onToggleMotion}><MoveRight size={15} />{motion ? "Motion on" : "Motion"}</Button>
+            <Button variant={primary ? "default" : "secondary"} className="min-h-9 px-3 text-xs" onClick={onTogglePrimary}><Target size={15} />{primary ? "Primary" : "Set primary"}</Button>
           </div>
           {motion && <button type="button" onClick={() => onSelectAssignment(motion.id)} className="mt-2 w-full text-center text-[10px] font-bold text-text-muted hover:text-text-primary">Adjust motion endpoint</button>}
         </>
@@ -1087,8 +1276,8 @@ function PlayerControls({
       )}
 
       <div className="mt-3 grid grid-cols-2 gap-2">
-        <Button variant="secondary" className="min-h-10 px-3 text-xs" onClick={onClear}><Eraser size={15} />Clear</Button>
-        <Button variant="secondary" className="min-h-10 px-3 text-xs" onClick={onAddPlayer}><Plus size={15} />Player</Button>
+        <Button variant="secondary" className="min-h-9 px-3 text-xs" onClick={onClear}><Eraser size={15} />Clear</Button>
+        <Button variant="secondary" className="min-h-9 px-3 text-xs" onClick={onAddPlayer}><Plus size={15} />Player</Button>
       </div>
     </div>
   );
