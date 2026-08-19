@@ -432,35 +432,20 @@ export function defaultRouteEnd(template: RouteTemplate, start: Point): Point {
   }
 }
 
-function cubicBezierPoint(start: Point, control1: Point, control2: Point, end: Point, t: number): Point {
-  const inverse = 1 - t;
-  const x = (inverse ** 3 * start.x)
-    + (3 * inverse ** 2 * t * control1.x)
-    + (3 * inverse * t ** 2 * control2.x)
-    + (t ** 3 * end.x);
-  const y = (inverse ** 3 * start.y)
-    + (3 * inverse ** 2 * t * control1.y)
-    + (3 * inverse * t ** 2 * control2.y)
-    + (t ** 3 * end.y);
-  return point(x, y);
-}
-
 function buildWheelCurve(start: Point, end: Point): Point[] {
   const normalizedStart = point(start.x, start.y);
   const direction = Math.sign(end.x - start.x) || outsideSign(start);
   const horizontalDistance = Math.max(10, Math.abs(end.x - start.x));
-  const control1 = point(
-    start.x + direction * Math.min(16, horizontalDistance * 0.7),
+  const flat = point(
+    start.x + direction * Math.min(14, horizontalDistance * 0.6),
     start.y,
   );
-  const control2 = point(
+  const turn = point(
     end.x,
-    Math.max(end.y + 7, start.y - 4),
+    Math.max(end.y + 9, Math.min(LOS_Y + 2, start.y - 6)),
   );
 
-  return Array.from({ length: 8 }, (_, index) => (
-    cubicBezierPoint(normalizedStart, control1, control2, end, index / 7)
-  ));
+  return [normalizedStart, flat, turn, end];
 }
 
 export function buildRoutePoints(template: RouteTemplate, start: Point, requestedEnd?: Point): Point[] {
@@ -488,6 +473,15 @@ export function buildRoutePoints(template: RouteTemplate, start: Point, requeste
     case "wheel":
       return buildWheelCurve(normalizedStart, end);
   }
+}
+
+export function updateRouteEndpoint(assignment: DiagramAssignment, start: Point, requestedEnd: Point): Point[] {
+  if (assignment.kind !== "route" || assignment.points.length < 2) return assignment.points;
+  const end = assignment.template
+    ? semanticRouteEnd(assignment.template, start, point(requestedEnd.x, requestedEnd.y))
+    : point(requestedEnd.x, requestedEnd.y);
+  const lastIndex = assignment.points.length - 1;
+  return assignment.points.map((candidate, index) => index === lastIndex ? end : candidate);
 }
 
 export function defaultMotionEnd(start: Point) {
