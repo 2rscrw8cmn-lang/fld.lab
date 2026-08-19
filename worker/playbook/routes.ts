@@ -1,6 +1,6 @@
 import type { D1Database } from "@cloudflare/workers-types";
 
-import { createPlay, getPlay, listPlays, updatePlay, type PlayInput } from "../db/plays";
+import { createPlay, getPlay, listPlays, updatePlay, type PlayInput, type PlaySituation, type PlayType } from "../db/plays";
 import { RepositoryError } from "../db/repository";
 
 type JsonObject = Record<string, unknown>;
@@ -21,6 +21,8 @@ type PlayDiagram = {
 };
 
 const ROUTE_TEMPLATES = new Set(["go", "slant", "out", "in", "post", "corner", "hitch", "drag"]);
+const PLAY_TYPES = new Set<PlayType>(["pass", "run", "option"]);
+const PLAY_SITUATIONS = new Set<PlaySituation>(["any", "short", "medium", "deep", "no-run", "goal-line", "conversion"]);
 
 function errorResponse(code: string, message: string, status: number, fields?: Record<string, string>) {
   return Response.json(
@@ -124,6 +126,16 @@ function parsePlayInput(body: JsonObject): { input?: PlayInput; fields: Record<s
   const formationId = optionalString(body.formation_id, 80);
   const formation = typeof body.formation === "string" && body.formation.trim().length <= 120 ? body.formation.trim() : undefined;
   const notes = typeof body.notes === "string" && body.notes.length <= 4000 ? body.notes.trim() : undefined;
+  const concept = body.concept === undefined
+    ? ""
+    : typeof body.concept === "string" && body.concept.trim().length <= 80 ? body.concept.trim() : undefined;
+  const playType = body.play_type === undefined
+    ? "pass"
+    : typeof body.play_type === "string" && PLAY_TYPES.has(body.play_type as PlayType) ? body.play_type as PlayType : undefined;
+  const situation = body.situation === undefined
+    ? "any"
+    : typeof body.situation === "string" && PLAY_SITUATIONS.has(body.situation as PlaySituation) ? body.situation as PlaySituation : undefined;
+  const activePlay = body.active_play === undefined ? true : typeof body.active_play === "boolean" ? body.active_play : undefined;
   const diagram = validateDiagram(body.diagram);
 
   if (!name) fields.name = "Required; maximum 120 characters";
@@ -131,6 +143,10 @@ function parsePlayInput(body: JsonObject): { input?: PlayInput; fields: Record<s
   if (body.formation_id !== undefined && formationId === undefined) fields.formation_id = "Must be a string or null";
   if (formation === undefined) fields.formation = "Must be a string up to 120 characters";
   if (notes === undefined) fields.notes = "Must be a string up to 4000 characters";
+  if (concept === undefined) fields.concept = "Must be a string up to 80 characters";
+  if (playType === undefined) fields.play_type = "Must be pass, run, or option";
+  if (situation === undefined) fields.situation = "Must be a supported play situation";
+  if (activePlay === undefined) fields.active_play = "Must be a boolean";
   if (!diagram) fields.diagram = "Must be a valid Playbook schema v2 diagram";
 
   if (Object.keys(fields).length) return { fields };
@@ -141,6 +157,10 @@ function parsePlayInput(body: JsonObject): { input?: PlayInput; fields: Record<s
       side: side!,
       formation_id: formationId ?? null,
       formation: formation!,
+      play_type: playType!,
+      concept: concept!,
+      situation: situation!,
+      active_play: activePlay!,
       notes: notes!,
       diagram: diagram!,
     },
@@ -205,6 +225,10 @@ export async function handlePlaybookApi(request: Request, db: D1Database): Promi
           side: current.side,
           formation_id: current.formation_id,
           formation: current.formation,
+          play_type: current.play_type,
+          concept: current.concept,
+          situation: current.situation,
+          active_play: current.active_play,
           notes: current.notes,
           diagram: current.diagram,
           archived: body.archived,
