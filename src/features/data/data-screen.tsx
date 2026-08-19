@@ -71,10 +71,11 @@ function changeCopy(group: AthleteResultGroup | null) {
   const formatted = group.metric.type === "time"
     ? `${(absolute / 1000).toFixed(2)}s`
     : formatResult(absolute, { ...group.metric, total_attempts: null, max: null });
-  return {
-    improved: group.summary.improved_from_previous,
-    text: group.summary.improved_from_previous ? `${formatted} better than previous` : `${formatted} off previous`,
-  };
+  const improved = group.summary.improved_from_previous;
+  const text = group.metric.type === "time"
+    ? `${formatted} ${improved ? "faster" : "slower"} than previous`
+    : `${formatted} ${improved ? "better" : "worse"} than previous`;
+  return { improved, text };
 }
 
 function LineChart({
@@ -125,13 +126,101 @@ function LineChart({
 }
 
 function ProgressChart({ group }: { group: AthleteResultGroup }) {
-  const points = [...group.results].reverse();
+  const sessions = [...group.results].reverse();
+  if (!sessions.length) {
+    return (
+      <div className="flex min-h-[130px] items-center justify-center rounded-lg border border-border bg-background px-4 text-center text-xs text-text-muted">
+        Complete this drill to start a progress chart.
+      </div>
+    );
+  }
+
+  const width = 640;
+  const height = 150;
+  const padX = 40;
+  const padY = 20;
+  const attemptValues = sessions.flatMap((session) => session.attempts.map((attempt) => attempt.value));
+  const allValues = [...attemptValues, ...sessions.map((session) => session.value)];
+  const min = Math.min(...allValues);
+  const max = Math.max(...allValues);
+  const span = Math.max(max - min, Math.max(Math.abs(max), 1) * 0.05);
+  const plotWidth = width - padX * 2;
+  const sessionX = (index: number) => sessions.length === 1
+    ? width / 2
+    : padX + (index / (sessions.length - 1)) * plotWidth;
+  const y = (value: number) => padY + ((max + span * 0.08 - value) / (span * 1.16)) * (height - padY * 2);
+  const sessionSpacing = sessions.length > 1 ? plotWidth / (sessions.length - 1) : plotWidth;
+  const clusterWidth = Math.min(44, Math.max(20, sessionSpacing * 0.32));
+  const attemptX = (sessionIndex: number, attemptIndex: number, attemptCount: number) => {
+    if (attemptCount <= 1) return sessionX(sessionIndex);
+    return sessionX(sessionIndex) + ((attemptIndex / (attemptCount - 1)) - 0.5) * clusterWidth;
+  };
+  const sessionPolyline = sessions.map((session, index) => `${sessionX(index)},${y(session.value)}`).join(" ");
+  const dates = sessions.map((session) => session.started_at);
+  const useTime = sameDay(dates);
+  const totalAttempts = sessions.reduce((sum, session) => sum + session.attempts.length, 0);
+  const sessionLabel = (value: string) => useTime ? formatTime(value) : formatDate(value);
+
   return (
-    <LineChart
-      values={points.map((point) => point.value)}
-      dates={points.map((point) => point.started_at)}
-      ariaLabel={`${group.drill.name} progress chart`}
-    />
+    <div className="overflow-hidden rounded-lg border border-border bg-background px-2 py-2">
+      <svg viewBox={`0 0 ${width} ${height}`} className="h-[150px] w-full" role="img" aria-label={`${group.drill.name} attempts grouped by session with session-result trend`}>
+        <line x1={padX} y1={height - padY} x2={width - padX} y2={height - padY} className="stroke-border" strokeWidth="1" />
+        {sessions.map((session, sessionIndex) => (
+          <line
+            key={`guide-${session.session_id}`}
+            x1={sessionX(sessionIndex)}
+            y1={padY}
+            x2={sessionX(sessionIndex)}
+            y2={height - padY}
+            className="stroke-border"
+            strokeWidth="1"
+            opacity="0.45"
+          />
+        ))}
+        {sessions.length > 1 && (
+          <polyline points={sessionPolyline} fill="none" className="stroke-accent" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+        )}
+        {sessions.flatMap((session, sessionIndex) => session.attempts.map((attempt, attemptIndex) => (
+          <circle
+            key={attempt.id}
+            cx={attemptX(sessionIndex, attemptIndex, session.attempts.length)}
+            cy={y(attempt.value)}
+            r="4"
+            className="fill-background stroke-text-muted"
+            strokeWidth="2"
+          >
+            <title>{`Attempt ${attempt.attempt_number}: ${formatResult(attempt.value, session.metric)}`}</title>
+          </circle>
+        )))}
+        {sessions.map((session, sessionIndex) => (
+          <circle
+            key={`result-${session.session_id}`}
+            cx={sessionX(sessionIndex)}
+            cy={y(session.value)}
+            r="6"
+            className="fill-accent stroke-background"
+            strokeWidth="3"
+          >
+            <title>{`Session result: ${formatResult(session.value, session.metric)}`}</title>
+          </circle>
+        ))}
+      </svg>
+      {sessions.length === 1 ? (
+        <div className="px-3 pb-1 text-center text-[10px] text-text-muted">
+          {sessionLabel(sessions[0].started_at)} · {totalAttempts} attempt{totalAttempts === 1 ? "" : "s"}
+        </div>
+      ) : (
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 px-3 pb-1 text-[10px] text-text-muted">
+          <span>{sessionLabel(sessions[0].started_at)}</span>
+          <span>{sessions.length} sessions · {totalAttempts} attempts</span>
+          <span className="text-right">{sessionLabel(sessions[sessions.length - 1].started_at)}</span>
+        </div>
+      )}
+      <div className="flex justify-center gap-4 px-3 pb-1 pt-1 text-[9px] text-text-muted">
+        <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full border border-text-muted bg-background" />Attempt</span>
+        <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-accent" />Session result</span>
+      </div>
+    </div>
   );
 }
 
@@ -157,7 +246,7 @@ function TeamTrendCard({ trend }: { trend: TeamDrillTrend | null }) {
               height={150}
             />
             <div className="mt-2 flex items-center justify-between gap-3 text-[10px] text-text-muted">
-              <span>{points[points.length - 1].athlete_count} athletes in latest average</span>
+              <span>{points[points.length - 1].athlete_count} athlete{points[points.length - 1].athlete_count === 1 ? "" : "s"} in latest average</span>
               <span className="font-bold text-text-secondary">{formatResult(points[points.length - 1].average, trend.metric)}</span>
             </div>
           </>
@@ -179,13 +268,12 @@ function statusBadge(status: SessionSummary["status"] | SessionDetail["session"]
 
 function SessionDetailDrawer({ detail, loading, onClose }: { detail: SessionDetail | null; loading: boolean; onClose: () => void }) {
   if (!detail && !loading) return null;
-  const metric = detail ? deriveSessionAthleteResult(detail.drill_definition, detail.attempts)?.metric ?? null : null;
 
   return (
     <div className="fixed inset-0 z-[80] flex justify-end bg-black/45" role="dialog" aria-modal="true" aria-label="Session detail">
       <button type="button" className="absolute inset-0 cursor-default" aria-label="Close session detail" onClick={onClose} />
-      <aside className="relative z-10 h-full w-full max-w-[600px] overflow-y-auto border-l border-border bg-surface shadow-2xl">
-        <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-border bg-surface px-4 py-4 sm:px-5">
+      <aside className="relative z-10 h-full w-full max-w-[600px] overflow-y-auto border-l border-border bg-surface pb-[env(safe-area-inset-bottom)] shadow-2xl">
+        <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-border bg-surface px-4 pb-4 pt-[calc(16px+env(safe-area-inset-top))] sm:px-5">
           <div className="min-w-0">
             <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-text-muted">Session detail</div>
             <h2 className="mt-0.5 truncate text-xl font-extrabold">{detail?.drill_definition.name ?? "Loading…"}</h2>
@@ -201,8 +289,8 @@ function SessionDetailDrawer({ detail, loading, onClose }: { detail: SessionDeta
         ) : (
           <div className="p-4 sm:p-5">
             <div className="mb-3 flex items-center justify-between gap-3 text-xs text-text-muted">
-              <span>{detail.athletes.length} athletes · {detail.attempts.length} saved attempts</span>
-              <span>{detail.drill_definition.attempts.count} attempt{detail.drill_definition.attempts.count === 1 ? "" : "s"} planned</span>
+              <span>{detail.athletes.length} athlete{detail.athletes.length === 1 ? "" : "s"} · {detail.attempts.length} saved attempt{detail.attempts.length === 1 ? "" : "s"}</span>
+              <span>{detail.drill_definition.attempts.count} attempt{detail.drill_definition.attempts.count === 1 ? "" : "s"} per athlete</span>
             </div>
             <div className="overflow-hidden rounded-xl border border-border bg-background">
               {detail.athletes.map((athlete) => {
@@ -241,7 +329,6 @@ function SessionDetailDrawer({ detail, loading, onClose }: { detail: SessionDeta
                 );
               })}
             </div>
-            {metric && <p className="mt-3 text-[10px] text-text-muted">Session results use the exact drill version captured when this session started.</p>}
           </div>
         )}
       </aside>
@@ -395,7 +482,7 @@ export function DataScreen({ team }: { team: Team | null }) {
                     <div className="truncate text-base font-extrabold">{selectedAthlete ? athleteName(selectedAthlete) : "Athlete"}</div>
                     <div className="truncate text-xs text-text-muted">{selectedDrill?.name ?? "Select a drill"}</div>
                   </div>
-                  {group?.summary.result_count ? <span className="text-[11px] font-bold text-text-muted">{group.summary.result_count} result{group.summary.result_count === 1 ? "" : "s"}</span> : null}
+                  {group?.summary.result_count ? <span className="text-[11px] font-bold text-text-muted">{group.summary.result_count} session{group.summary.result_count === 1 ? "" : "s"}</span> : null}
                 </div>
 
                 {!group ? (
@@ -409,7 +496,7 @@ export function DataScreen({ team }: { team: Team | null }) {
                     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                       <div className="rounded-lg border border-border bg-background p-3">
                         <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-text-muted">Personal best</div>
-                        <div className="mt-1 text-2xl font-black tabular-nums">{formatResult(group.summary.pb, group.metric)}</div>
+                        <div className="mt-1 text-2xl font-black tabular-nums text-success">{formatResult(group.summary.pb, group.metric)}</div>
                       </div>
                       <div className="rounded-lg border border-border bg-background p-3">
                         <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-text-muted">Latest</div>
@@ -421,7 +508,7 @@ export function DataScreen({ team }: { team: Team | null }) {
                           <div className={`mt-1 flex items-center gap-1.5 text-sm font-extrabold ${change.improved ? "text-success" : "text-text-secondary"}`}>
                             {change.improved ? <TrendingUp size={16} /> : <TrendingDown size={16} />}{change.text}
                           </div>
-                        ) : <div className="mt-1 text-sm font-bold text-text-muted">Need 2 results</div>}
+                        ) : <div className="mt-1 text-sm font-bold text-text-muted">Need 2 sessions</div>}
                       </div>
                     </div>
 
@@ -434,7 +521,7 @@ export function DataScreen({ team }: { team: Team | null }) {
               </div>
 
               <div className="overflow-hidden rounded-xl border border-border bg-surface">
-                <div className="border-b border-border px-4 py-3 text-sm font-extrabold">Result history</div>
+                <div className="border-b border-border px-4 py-3 text-sm font-extrabold">Session history</div>
                 {!group?.results.length ? (
                   <div className="p-5 text-sm text-text-muted">No completed-session history for this athlete and drill.</div>
                 ) : (
@@ -481,7 +568,7 @@ export function DataScreen({ team }: { team: Team | null }) {
                           <span className="text-center text-xs font-black tabular-nums text-text-muted">{entry.rank ?? "—"}</span>
                           <span className="min-w-0">
                             <span className="block truncate text-xs font-extrabold">{entry.membership.jersey_number ? `#${entry.membership.jersey_number} ` : ""}{entry.athlete.first_name} {entry.athlete.last_name}</span>
-                            <span className="block truncate text-[10px] text-text-muted">{[entry.membership.primary_position, entry.membership.secondary_position].filter(Boolean).join(" / ") || `${entry.result_count} result${entry.result_count === 1 ? "" : "s"}`}</span>
+                            <span className="block truncate text-[10px] text-text-muted">{[entry.membership.primary_position, entry.membership.secondary_position].filter(Boolean).join(" / ") || `${entry.result_count} session${entry.result_count === 1 ? "" : "s"}`}</span>
                           </span>
                           <span className="text-right">
                             <span className="block text-sm font-black tabular-nums">{formatResult(entry.pb, leaderboard.metric)}</span>
@@ -516,9 +603,9 @@ export function DataScreen({ team }: { team: Team | null }) {
                     </span>
                     <span className="min-w-0">
                       <span className="flex flex-wrap items-center gap-2"><strong className="truncate text-xs">{session.drill_name}</strong>{statusBadge(session.status)}</span>
-                      <span className="mt-0.5 block text-[10px] text-text-muted">{formatDateTime(session.started_at)} · {session.attempt_count} attempts</span>
+                      <span className="mt-0.5 block text-[10px] text-text-muted">{formatDateTime(session.started_at)} · {session.attempt_count} attempt{session.attempt_count === 1 ? "" : "s"}</span>
                     </span>
-                    <span className="text-right text-[10px] text-text-muted"><strong className="block text-xs text-text-secondary">{session.completed_count} complete</strong>{session.skipped_count ? `${session.skipped_count} skipped` : `${session.athlete_count} athletes`}</span>
+                    <span className="text-right text-[10px] text-text-muted"><strong className="block text-xs text-text-secondary">{session.completed_count} complete</strong>{session.skipped_count ? `${session.skipped_count} skipped` : `${session.athlete_count} athlete${session.athlete_count === 1 ? "" : "s"}`}</span>
                     <ChevronRight size={14} className="text-text-muted" />
                   </button>
                 ))}
