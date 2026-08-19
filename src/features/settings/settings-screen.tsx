@@ -9,10 +9,12 @@ import {
   RotateCcw,
   ShieldCheck,
   UserRound,
+  Users,
   X,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { TeamAccessPanel } from "@/features/settings/team-access-panel";
 import { createTeam, getCurrentCoach, type CurrentCoach, type Team } from "@/lib/api";
 import { listAllTeams, patchTeam } from "@/lib/team-admin-api";
 
@@ -58,6 +60,7 @@ export function SettingsScreen({
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [editor, setEditor] = useState<Team | null | undefined>(undefined);
+  const [accessTeam, setAccessTeam] = useState<Team | null>(null);
   const [form, setForm] = useState<TeamForm>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
@@ -100,6 +103,7 @@ export function SettingsScreen({
   };
 
   const openEdit = (team: Team) => {
+    if (team.access_role !== "owner") return;
     setEditor(team);
     setForm(formFromTeam(team));
     setSaveError("");
@@ -146,13 +150,8 @@ export function SettingsScreen({
   };
 
   const setTeamActive = async (team: Team, active: boolean) => {
-    if (!active) {
-      if (team.id === currentTeamId && teamSwitchDisabled) return;
-      const confirmed = window.confirm(
-        `Archive ${team.name}${team.season_label ? ` — ${team.season_label}` : ""}? Its roster and training history will be preserved.`,
-      );
-      if (!confirmed) return;
-    }
+    if (team.access_role !== "owner") return;
+    if (!active && team.id === currentTeamId && teamSwitchDisabled) return;
 
     setUpdatingId(team.id);
     setLoadError("");
@@ -179,7 +178,7 @@ export function SettingsScreen({
         <section className="overflow-hidden rounded-xl border border-border bg-surface">
           <div className="border-b border-border px-4 py-3">
             <div className="text-sm font-extrabold">Coach profile</div>
-            <div className="mt-0.5 text-[11px] text-text-muted">Operator identity for fld.LAB</div>
+            <div className="mt-0.5 text-[11px] text-text-muted">Signed-in identity for fld.LAB</div>
           </div>
           <div className="p-4">
             <div className="flex items-start gap-3">
@@ -215,7 +214,7 @@ export function SettingsScreen({
               <p className="mt-4 text-xs leading-5 text-text-muted">
                 {coach?.provider === "development"
                   ? "Local development uses a fictional coach identity. Production must use the configured Cloudflare Access account."
-                  : "This v1 deployment authorizes one verified coach account. Multi-coach roles and team sharing remain a later product decision."}
+                  : "Cloudflare verifies this identity. Team access below determines which rosters, sessions, and results this account can use."}
               </p>
             )}
 
@@ -236,7 +235,7 @@ export function SettingsScreen({
           <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
             <div>
               <div className="text-sm font-extrabold">Teams</div>
-              <div className="mt-0.5 text-[11px] text-text-muted">Create seasons, edit details, and preserve archived history.</div>
+              <div className="mt-0.5 text-[11px] text-text-muted">Only teams shared with this coach appear here.</div>
             </div>
             <Button type="button" size="sm" onClick={openCreate} className="gap-1.5">
               <Plus size={15} aria-hidden="true" /> New team
@@ -254,7 +253,7 @@ export function SettingsScreen({
 
           {teamSwitchDisabled && (
             <div className="border-b border-border bg-[rgba(124,58,237,0.08)] px-4 py-2.5 text-[11px] text-[#c4b5fd]">
-              Finish or abandon the active training session before switching teams or archiving the current team.
+              Finish or quit the active training session before switching teams or archiving the current team.
             </div>
           )}
 
@@ -265,7 +264,7 @@ export function SettingsScreen({
           ) : teams.length === 0 ? (
             <div className="p-6 text-center">
               <p className="text-sm font-bold">No teams yet.</p>
-              <p className="mt-1 text-xs text-text-muted">Create a team to start building a roster.</p>
+              <p className="mt-1 text-xs text-text-muted">Create a team and you will become its owner.</p>
               <Button type="button" onClick={openCreate} className="mt-4 gap-2"><Plus size={15} />Create team</Button>
             </div>
           ) : (
@@ -273,6 +272,7 @@ export function SettingsScreen({
               {teams.map((team) => {
                 const current = team.id === currentTeamId;
                 const busy = updatingId === team.id;
+                const isOwner = team.access_role === "owner";
                 return (
                   <div key={team.id} className={`flex flex-col gap-3 border-b border-border px-4 py-3 last:border-b-0 sm:flex-row sm:items-center sm:justify-between ${team.active ? "" : "opacity-60"}`}>
                     <div className="min-w-0">
@@ -283,6 +283,9 @@ export function SettingsScreen({
                             <Check size={10} /> Current
                           </span>
                         )}
+                        <span className="inline-flex items-center gap-1 rounded-full border border-border bg-background px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.06em] text-text-muted">
+                          <ShieldCheck size={10} /> {isOwner ? "Owner" : "Coach"}
+                        </span>
                         {!team.active && <span className="rounded-full border border-border px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.06em] text-text-muted">Archived</span>}
                       </div>
                       <div className="mt-1 text-[11px] text-text-muted">{teamSubtitle(team)}</div>
@@ -291,10 +294,15 @@ export function SettingsScreen({
                       {team.active && !current && (
                         <Button type="button" size="sm" onClick={() => onSelectTeam(team.id)} disabled={teamSwitchDisabled || busy}>Use team</Button>
                       )}
-                      <Button type="button" variant="secondary" size="sm" onClick={() => openEdit(team)} disabled={busy} className="gap-1.5">
-                        <Pencil size={14} aria-hidden="true" /> Edit
+                      <Button type="button" variant="secondary" size="sm" onClick={() => setAccessTeam(team)} disabled={busy} className="gap-1.5">
+                        <Users size={14} aria-hidden="true" /> Access
                       </Button>
-                      {team.active ? (
+                      {isOwner && (
+                        <Button type="button" variant="secondary" size="sm" onClick={() => openEdit(team)} disabled={busy} className="gap-1.5">
+                          <Pencil size={14} aria-hidden="true" /> Edit
+                        </Button>
+                      )}
+                      {isOwner && (team.active ? (
                         <Button
                           type="button"
                           variant="destructive"
@@ -309,7 +317,7 @@ export function SettingsScreen({
                         <Button type="button" variant="success" size="sm" onClick={() => void setTeamActive(team, true)} disabled={busy} className="gap-1.5">
                           <RotateCcw size={14} aria-hidden="true" /> Reactivate
                         </Button>
-                      )}
+                      ))}
                     </div>
                   </div>
                 );
@@ -348,6 +356,10 @@ export function SettingsScreen({
             </form>
           </section>
         </div>
+      )}
+
+      {accessTeam && (
+        <TeamAccessPanel team={accessTeam} currentCoachEmail={coach?.email} onClose={() => setAccessTeam(null)} />
       )}
     </section>
   );
