@@ -7,6 +7,7 @@ import {
   initializeAuthorization,
 } from "./authorization";
 import { handleDrillApi } from "./drills/routes";
+import { handlePlayPersonnelApi } from "./playbook/personnel-routes";
 import { handlePlaybookApi } from "./playbook/routes";
 import { handleResultsApi } from "./results/routes";
 import { handleSessionRosterApi } from "./sessions/roster-routes";
@@ -77,6 +78,9 @@ const worker = {
 
       const ownershipResponse = await handleOwnershipApi(request, env.DB, authorization);
       if (ownershipResponse) return ownershipResponse;
+
+      const playPersonnelResponse = await handlePlayPersonnelApi(request, env.DB);
+      if (playPersonnelResponse) return playPersonnelResponse;
 
       const playbookResponse = await handlePlaybookApi(request, env.DB);
       if (playbookResponse) return playbookResponse;
