@@ -11,6 +11,7 @@ export type SessionSummary = {
   drill_version_id: string;
   drill_name: string;
   drill_category: string;
+  drill_icon: string | null;
   started_at: string;
   completed_at: string | null;
   status: "active" | "completed" | "abandoned";
@@ -146,7 +147,8 @@ async function historyRows(
   db: D1Database,
   filters: { teamId: string; drillId: string; before?: string; excludeSessionId?: string },
 ): Promise<HistoryRow[]> {
-  const where = ["s.team_id = ?", "s.drill_id = ?", "a.valid = 1"];
+  // Historical performance context is intentionally completed-session only.
+  const where = ["s.team_id = ?", "s.drill_id = ?", "s.status = 'completed'", "a.valid = 1"];
   const bindings: string[] = [filters.teamId, filters.drillId];
   if (filters.before) {
     where.push("s.started_at < ?");
@@ -189,6 +191,7 @@ export async function listTeamSessions(db: D1Database, teamId: string, limit = 1
   const team = await db.prepare("SELECT id FROM teams WHERE id = ?").bind(teamId).first<{ id: string }>();
   if (!team) throw new RepositoryError("not_found", "Team not found.");
 
+  // Session history remains operational history, so active/abandoned rows are retained here.
   const result = await db
     .prepare(
       `SELECT
@@ -198,6 +201,7 @@ export async function listTeamSessions(db: D1Database, teamId: string, limit = 1
         s.drill_version_id,
         d.name AS drill_name,
         d.category AS drill_category,
+        d.icon AS drill_icon,
         s.started_at,
         s.completed_at,
         s.status,
