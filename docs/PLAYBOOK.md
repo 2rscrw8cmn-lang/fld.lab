@@ -12,7 +12,7 @@ Playbook is not a generic drawing canvas and should not become a broad practice-
 - Start from a formation instead of a blank field.
 - The field stays visually dominant; controls stay compact and contextual.
 - A play is structured data, not an image or SVG blob.
-- The same structured play should eventually render as an editor diagram, library thumbnail, mirrored play, wristband card, and player-facing diagram.
+- The same structured play should render as an editor diagram, library thumbnail, animated viewer, mirrored play, wristband card, and player-facing diagram.
 - Default workflows target 5v5 youth flag football while leaving room for custom player placement.
 - Team playbooks should stay intentionally small and easy to scan.
 
@@ -169,9 +169,38 @@ The team playbook has two working states:
 - **Active Plays** — the small set the team is currently installing/running
 - **Library** — valid saved plays retained for later, but not in the current active set
 
-This is separate from archival. A Library play is still a normal editable play. Archived plays are removed from normal Playbook browsing.
+This is separate from archival. Archived plays are removed from normal Playbook browsing.
 
 New plays default to Active. A coach may toggle `active_play` in the editor.
+
+Opening a play should not jump directly into editing. The normal play-card action opens the viewer:
+
+- Active Plays open in the play viewer with an explicit **Edit** action.
+- Library plays open in the same viewer without editor controls.
+- A Library play must be moved back to Active before its diagram or assignments are edited.
+
+This keeps the Library a reference surface rather than a second editor.
+
+### Animated viewer
+
+The viewer is the shared read-only play presentation surface for the Playbook and later game-day workflows.
+
+It supports:
+
+- Run Play
+- Pause / Resume
+- Replay
+- animated player movement along structured assignments
+- pre-snap motion before the route phase when motion exists
+- route traces that reveal as the play progresses
+- primary-target emphasis
+- formation, type, concept, situation, and coaching notes
+
+The viewer derives animation directly from structured route/motion data. Do not store a separate animation file or timeline for basic route playback.
+
+When a player has pre-snap motion and a route, the viewer treats motion as the first phase and continues the route from the motion endpoint for playback continuity.
+
+The viewer is intentionally optimized for tablet/desktop use first; phone remains usable but does not drive layout decisions for this feature.
 
 ### Football metadata
 
@@ -197,13 +226,12 @@ Library cards should surface the useful metadata without turning into tall gener
 - coach call sheet
 - wristband sheet generation
 - print/PDF layouts
-- fast sideline viewer
+- fast sideline viewer built on the same PlayViewer surface
 
 ## Deferred
 
 Do not prioritize these before the structured editor and game-day outputs work well:
 
-- animation
 - AI play generation
 - public play marketplace
 - video attachments
