@@ -27,8 +27,20 @@ export type FormationPreset = {
   players: FormationPlayer[];
 };
 
+export const LOS_Y = 76;
+
 const clamp = (value: number, min = 5, max = 95) => Math.max(min, Math.min(max, value));
 const point = (x: number, y: number): Point => ({ x: clamp(x), y: clamp(y) });
+
+export function constrainPlayerPoint(side: PlaySide, candidate: Point): Point {
+  const normalized = point(candidate.x, candidate.y);
+  return {
+    x: normalized.x,
+    y: side === "offense"
+      ? Math.max(LOS_Y, normalized.y)
+      : Math.min(LOS_Y, normalized.y),
+  };
+}
 
 export const ROUTE_TEMPLATES: Array<{ id: RouteTemplate; label: string; short: string }> = [
   { id: "go", label: "Go", short: "GO" },

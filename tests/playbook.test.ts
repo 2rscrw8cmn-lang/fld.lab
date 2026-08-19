@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  LOS_Y,
   buildRoutePoints,
+  constrainPlayerPoint,
   createFormationPlayers,
   flipDiagram,
   formationsForSide,
@@ -29,6 +31,13 @@ describe("playbook formations", () => {
     const players = createFormationPlayers("trips-right", (prefix) => `${prefix}_${++next}`);
     expect(players).toHaveLength(5);
     expect(players.map((player) => player.label).sort()).toEqual(["C", "QB", "X", "Y", "Z"]);
+  });
+
+  it("keeps offensive and defensive player placement on their own side of the LOS", () => {
+    expect(constrainPlayerPoint("offense", { x: 35, y: 40 })).toEqual({ x: 35, y: LOS_Y });
+    expect(constrainPlayerPoint("offense", { x: 35, y: 88 })).toEqual({ x: 35, y: 88 });
+    expect(constrainPlayerPoint("defense", { x: 65, y: 90 })).toEqual({ x: 65, y: LOS_Y });
+    expect(constrainPlayerPoint("defense", { x: 65, y: 52 })).toEqual({ x: 65, y: 52 });
   });
 });
 

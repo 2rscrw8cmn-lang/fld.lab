@@ -37,8 +37,11 @@ A coach may drag players after choosing a preset.
 
 - Position markers use football-role labels such as `X`, `Y`, `Z`, `C`, and `QB`.
 - Dragging a player moves that player and its assignments together.
+- Offensive players may not be dragged across the line of scrimmage onto the defensive side.
+- Defensive players may not be dragged across the line of scrimmage onto the offensive side.
+- Motion endpoints also stay on the player's pre-snap side of the line of scrimmage.
 - Labels remain editable.
-- The play stores position roles, not athlete identity. Roster-to-position personnel mapping is a later layer.
+- The play stores position roles, not athlete identity. Personnel mapping is a separate roster layer.
 - Standard position roles use stable, distinct colors so routes remain easy to follow when they cross.
 - The primary target overrides its normal position color with fld.LAB purple.
 - Color is supplemental; player labels remain visible so state never depends on color alone.
@@ -58,17 +61,23 @@ Select a player, then choose a route template:
 - Hitch
 - Drag
 
-fld.LAB creates clean football geometry automatically. The coach adjusts the route by dragging its endpoint; the template preserves the expected geometry while depth and direction change.
+Route choices use compact route-shape glyphs instead of a wall of equally weighted text buttons. The selected player's color provides contextual emphasis while purple remains reserved for the primary target.
 
-Route semantics stay locked while adjusting. For example, an Out remains outside and square even if the coach drags the endpoint across the formation; changing to an In is an explicit route-template choice.
+fld.LAB creates clean football geometry automatically. The coach may tap an existing route line to select it. A selected route exposes draggable handles so the line can be adjusted after it has been created.
 
-A player has at most one primary route assignment. Choosing another route replaces that player's current route.
+Dragging the endpoint of a template route preserves the expected football semantics while depth and direction change. Interior bend handles may be moved directly when the coach needs a custom adjustment.
+
+Route semantics stay locked for smart endpoint adjustment. For example, an Out remains outside and square even if the coach drags the endpoint across the formation; changing to an In is an explicit route-template choice.
+
+A player has at most one primary route assignment. Choosing another route replaces that player's current route. Choosing the already-active route selects its existing line for adjustment instead of recreating it.
 
 Route ink follows the assigned player's color at restrained opacity. The primary target and its route use purple. Motion remains visually quieter and dashed. Arrowheads must stay large enough to read route direction at a glance even when the route stroke itself is thin.
 
 ### Motion
 
 Motion is a separate pre-snap assignment and renders as a dashed path. It is not stored as a route style.
+
+Motion may be selected and adjusted directly on the field. During playback, a player's route begins from the completed motion endpoint so the animated player and displayed route remain aligned.
 
 ### Primary target
 
@@ -85,9 +94,11 @@ The editor supports:
 - duplicate + flip
 - clear selected assignments
 - change formation
-- move a saved play between Editor and Library
+- direct selection and adjustment of existing route/motion lines
 
 Changing formation resets player placement and assignments.
+
+Editor controls should be visually grouped by purpose rather than presented as one undifferentiated control wall. Player/route tools, pre-snap/read tools, play setup, and coaching notes should read as separate groups.
 
 ### Field
 
@@ -127,6 +138,7 @@ type PlayDiagram = {
 Rules:
 
 - coordinates are finite and clamped to the field
+- pre-snap player placement remains on the correct side of the line of scrimmage
 - assignment player IDs must reference an existing player
 - route/motion assignments contain at least two points
 - route templates produce clean geometry rather than sampled freehand points
@@ -156,6 +168,8 @@ Each stored play belongs to exactly one team and contains:
 
 `active_play` remains the persistence field for compatibility, but the product language is **Editor** vs **Library**.
 
+Personnel is stored separately from the play diagram. A personnel row binds one play diagram `player_id` to one team `athlete_id`. The play remains valid and reusable without personnel assignments.
+
 Rules:
 
 - play access follows the existing authenticated TeamCoach permission model
@@ -164,41 +178,60 @@ Rules:
 - archive instead of destructive delete
 - the server validates schema-v2 diagram structure before persistence
 - new persistent IDs are generated server-side
+- personnel assignments may only reference player IDs in the saved play diagram and active athletes on the same team
+- one athlete may fill at most one position within a play
 - browser storage may be retained temporarily only as a migration/cache fallback; it is not the authoritative source after D1 persistence is active
 
 ## Phase 2 — playbook organization
 
 ### Editor vs Library
 
-The team playbook has two working states:
+The team playbook has two working states with deliberately different jobs:
 
-- **Editor** — plays that are currently available to build, change, duplicate, flip, and manage
-- **Library** — saved plays retained for clean viewing and animation; normal Library interaction is view-only
+- **Editor** — build and change the football structure: formation, player placement, routes, motion, primary target, metadata, notes, duplicate, and flip
+- **Library** — consume the finished play: clean viewer, animation, and roster personnel assignment
 
-This is separate from archival. A Library play is still a normal saved play, but it must be moved back to Editor before its diagram or assignments can be changed. Archived plays are removed from normal Playbook browsing.
+This is separate from archival. A Library play is still a normal saved play. Its football diagram and setup are locked; move it back to Editor when the concept itself needs to change. Personnel is intentionally managed in Library because it is a team/use layer over a reusable football concept.
 
 New plays default to Editor. The UI may continue storing this state in the existing `active_play` field until a future data migration gives the concept a better persistence name.
 
+Editor cards open directly into the editor. Library cards open into the play viewer. An Editor play should never require an extra viewer → Edit step before the coach can change it. Moving a finished play to Library is an Editor-card action, not an in-editor control.
+
 ### Play viewer
 
-Opening a play should prioritize consuming the play, not editing it.
+Opening a Library play should prioritize consuming and assigning the play, not diagram editing.
 
-- tapping an Editor or Library card opens the play viewer first
 - the field is the dominant surface
 - player markers use stable position colors; the primary target is purple
 - route traces inherit their player's color at restrained opacity
 - motion is quieter and dashed
+- a route following motion is rendered from the completed motion position
 - field guides are intentionally subdued
 - playback controls sit outside the field so they do not cover route geometry
 - metadata is presented as compact text rather than a stack of badges/cards
 - the viewer supports Run Play, Pause, Resume, and Replay
 - playback begins with a brief set/snap hold, then pre-snap motion completes before route movement begins
 - default playback should feel quick enough for sideline review rather than slow-motion analysis
-- Editor plays expose an explicit Edit action
-- Library plays do not expose editor controls; they must be moved back to Editor before editing
 - Library thumbnails show position labels so diagrams remain useful at a glance
 
 The same viewer should become the basis of the game-day/sideline play surface rather than creating a second visualization system.
+
+### Personnel mapping
+
+A play keeps football roles and roster personnel as separate layers.
+
+- diagram players remain `X`, `Y`, `Z`, `C`, `QB`, or other coach-defined labels
+- personnel is assigned from the **Library**, not while building the diagram in Editor
+- each diagram player may optionally map to an active athlete on the team roster
+- an athlete may only occupy one diagram position in the same play
+- Library keeps the diagram itself locked while allowing personnel assignments to change
+- the Library viewer uses a distinct **Assign players** / **Edit assignments** action rather than a generic manage link
+- the viewer can switch between **Positions** and **Players** without changing route geometry or route color
+- route colors remain tied to the football role; swapping an athlete does not change the visual language of the concept
+- in Players mode, the marker uses the athlete jersey number when available and shows the athlete first name adjacent to the marker
+- personnel data is intended to feed later wristband and call-sheet outputs
+
+Personnel mapping should never make a generic play unusable. Unassigned positions continue to display their football role.
 
 ### Football metadata
 
@@ -214,7 +247,6 @@ Library cards should surface the useful metadata without turning into tall gener
 
 ### Still in Phase 2
 
-- roster personnel mapping to position roles
 - defensive man/zone/rush assignment tools
 - archive/restore UI
 
