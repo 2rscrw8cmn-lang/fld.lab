@@ -196,6 +196,10 @@ Fields:
 - `side` — `offense | defense`
 - `formation_id` — optional stable application preset key
 - `formation` — display label captured with the play
+- `play_type` — `pass | run | option`
+- `concept` — short coach-entered concept label
+- `situation` — `any | short | medium | deep | no-run | goal-line | conversion`
+- `active_play` — whether the play is in the team's current Active Plays set
 - `notes`
 - `diagram_json` — validated Playbook schema-v2 document
 - `archived`
@@ -204,12 +208,15 @@ Fields:
 
 `diagram_json` contains normalized player coordinates, structured route/motion assignments, route-template semantics, and the optional primary target. It remains one versioned document for v1 rather than creating separate player/path/segment tables.
 
+`active_play` and `archived` are intentionally different. `active_play = 0` means a normal editable play retained in the Library. `archived = 1` removes the play from normal Playbook browsing.
+
 Rules:
 
 - Team owns the play; a Play never grants access independently of TeamCoach authorization
 - server validation is authoritative before `diagram_json` is stored
 - player/assignment IDs are stable only inside the play document and are not Athlete IDs
 - new persistent Play IDs are server-generated
+- new plays default to `active_play = 1`
 - archive instead of hard-delete
 - browser storage may be used as a temporary migration/cache fallback but is not authoritative once D1 persistence is available
 
@@ -475,6 +482,7 @@ Current/likely indexes:
 - `team_memberships(team_id, active)`
 - `team_memberships(athlete_id)`
 - `plays(team_id, archived, updated_at)`
+- `plays(team_id, archived, active_play, updated_at)`
 - `training_sessions(team_id, started_at)`
 - `training_sessions(drill_id, started_at)`
 - `session_athletes(session_id, order_index)`
