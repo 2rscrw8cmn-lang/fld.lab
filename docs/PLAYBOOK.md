@@ -75,6 +75,7 @@ A coach may drag players after choosing a preset.
 - Defensive players may not be dragged across the line of scrimmage onto the offensive side.
 - Motion endpoints also stay on the player's pre-snap side of the line of scrimmage.
 - Labels remain editable.
+- The player count is structural to the selected Playbook format; the editor does not expose ad-hoc Add Player or Remove Player controls.
 - The play stores position roles, not athlete identity. Personnel mapping is a separate roster layer.
 - Standard position roles use stable, distinct colors so routes remain easy to follow when they cross.
 - The primary target overrides its normal position color with fld.LAB purple.
@@ -96,13 +97,13 @@ Select a player, then choose a route template:
 - Drag
 - **Wheel**
 
-Route choices use compact route-shape glyphs instead of a wall of equally weighted text buttons. The selected player's color provides contextual emphasis while purple remains reserved for the primary target.
+Route choices use compact icon-only route-shape glyphs with accessible labels/tooltips instead of text-heavy buttons. The selected player's color provides contextual emphasis while purple remains reserved for the target.
 
 fld.LAB creates clean football geometry automatically. The coach may tap an existing route line to select it. Route lines use a larger invisible hit target than their visible stroke so thin routes are still easy to select on a tablet. A selected route exposes draggable handles so the line can be adjusted after it has been created.
 
 Dragging a route endpoint preserves the route's expected semantic direction while keeping any coach-adjusted interior handles exactly where the coach left them. Moving an endpoint must not regenerate or reset the middle bend of a Post, Corner, Hitch, Out, In, Wheel, or other multi-point route.
 
-Interior handles may be moved directly when the coach needs a custom adjustment. Choosing the already-active route template selects its existing route rather than recreating it.
+Interior handles may be moved directly when the coach needs a custom adjustment. Choosing the already-active route template selects its existing route rather than recreating it. Route clearing lives in the route palette as an icon-only destructive eraser action and clears only the selected player's route, not Motion or Target state.
 
 #### Wheel route
 
@@ -114,6 +115,7 @@ Wheel is a curved route, not pre-snap motion.
 - the editor exposes only the three useful movable handles rather than a cluster of sampled points
 - the renderer smooths those control points for editor display, animation, thumbnails, call sheets, and wristbands
 - dragging the endpoint preserves the existing flat-release and turn handles instead of rebuilding the curve
+- the endpoint may be shortened close to the turn handle while retaining outside/upfield Wheel semantics
 - a backfield player may therefore remain behind the LOS during the initial part of the Wheel before turning upfield
 
 Motion remains a separate pre-snap concept and is still constrained to the player's pre-snap side of the LOS.
@@ -126,11 +128,13 @@ Route ink follows the assigned player's color at restrained opacity. The primary
 
 Motion is a separate pre-snap assignment and renders as a dashed path. It is not stored as a route style.
 
-Motion may be selected and adjusted directly on the field. During playback, a player's route begins from the completed motion endpoint so the animated player and displayed route remain aligned.
+When a player has Motion, the editor keeps the solid pre-snap player marker at the original formation location and shows a quieter ghost marker at the completed Motion location. The route is rendered and edited from that ghost location, matching how the play is consumed during playback and in Game Day outputs. Motion itself remains directly selectable by tapping its dashed line.
+
+During playback, a player's route begins from the completed motion endpoint so the animated player and displayed route remain aligned.
 
 ### Primary target
 
-An offensive play may identify one primary target. This is semantic play data, not decorative markup.
+An offensive play may identify one primary target. This is semantic play data, not decorative markup. The editor action is labeled **Target** while the stored semantic field remains `primary_target_player_id`.
 
 ### Editing controls
 
@@ -141,7 +145,7 @@ The editor supports:
 - flip horizontally
 - duplicate
 - duplicate + flip
-- clear selected assignments
+- clear selected route
 - change formation
 - direct selection and adjustment of existing route/motion lines
 
@@ -149,7 +153,7 @@ Changing formation resets player placement and assignments.
 
 Editor controls should be visually grouped by purpose rather than presented as one undifferentiated control wall. Player/route tools, pre-snap/read tools, play setup, and coaching notes should read as separate groups.
 
-Play type uses icon-first controls for **Pass**, **Run**, and **Option**, with text retained as a secondary label for clarity and accessibility.
+Play type uses icon-only controls for **Pass**, **Run**, and **Option**, with accessible labels/tooltips rather than visible secondary text.
 
 The editor tracks unsaved changes. Attempting to leave the Play, switch Playbooks, change Teams, use primary application navigation, or use browser Back while edits are unsaved must show the same fld.LAB custom confirmation pattern used elsewhere in the app. Do not use a native browser confirm for in-app navigation. Browser/tab unload may additionally use the platform unload warning.
 
