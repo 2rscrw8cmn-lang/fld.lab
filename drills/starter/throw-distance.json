@@ -5,10 +5,10 @@
   "category": "Power",
   "icon": "throw",
   "description": "Measure the athlete's maximum valid throw distance.",
-  "instructions": "Measure from the throwing line to the first landing point and record the longest valid throw in inches.",
+  "instructions": "Measure from the throwing line to the first landing point and record the longest valid throw in feet.",
   "measurement": {
     "type": "distance",
-    "unit": "in",
+    "unit": "ft",
     "direction": "higher"
   },
   "attempts": {
