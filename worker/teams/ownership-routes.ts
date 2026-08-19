@@ -100,7 +100,7 @@ export async function handleOwnershipApi(
         decodeURIComponent(coachMemberMatch[2]),
         context.coach.id,
       );
-      return new Response(null, { status: 204 });
+      return Response.json({ removed: true });
     }
 
     const teamMatch = pathname.match(/^\/api\/teams\/([^/]+)$/);
