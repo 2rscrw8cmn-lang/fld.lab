@@ -13,8 +13,8 @@ import {
 } from "../src/features/playbook/playbook-model";
 
 describe("playbook formations", () => {
-  it("provides the core offensive formation presets", () => {
-    expect(formationsForSide("offense").map((formation) => formation.id)).toEqual([
+  it("provides the core 5v5 offensive formation presets", () => {
+    expect(formationsForSide("offense", "5v5").map((formation) => formation.id)).toEqual([
       "spread",
       "trips-right",
       "trips-left",
@@ -26,11 +26,31 @@ describe("playbook formations", () => {
     ]);
   });
 
+  it("provides matching 6v6 offensive presets", () => {
+    expect(formationsForSide("offense", "6v6").map((formation) => formation.id)).toEqual([
+      "spread-6",
+      "trips-right-6",
+      "trips-left-6",
+      "bunch-right-6",
+      "bunch-left-6",
+      "stack-right-6",
+      "stack-left-6",
+      "custom-offense-6",
+    ]);
+  });
+
   it("creates five role markers for a 5v5 offensive preset", () => {
     let next = 0;
     const players = createFormationPlayers("trips-right", (prefix) => `${prefix}_${++next}`);
     expect(players).toHaveLength(5);
     expect(players.map((player) => player.label).sort()).toEqual(["C", "QB", "X", "Y", "Z"]);
+  });
+
+  it("creates six role markers for a 6v6 offensive preset", () => {
+    let next = 0;
+    const players = createFormationPlayers("trips-right-6", (prefix) => `${prefix}_${++next}`);
+    expect(players).toHaveLength(6);
+    expect(players.map((player) => player.label).sort()).toEqual(["C", "H", "QB", "X", "Y", "Z"]);
   });
 
   it("keeps offensive and defensive player placement on their own side of the LOS", () => {
@@ -100,8 +120,9 @@ describe("play mirroring", () => {
     expect(flipped.primary_target_player_id).toBe("player_x");
   });
 
-  it("maps mirrored formation names", () => {
+  it("maps mirrored formation names in both formats", () => {
     expect(mirroredFormationId("trips-right")).toBe("trips-left");
+    expect(mirroredFormationId("trips-right-6")).toBe("trips-left-6");
     expect(mirroredFormationId("spread")).toBe("spread");
   });
 });
