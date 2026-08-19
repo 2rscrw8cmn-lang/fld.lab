@@ -49,7 +49,7 @@ function changeLabel(group: AthleteResultGroup) {
     : formatResult(absolute, { ...group.metric, total_attempts: null, max: null });
   return {
     improved: group.summary.improved_from_previous,
-    text: group.summary.improved_from_previous ? `${formatted} better` : `${formatted} off previous`,
+    text: group.summary.improved_from_previous ? `${formatted} better` : `${formatted} off`,
   };
 }
 
@@ -231,7 +231,7 @@ export function AthleteProfileScreen({
               {groups.map((group) => {
                 const change = changeLabel(group);
                 return (
-                  <div key={group.drill.id} className="grid gap-3 border-b border-border p-4 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_110px_110px_150px] sm:items-center">
+                  <div key={group.drill.id} className="border-b border-border px-4 py-3 last:border-b-0 sm:grid sm:grid-cols-[minmax(0,1fr)_110px_110px_150px] sm:items-center sm:gap-3 sm:p-4">
                     <div className="flex min-w-0 items-center gap-3">
                       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border bg-background text-text-muted">
                         <DrillIcon drill={group.drill} size={15} />
@@ -241,15 +241,17 @@ export function AthleteProfileScreen({
                         <div className="mt-0.5 text-[10px] text-text-muted">{group.drill.category} · {group.summary.result_count} result{group.summary.result_count === 1 ? "" : "s"}</div>
                       </div>
                     </div>
-                    <Metric label="PB" value={formatResult(group.summary.pb, group.metric)} emphasis />
-                    <Metric label="Latest" value={formatResult(group.summary.latest, group.metric)} />
-                    <div className="sm:text-right">
-                      <div className="text-[9px] font-bold uppercase tracking-[0.08em] text-text-muted">Latest vs previous</div>
-                      {change ? (
-                        <div className={`mt-1 inline-flex items-center gap-1 text-xs font-bold ${change.improved ? "text-success" : "text-text-secondary"}`}>
-                          {change.improved ? <TrendingUp size={14} /> : <TrendingDown size={14} />}{change.text}
-                        </div>
-                      ) : <div className="mt-1 text-xs font-semibold text-text-muted">Need another result</div>}
+                    <div className="mt-3 grid grid-cols-[0.8fr_0.8fr_1.4fr] items-end gap-3 sm:contents">
+                      <Metric label="PB" value={formatResult(group.summary.pb, group.metric)} emphasis />
+                      <Metric label="Latest" value={formatResult(group.summary.latest, group.metric)} />
+                      <div className="min-w-0 sm:text-right">
+                        <div className="text-[9px] font-bold uppercase tracking-[0.08em] text-text-muted">Latest vs previous</div>
+                        {change ? (
+                          <div className={`mt-1 inline-flex max-w-full items-center gap-1 text-xs font-bold ${change.improved ? "text-success" : "text-text-secondary"}`}>
+                            {change.improved ? <TrendingUp className="shrink-0" size={14} /> : <TrendingDown className="shrink-0" size={14} />}<span className="truncate">{change.text}</span>
+                          </div>
+                        ) : <div className="mt-1 truncate text-xs font-semibold text-text-muted">Need another result</div>}
+                      </div>
                     </div>
                   </div>
                 );
@@ -303,9 +305,9 @@ function Stat({ label, value }: { label: string; value: number }) {
 
 function Metric({ label, value, emphasis = false }: { label: string; value: string; emphasis?: boolean }) {
   return (
-    <div>
+    <div className="min-w-0">
       <div className="text-[9px] font-bold uppercase tracking-[0.08em] text-text-muted">{label}</div>
-      <div className={`mt-1 tabular-nums ${emphasis ? "text-lg font-extrabold" : "text-sm font-bold"}`}>{value}</div>
+      <div className={`mt-1 truncate tabular-nums ${emphasis ? "text-lg font-extrabold" : "text-sm font-bold"}`}>{value}</div>
     </div>
   );
 }
