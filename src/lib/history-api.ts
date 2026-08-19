@@ -49,7 +49,7 @@ export async function listTeamSessions(teamId: string, limit = 12): Promise<Sess
   const data = await apiRequest<{ sessions: SessionSummary[] }>(
     `/api/teams/${encodeURIComponent(teamId)}/sessions?limit=${encodeURIComponent(String(limit))}`,
   );
-  return data.sessions;
+  return data.sessions.filter((session) => session.status !== "abandoned");
 }
 
 export async function getTeamDrillTrend(teamId: string, drillId: string): Promise<TeamDrillTrend> {
