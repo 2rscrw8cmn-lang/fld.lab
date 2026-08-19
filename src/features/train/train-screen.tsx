@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  Activity,
   AlertTriangle,
   Check,
   CircleStop,
@@ -8,11 +7,12 @@ import {
   Play,
   RefreshCw,
   RotateCcw,
+  Save,
   SkipForward,
-  TimerReset,
   X,
 } from "lucide-react";
 
+import { DrillIcon } from "@/components/drill-icon";
 import { SearchSelect } from "@/components/search-select";
 import { Button } from "@/components/ui/button";
 import { buildManualResult, initialManualValues, type ManualValues } from "@/features/train/manual-result";
@@ -450,8 +450,9 @@ export function TrainScreen({ team, onNavigate }: { team: Team | null; onNavigat
 
   if (!team) {
     return (
-      <section className="mx-auto max-w-[1160px] px-4 py-6 md:px-7">
-        <h1 className="text-2xl font-extrabold tracking-tight">Train</h1>
+      <section className="mx-auto max-w-[1160px] px-4 pb-8 pt-[18px] md:px-7 md:pt-[22px]">
+        <h1 className="text-[23px] font-extrabold leading-[1.08] tracking-[-0.035em] md:text-[29px]">Train</h1>
+        <p className="mt-1 text-[13px] text-text-muted">Start one drill with the current team.</p>
         <div className="mt-5 rounded-xl border border-border bg-surface p-6">
           <div className="font-bold">No team selected</div>
           <p className="mt-1 text-sm text-text-muted">Create or select a team before starting a training session.</p>
@@ -463,11 +464,11 @@ export function TrainScreen({ team, onNavigate }: { team: Team | null; onNavigat
 
   if (!session) {
     return (
-      <section className="mx-auto max-w-[900px] px-4 pb-8 pt-5 md:px-7 md:pt-7">
+      <section className="mx-auto max-w-[900px] px-4 pb-8 pt-[18px] md:px-7 md:pt-[22px]">
         <div className="flex items-end justify-between gap-4">
           <div>
-            <h1 className="text-[26px] font-extrabold tracking-[-0.04em]">Train</h1>
-            <p className="mt-1 text-sm text-text-muted">Start one drill with the current team.</p>
+            <h1 className="text-[23px] font-extrabold leading-[1.08] tracking-[-0.035em] md:text-[29px]">Train</h1>
+            <p className="mt-1 text-[13px] text-text-muted">Start one drill with the current team.</p>
           </div>
           <div className="text-right text-xs text-text-muted">
             <div className="font-bold text-text-secondary">{team.name}</div>
@@ -496,7 +497,7 @@ export function TrainScreen({ team, onNavigate }: { team: Team | null; onNavigat
                   className={`grid min-h-[58px] w-full grid-cols-[36px_minmax(0,1fr)_auto] items-center gap-3 px-4 text-left transition-colors hover:bg-surface-elevated ${selectedDrillId === drill.id ? "bg-surface-elevated" : ""}`}
                 >
                   <span className="flex h-9 w-9 items-center justify-center rounded-md border border-border bg-background text-text-muted">
-                    {drill.measurement_type === "time" ? <TimerReset size={18} /> : <Activity size={18} />}
+                    <DrillIcon drill={drill} size={18} />
                   </span>
                   <span className="min-w-0">
                     <span className="block truncate text-sm font-bold">{drill.name}</span>
@@ -741,12 +742,12 @@ export function TrainScreen({ team, onNavigate }: { team: Team | null; onNavigat
                         <Check size={20} /> Save + Next
                       </Button>
                       <Button variant="secondary" size="lg" className="min-h-[64px] text-base font-extrabold" onClick={() => saveAttempt(false)}>
-                        Save + Stay
+                        <Save size={19} /> Save + Stay
                       </Button>
                     </div>
                     <div className="mt-3 grid grid-cols-2 gap-2">
-                      <Button variant="secondary" className="min-h-11" onClick={() => resetEntry()}><RotateCcw size={17} /> Redo</Button>
-                      <Button variant="secondary" className="min-h-11" onClick={() => resetEntry()}><X size={17} /> Cancel</Button>
+                      <Button variant="warning" className="min-h-11 font-bold" onClick={() => resetEntry()}><RotateCcw size={17} /> Redo</Button>
+                      <Button variant="ghost" className="min-h-11 border border-border" onClick={() => resetEntry()}><X size={17} /> Cancel</Button>
                     </div>
                   </div>
                 )}
