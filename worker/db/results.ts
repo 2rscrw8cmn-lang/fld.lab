@@ -14,6 +14,13 @@ export type ResultMetric = {
   max: number | null;
 };
 
+export type DerivedAttemptResult = {
+  id: string;
+  attempt_number: number;
+  created_at: string;
+  value: number;
+};
+
 export type DerivedSessionResult = {
   session_id: string;
   team_id: string;
@@ -25,6 +32,7 @@ export type DerivedSessionResult = {
   session_status: "active" | "completed" | "abandoned";
   value: number;
   attempt_count: number;
+  attempts: DerivedAttemptResult[];
   metric: ResultMetric;
 };
 
@@ -240,9 +248,18 @@ function deriveSessionResult(bucket: SessionBucket): DerivedSessionResult | null
   const attempts = [...bucket.attempts.values()].sort(
     (a, b) => a.attempt_number - b.attempt_number || a.created_at.localeCompare(b.created_at),
   );
-  const values = attempts
-    .map((attempt) => valueForAttempt(metric, attempt))
-    .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+  const attemptResults: DerivedAttemptResult[] = [];
+  for (const attempt of attempts) {
+    const value = valueForAttempt(metric, attempt);
+    if (typeof value !== "number" || !Number.isFinite(value)) continue;
+    attemptResults.push({
+      id: attempt.id,
+      attempt_number: attempt.attempt_number,
+      created_at: attempt.created_at,
+      value,
+    });
+  }
+  const values = attemptResults.map((attempt) => attempt.value);
   const value = aggregateResultValues(values, metric.aggregation, metric.direction);
   if (value === null) return null;
 
@@ -257,6 +274,7 @@ function deriveSessionResult(bucket: SessionBucket): DerivedSessionResult | null
     session_status: bucket.session_status,
     value,
     attempt_count: values.length,
+    attempts: attemptResults,
     metric,
   };
 }
