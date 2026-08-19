@@ -91,8 +91,8 @@ export function AppShell({
   }).format(new Date());
 
   return (
-    <div className="min-h-screen bg-background text-text-primary md:grid md:grid-cols-[188px_minmax(0,1fr)]">
-      <aside className="hidden min-h-screen border-r border-border bg-sidebar px-3 py-[18px] md:flex md:flex-col">
+    <div className="min-h-[100dvh] bg-background pt-[env(safe-area-inset-top)] text-text-primary md:grid md:grid-cols-[188px_minmax(0,1fr)]">
+      <aside className="hidden min-h-[calc(100dvh-env(safe-area-inset-top))] border-r border-border bg-sidebar px-3 py-[18px] md:flex md:flex-col">
         <a
           href="/"
           onClick={(event) => {
