@@ -25,7 +25,7 @@ type Props = {
   onMoveToActive?: () => void;
 };
 
-const PLAY_DURATION_MS = 3600;
+const PLAY_DURATION_MS = 3300;
 const MOTION_PHASE = 0.22;
 
 const SITUATION_LABELS: Record<PlaySituation, string> = {
@@ -117,19 +117,23 @@ function FieldLines() {
     { y: 46, label: "+10" },
     { y: 61, label: "+5" },
   ];
+
   return (
     <>
-      <rect x="3" y="3" width="94" height="94" rx="2" fill="none" className="stroke-border" strokeWidth="0.65" opacity="0.72" />
+      <rect x="3" y="3" width="94" height="94" rx="1.5" fill="none" className="stroke-border" strokeWidth="0.55" opacity="0.72" />
       {guides.map((guide) => (
         <g key={guide.y}>
-          <line x1="3" y1={guide.y} x2="97" y2={guide.y} className="stroke-border" strokeWidth="0.42" opacity="0.5" />
-          <text x="5" y={guide.y - 1.4} className="fill-text-muted text-[2.2px] font-bold" opacity="0.72">{guide.label}</text>
+          <line x1="3" y1={guide.y} x2="97" y2={guide.y} className="stroke-border" strokeWidth="0.36" opacity="0.48" />
+          <text x="5" y={guide.y - 1.35} className="fill-text-muted text-[2px] font-bold" opacity="0.66">{guide.label}</text>
+          {[25, 50, 75].map((x) => (
+            <line key={x} x1={x} y1={guide.y - 0.7} x2={x} y2={guide.y + 0.7} className="stroke-border" strokeWidth="0.45" opacity="0.6" />
+          ))}
         </g>
       ))}
-      <line x1="3" y1="55" x2="97" y2="55" className="stroke-text-muted" strokeWidth="0.45" strokeDasharray="2 2" opacity="0.45" />
-      <text x="95" y="53.3" textAnchor="end" className="fill-text-muted text-[2.15px] font-bold" opacity="0.72">7YD RUSH</text>
-      <line x1="3" y1="76" x2="97" y2="76" className="stroke-text-secondary" strokeWidth="0.8" opacity="0.8" />
-      <text x="5" y="74" className="fill-text-muted text-[2.35px] font-bold">LOS</text>
+      <line x1="3" y1="55" x2="97" y2="55" className="stroke-text-muted" strokeWidth="0.4" strokeDasharray="1.8 1.8" opacity="0.42" />
+      <text x="95" y="53.3" textAnchor="end" className="fill-text-muted text-[2px] font-bold" opacity="0.68">7YD RUSH</text>
+      <line x1="3" y1="76" x2="97" y2="76" className="stroke-text-secondary" strokeWidth="0.72" opacity="0.82" />
+      <text x="5" y="74.1" className="fill-text-muted text-[2.2px] font-bold">LOS</text>
     </>
   );
 }
@@ -143,34 +147,35 @@ function AnimatedField({ diagram, progress }: { diagram: PlayDiagram; progress: 
     <svg viewBox="0 0 100 100" className="h-full w-full" role="img" aria-label="Animated play diagram">
       <FieldLines />
       <defs>
-        <marker id="viewer-route-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="3.1" markerHeight="3.1" orient="auto-start-reverse">
+        <marker id="viewer-route-arrow" viewBox="0 0 10 10" refX="8.2" refY="5" markerWidth="2.8" markerHeight="2.8" orient="auto-start-reverse">
           <path d="M 0 0 L 10 5 L 0 10 z" className="fill-text-secondary" />
         </marker>
-        <marker id="viewer-motion-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="2.8" markerHeight="2.8" orient="auto-start-reverse">
+        <marker id="viewer-motion-arrow" viewBox="0 0 10 10" refX="8.2" refY="5" markerWidth="2.5" markerHeight="2.5" orient="auto-start-reverse">
           <path d="M 0 0 L 10 5 L 0 10 z" className="fill-text-muted" />
         </marker>
       </defs>
 
       {diagram.assignments.map((assignment) => {
         const assignmentProgress = assignment.kind === "motion" ? motionProgress : routeProgress;
+        const isMotion = assignment.kind === "motion";
         return (
           <g key={assignment.id}>
             <polyline
               points={polylinePoints(assignment.points)}
               fill="none"
-              className={assignment.kind === "route" ? "stroke-text-secondary" : "stroke-text-muted"}
-              strokeWidth={assignment.kind === "route" ? 0.78 : 0.62}
-              strokeDasharray={assignment.kind === "motion" ? "2.4 2" : undefined}
+              className={isMotion ? "stroke-text-muted" : "stroke-text-secondary"}
+              strokeWidth={isMotion ? 0.48 : 0.68}
+              strokeDasharray={isMotion ? "2.2 1.8" : undefined}
               strokeLinecap="round"
               strokeLinejoin="round"
-              opacity="0.22"
+              opacity={isMotion ? 0.3 : 0.22}
               markerEnd={`url(#viewer-${assignment.kind}-arrow)`}
             />
             <polyline
               points={polylinePoints(assignment.points)}
               fill="none"
-              className={assignment.kind === "route" ? "stroke-text-primary" : "stroke-text-muted"}
-              strokeWidth={assignment.kind === "route" ? 0.92 : 0.72}
+              className={isMotion ? "stroke-text-secondary" : "stroke-text-primary"}
+              strokeWidth={isMotion ? 0.58 : 0.82}
               strokeDasharray="1"
               strokeDashoffset={1 - assignmentProgress}
               pathLength="1"
@@ -187,9 +192,9 @@ function AnimatedField({ diagram, progress }: { diagram: PlayDiagram; progress: 
         const primary = diagram.primary_target_player_id === player.id;
         return (
           <g key={player.id}>
-            {primary && <circle cx={point.x} cy={point.y} r="6.1" fill="none" className="stroke-accent" strokeWidth="0.85" opacity="0.78" />}
-            <circle cx={point.x} cy={point.y} r="4" className="fill-surface stroke-text-primary" strokeWidth="0.9" />
-            <text x={point.x} y={point.y + 1.1} textAnchor="middle" className="fill-text-primary text-[3px] font-black">{player.label}</text>
+            {primary && <circle cx={point.x} cy={point.y} r="5.35" fill="none" className="stroke-accent" strokeWidth="0.72" opacity="0.82" />}
+            <circle cx={point.x} cy={point.y} r="3.65" className="fill-surface stroke-text-primary" strokeWidth="0.82" />
+            <text x={point.x} y={point.y + 1} textAnchor="middle" className="fill-text-primary text-[2.75px] font-black">{player.label}</text>
           </g>
         );
       })}
@@ -202,6 +207,7 @@ export function PlayViewer({ play, onBack, onEdit, onMoveToActive }: Props) {
   const [playing, setPlaying] = useState(false);
   const [runId, setRunId] = useState(0);
   const progressRef = useRef(0);
+  const hasMotion = play.diagram.assignments.some((assignment) => assignment.kind === "motion");
 
   useEffect(() => {
     progressRef.current = progress;
@@ -249,69 +255,88 @@ export function PlayViewer({ play, onBack, onEdit, onMoveToActive }: Props) {
     play.situation === "any" ? null : SITUATION_LABELS[play.situation],
   ].filter((value): value is string => Boolean(value)), [play]);
 
+  const phaseLabel = progress >= 1
+    ? "Complete"
+    : !playing && progress > 0
+      ? "Paused"
+      : progress === 0
+        ? "Ready"
+        : hasMotion && progress < MOTION_PHASE
+          ? "Pre-snap motion"
+          : "Routes";
+
   return (
-    <section className="mx-auto max-w-[1180px] px-3 pb-8 pt-3 sm:px-4 md:px-6 md:pt-5">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <button type="button" onClick={onBack} className="inline-flex min-h-10 items-center gap-2 text-xs font-bold text-text-muted hover:text-text-primary">
+    <section className="mx-auto max-w-[1220px] px-3 pb-8 pt-3 sm:px-4 md:px-6 md:pt-5">
+      <div className="flex min-h-10 items-center justify-between gap-3">
+        <button type="button" onClick={onBack} className="inline-flex min-h-10 items-center gap-2 text-xs font-bold text-text-muted transition-colors hover:text-text-primary">
           <ArrowLeft size={16} />Playbook
         </button>
         <div className="flex items-center gap-2">
-          {onMoveToActive && <Button variant="secondary" onClick={onMoveToActive}><Undo2 size={15} />Move to Active</Button>}
-          {onEdit && <Button variant="secondary" onClick={onEdit}><Pencil size={15} />Edit</Button>}
+          {onMoveToActive && <Button variant="secondary" className="min-h-9 px-3 text-xs" onClick={onMoveToActive}><Undo2 size={15} />Move to Active</Button>}
+          {onEdit && <Button variant="secondary" className="min-h-9 px-3 text-xs" onClick={onEdit}><Pencil size={15} />Edit</Button>}
         </div>
       </div>
 
-      <div className="mb-4">
-        <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-text-muted">{play.active_play ? "Active play" : "Library"}</div>
-        <h1 className="mt-1 text-[26px] font-extrabold leading-none tracking-[-0.035em] md:text-[32px]">{play.name}</h1>
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          {metadata.map((item) => (
-            <span key={item} className="rounded-md border border-border bg-surface px-2 py-1 text-[10px] font-bold text-text-muted">{item}</span>
-          ))}
+      <header className="mt-3 border-b border-border pb-4">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-[9px] font-bold uppercase tracking-[0.11em] text-text-muted">{play.active_play ? "Active play" : "Library"}</div>
+            <h1 className="mt-1 truncate text-[26px] font-extrabold leading-none tracking-[-0.035em] md:text-[31px]">{play.name}</h1>
+          </div>
+          <div className="flex flex-wrap justify-end gap-x-3 gap-y-1 text-[10px] font-semibold text-text-muted">
+            {metadata.map((item, index) => (
+              <span key={`${item}-${index}`} className="whitespace-nowrap">{index > 0 && <span className="mr-3 text-border">·</span>}{item}</span>
+            ))}
+          </div>
         </div>
-      </div>
+      </header>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
-        <div>
-          <div className="relative aspect-[5/4] max-h-[720px] overflow-hidden rounded-xl border border-border bg-background">
+      <div className="mt-4 grid gap-5 lg:grid-cols-[minmax(0,1fr)_250px]">
+        <div className="min-w-0">
+          <div className="aspect-[5/4] max-h-[700px] overflow-hidden rounded-lg border border-border bg-background p-1">
             <AnimatedField diagram={play.diagram} progress={progress} />
-            <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-xl border border-border bg-surface/95 p-1.5 shadow-xl backdrop-blur">
-              <Button className="min-w-[112px]" onClick={togglePlayback}>
-                {playing ? <Pause size={16} /> : <Play size={16} />}
-                {playing ? "Pause" : progress > 0 && progress < 1 ? "Resume" : "Run Play"}
-              </Button>
-              <button type="button" onClick={replay} className="flex h-10 w-10 items-center justify-center rounded-lg border border-border text-text-muted hover:bg-surface-elevated hover:text-text-primary" aria-label="Replay play" title="Replay">
-                <RotateCcw size={16} />
-              </button>
-            </div>
           </div>
-          <div className="mt-2 h-1 overflow-hidden rounded-full bg-surface-elevated">
-            <div className="h-full bg-accent transition-[width] duration-75" style={{ width: `${progress * 100}%` }} />
+
+          <div className="mt-3 flex items-center gap-3 border-b border-border pb-3">
+            <Button className="min-w-[112px]" onClick={togglePlayback}>
+              {playing ? <Pause size={16} /> : <Play size={16} />}
+              {playing ? "Pause" : progress > 0 && progress < 1 ? "Resume" : "Run Play"}
+            </Button>
+            <div className="min-w-0 flex-1">
+              <div className="mb-1.5 flex items-center justify-between gap-3 text-[9px] font-bold uppercase tracking-[0.08em] text-text-muted">
+                <span>{phaseLabel}</span>
+                <span className="tabular-nums">{Math.round(progress * 100)}%</span>
+              </div>
+              <div className="h-1 overflow-hidden rounded-full bg-surface-elevated">
+                <div className="h-full bg-accent transition-[width] duration-75" style={{ width: `${progress * 100}%` }} />
+              </div>
+            </div>
+            <button type="button" onClick={replay} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-border text-text-muted transition-colors hover:bg-surface hover:text-text-primary" aria-label="Replay play" title="Replay">
+              <RotateCcw size={16} />
+            </button>
           </div>
         </div>
 
-        <aside className="space-y-3">
-          <section className="rounded-xl border border-border bg-surface p-4">
-            <div className="text-sm font-extrabold">Play</div>
-            <dl className="mt-3 grid gap-3 text-xs">
-              <div><dt className="text-[9px] font-bold uppercase tracking-[0.08em] text-text-muted">Formation</dt><dd className="mt-1 font-bold text-text-primary">{play.formation || "Custom"}</dd></div>
-              <div><dt className="text-[9px] font-bold uppercase tracking-[0.08em] text-text-muted">Type</dt><dd className="mt-1 font-bold capitalize text-text-primary">{play.play_type}</dd></div>
-              {play.concept && <div><dt className="text-[9px] font-bold uppercase tracking-[0.08em] text-text-muted">Concept</dt><dd className="mt-1 font-bold text-text-primary">{play.concept}</dd></div>}
-              <div><dt className="text-[9px] font-bold uppercase tracking-[0.08em] text-text-muted">Situation</dt><dd className="mt-1 font-bold text-text-primary">{SITUATION_LABELS[play.situation]}</dd></div>
-            </dl>
-          </section>
+        <aside className="min-w-0 border-t border-border pt-4 lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0">
+          <div className="text-[9px] font-bold uppercase tracking-[0.1em] text-text-muted">Play details</div>
+          <dl className="mt-3 divide-y divide-border text-xs">
+            <div className="flex items-baseline justify-between gap-4 py-2.5 first:pt-0"><dt className="text-text-muted">Formation</dt><dd className="text-right font-bold text-text-primary">{play.formation || "Custom"}</dd></div>
+            <div className="flex items-baseline justify-between gap-4 py-2.5"><dt className="text-text-muted">Type</dt><dd className="text-right font-bold capitalize text-text-primary">{play.play_type}</dd></div>
+            {play.concept && <div className="flex items-baseline justify-between gap-4 py-2.5"><dt className="text-text-muted">Concept</dt><dd className="text-right font-bold text-text-primary">{play.concept}</dd></div>}
+            <div className="flex items-baseline justify-between gap-4 py-2.5"><dt className="text-text-muted">Situation</dt><dd className="text-right font-bold text-text-primary">{SITUATION_LABELS[play.situation]}</dd></div>
+          </dl>
 
           {play.notes && (
-            <section className="rounded-xl border border-border bg-surface p-4">
-              <div className="text-sm font-extrabold">Coaching notes</div>
+            <div className="mt-5 border-t border-border pt-4">
+              <div className="text-[9px] font-bold uppercase tracking-[0.1em] text-text-muted">Coaching notes</div>
               <p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-text-secondary">{play.notes}</p>
-            </section>
+            </div>
           )}
 
           {!play.active_play && (
-            <section className="rounded-xl border border-border bg-surface p-4 text-xs leading-5 text-text-muted">
-              Library plays are view-only here. Move the play back to Active before changing its diagram or assignments.
-            </section>
+            <div className="mt-5 border-t border-border pt-4 text-[11px] leading-5 text-text-muted">
+              Library plays are view-only. Move this play back to Active before changing the diagram or assignments.
+            </div>
           )}
         </aside>
       </div>
