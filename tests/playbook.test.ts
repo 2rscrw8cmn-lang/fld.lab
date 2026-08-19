@@ -85,6 +85,25 @@ describe("smart route geometry", () => {
     expect(points[2]).toEqual({ x: 48, y: 40 });
   });
 
+  it("builds a wheel as a smooth sampled curve that starts flat and finishes upfield", () => {
+    const wheelStart = { x: 70, y: 86 };
+    const points = buildRoutePoints("wheel", wheelStart);
+    expect(points).toHaveLength(8);
+    expect(points[0]).toEqual(wheelStart);
+    expect(points[1].x).toBeGreaterThan(wheelStart.x);
+    expect(points[1].y).toBeGreaterThanOrEqual(LOS_Y);
+    expect(points.at(-1)?.x).toBeGreaterThan(wheelStart.x);
+    expect(points.at(-1)?.y).toBeLessThan(LOS_Y);
+  });
+
+  it("keeps a dragged wheel endpoint outside while rebuilding the curve", () => {
+    const wheelStart = { x: 70, y: 86 };
+    const points = buildRoutePoints("wheel", wheelStart, { x: 35, y: 44 });
+    expect(points).toHaveLength(8);
+    expect(points.at(-1)?.x).toBeGreaterThan(wheelStart.x);
+    expect(points.at(-1)?.y).toBe(44);
+  });
+
   it("replaces a player's existing route instead of stacking routes", () => {
     const diagram: PlayDiagram = {
       schema_version: 2,
