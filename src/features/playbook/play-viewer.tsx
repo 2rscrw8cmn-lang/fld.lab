@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Check, Pause, Play, RotateCcw, Search, Undo2, Users, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { pointAlongRoute, routePathData } from "@/features/playbook/playbook-path";
 import { LOS_Y, type DiagramAssignment, type DiagramPlayer, type PlayDiagram, type Point } from "@/features/playbook/playbook-model";
 import {
   isPrimaryPlayer,
@@ -60,36 +61,6 @@ function clamp01(value: number) {
   return Math.max(0, Math.min(1, value));
 }
 
-function pointDistance(a: Point, b: Point) {
-  return Math.hypot(b.x - a.x, b.y - a.y);
-}
-
-function pointAlongPolyline(points: Point[], progress: number): Point {
-  if (!points.length) return { x: 50, y: 50 };
-  if (points.length === 1) return points[0];
-
-  const lengths = points.slice(1).map((point, index) => pointDistance(points[index], point));
-  const total = lengths.reduce((sum, length) => sum + length, 0);
-  if (total <= 0) return points[points.length - 1];
-
-  let remaining = clamp01(progress) * total;
-  for (let index = 0; index < lengths.length; index += 1) {
-    const segmentLength = lengths[index];
-    if (remaining <= segmentLength || index === lengths.length - 1) {
-      const start = points[index];
-      const end = points[index + 1];
-      const t = segmentLength <= 0 ? 1 : remaining / segmentLength;
-      return {
-        x: start.x + (end.x - start.x) * t,
-        y: start.y + (end.y - start.y) * t,
-      };
-    }
-    remaining -= segmentLength;
-  }
-
-  return points[points.length - 1];
-}
-
 function assignmentFor(diagram: PlayDiagram, playerId: string, kind: DiagramAssignment["kind"]) {
   return diagram.assignments.find((assignment) => assignment.player_id === playerId && assignment.kind === kind) ?? null;
 }
@@ -115,22 +86,18 @@ function animatedPlayerPoint(player: DiagramPlayer, diagram: PlayDiagram, progre
   const route = assignmentFor(diagram, player.id, "route");
 
   if (motion && hasMotion) {
-    if (progress <= MOTION_PHASE) return pointAlongPolyline(motion.points, progress / MOTION_PHASE);
+    if (progress <= MOTION_PHASE) return pointAlongRoute(undefined, motion.points, progress / MOTION_PHASE);
     const motionEnd = motion.points[motion.points.length - 1] ?? player;
     if (!route) return motionEnd;
-    return pointAlongPolyline(translatedRoute(route, motionEnd), (progress - MOTION_PHASE) / (1 - MOTION_PHASE));
+    return pointAlongRoute(route.template, translatedRoute(route, motionEnd), (progress - MOTION_PHASE) / (1 - MOTION_PHASE));
   }
 
   if (route) {
     const routeProgress = hasMotion ? (progress - MOTION_PHASE) / (1 - MOTION_PHASE) : progress;
-    return routeProgress <= 0 ? player : pointAlongPolyline(route.points, routeProgress);
+    return routeProgress <= 0 ? player : pointAlongRoute(route.template, route.points, routeProgress);
   }
 
   return player;
-}
-
-function polylinePoints(points: Point[]) {
-  return points.map((point) => `${point.x},${point.y}`).join(" ");
 }
 
 function athleteName(assignment: PlayPersonnelAssignment) {
@@ -219,10 +186,11 @@ function AnimatedField({
         const color = player ? playerColor(player, primary) : "var(--text-secondary)";
         const isMotion = assignment.kind === "motion";
         const displayPoints = renderedAssignmentPoints(diagram, assignment);
+        const pathData = routePathData(assignment.template, displayPoints);
         return (
           <g key={assignment.id}>
-            <polyline
-              points={polylinePoints(displayPoints)}
+            <path
+              d={pathData}
               fill="none"
               stroke={color}
               strokeWidth={isMotion ? 0.5 : 0.72}
@@ -232,8 +200,8 @@ function AnimatedField({
               opacity={isMotion ? 0.28 : 0.26}
               markerEnd={`url(#viewer-arrow-${assignment.id})`}
             />
-            <polyline
-              points={polylinePoints(displayPoints)}
+            <path
+              d={pathData}
               fill="none"
               stroke={color}
               strokeWidth={isMotion ? 0.62 : 0.88}
