@@ -43,6 +43,12 @@ describe("smart route geometry", () => {
     ]);
   });
 
+  it("keeps an out route outside even if the endpoint is dragged across the formation", () => {
+    const points = buildRoutePoints("out", start, { x: 70, y: 56 });
+    expect(points[2].x).toBeLessThan(start.x);
+    expect(points[1].x).toBe(start.x);
+  });
+
   it("keeps a post route vertical before the break", () => {
     const points = buildRoutePoints("post", start, { x: 48, y: 40 });
     expect(points).toHaveLength(3);
