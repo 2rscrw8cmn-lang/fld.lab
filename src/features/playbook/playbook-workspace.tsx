@@ -7,6 +7,10 @@ import { PlaybookScreen } from "@/features/playbook/playbook-screen";
 import type { Team } from "@/lib/api";
 import { createTeamPlaybook, listTeamPlaybooks, type StoredPlaybook } from "@/lib/playbooks-api";
 
+type PendingWorkspaceAction =
+  | { kind: "switch"; playbookId: string }
+  | { kind: "create" };
+
 function selectedPlaybookKey(teamId: string) {
   return `fld-lab:selected-playbook:${teamId}`;
 }
@@ -42,7 +46,13 @@ function formatLabel(format: PlaybookFormat) {
   return format === "6v6" ? "6v6" : "5v5";
 }
 
-export function PlaybookWorkspace({ team }: { team: Team | null }) {
+export function PlaybookWorkspace({
+  team,
+  onEditingDirtyChange,
+}: {
+  team: Team | null;
+  onEditingDirtyChange?: (dirty: boolean) => void;
+}) {
   const [playbooks, setPlaybooks] = useState<StoredPlaybook[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [loading, setLoading] = useState(false);
@@ -52,6 +62,8 @@ export function PlaybookWorkspace({ team }: { team: Team | null }) {
   const [newName, setNewName] = useState("5v5 Playbook");
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+  const [editorDirty, setEditorDirty] = useState(false);
+  const [pendingWorkspaceAction, setPendingWorkspaceAction] = useState<PendingWorkspaceAction | null>(null);
   const previousSelectedRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -60,6 +72,9 @@ export function PlaybookWorkspace({ team }: { team: Team | null }) {
     setSelectedId("");
     setLoadError(null);
     setCreateOpen(false);
+    setEditorDirty(false);
+    setPendingWorkspaceAction(null);
+    onEditingDirtyChange?.(false);
     setActivePlaybookContext(null);
 
     if (!team) return;
@@ -82,7 +97,7 @@ export function PlaybookWorkspace({ team }: { team: Team | null }) {
       });
 
     return () => { cancelled = true; };
-  }, [team?.id]);
+  }, [onEditingDirtyChange, team?.id]);
 
   const selected = playbooks.find((playbook) => playbook.id === selectedId) ?? null;
 
@@ -97,9 +112,24 @@ export function PlaybookWorkspace({ team }: { team: Team | null }) {
     setActivePlaybookContext(null);
   }
 
+  const handleEditorDirtyChange = (dirty: boolean) => {
+    setEditorDirty(dirty);
+    onEditingDirtyChange?.(dirty);
+  };
+
+  const switchPlaybookImmediately = (playbookId: string) => {
+    setEditorDirty(false);
+    onEditingDirtyChange?.(false);
+    setSelectedId(playbookId);
+  };
+
   const choosePlaybook = (playbookId: string) => {
     if (!team || playbookId === selectedId) return;
-    setSelectedId(playbookId);
+    if (editorDirty) {
+      setPendingWorkspaceAction({ kind: "switch", playbookId });
+      return;
+    }
+    switchPlaybookImmediately(playbookId);
   };
 
   const openCreate = () => {
@@ -114,7 +144,7 @@ export function PlaybookWorkspace({ team }: { team: Team | null }) {
     if (newName === "5v5 Playbook" || newName === "6v6 Playbook") setNewName(`${format} Playbook`);
   };
 
-  const createPlaybook = async () => {
+  const performCreatePlaybook = async (discardEditorAfterCreate: boolean) => {
     if (!team || creating) return;
     const name = newName.trim();
     if (!name) {
@@ -125,6 +155,10 @@ export function PlaybookWorkspace({ team }: { team: Team | null }) {
     setCreateError(null);
     try {
       const created = await createTeamPlaybook(team.id, { name, format: newFormat });
+      if (discardEditorAfterCreate) {
+        setEditorDirty(false);
+        onEditingDirtyChange?.(false);
+      }
       setPlaybooks((current) => [created, ...current]);
       setSelectedId(created.id);
       setCreateOpen(false);
@@ -135,7 +169,30 @@ export function PlaybookWorkspace({ team }: { team: Team | null }) {
     }
   };
 
-  if (!team) return <PlaybookScreen team={null} />;
+  const createPlaybook = () => {
+    if (!newName.trim()) {
+      setCreateError("Give the playbook a name.");
+      return;
+    }
+    if (editorDirty) {
+      setPendingWorkspaceAction({ kind: "create" });
+      return;
+    }
+    void performCreatePlaybook(false);
+  };
+
+  const confirmWorkspaceAction = () => {
+    const action = pendingWorkspaceAction;
+    setPendingWorkspaceAction(null);
+    if (!action) return;
+    if (action.kind === "switch") {
+      switchPlaybookImmediately(action.playbookId);
+      return;
+    }
+    void performCreatePlaybook(true);
+  };
+
+  if (!team) return <PlaybookScreen team={null} onEditingDirtyChange={onEditingDirtyChange} />;
 
   if (loading) {
     return <section className="p-6 text-sm text-text-muted">Loading playbooks…</section>;
@@ -167,7 +224,7 @@ export function PlaybookWorkspace({ team }: { team: Team | null }) {
             onNameChange={setNewName}
             onFormatChange={changeNewFormat}
             onClose={() => setCreateOpen(false)}
-            onCreate={() => void createPlaybook()}
+            onCreate={createPlaybook}
           />
         )}
       </section>
@@ -203,7 +260,7 @@ export function PlaybookWorkspace({ team }: { team: Team | null }) {
         </div>
       </div>
 
-      <PlaybookScreen key={`${team.id}-${selected.id}`} team={playbookTeam} />
+      <PlaybookScreen key={`${team.id}-${selected.id}`} team={playbookTeam} onEditingDirtyChange={handleEditorDirtyChange} />
 
       {createOpen && (
         <CreatePlaybookDialog
@@ -214,8 +271,23 @@ export function PlaybookWorkspace({ team }: { team: Team | null }) {
           onNameChange={setNewName}
           onFormatChange={changeNewFormat}
           onClose={() => setCreateOpen(false)}
-          onCreate={() => void createPlaybook()}
+          onCreate={createPlaybook}
         />
+      )}
+
+      {pendingWorkspaceAction && (
+        <div className="fixed inset-0 z-[140] flex items-center justify-center bg-black/60 p-4" role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target && !creating) setPendingWorkspaceAction(null); }}>
+          <section className="w-full max-w-[430px] overflow-hidden rounded-xl border border-border bg-surface shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="discard-workspace-play-title">
+            <div className="border-b border-border px-5 py-4">
+              <h2 id="discard-workspace-play-title" className="text-lg font-extrabold">Discard unsaved changes?</h2>
+              <p className="mt-1 text-sm leading-5 text-text-muted">This play has changes that have not been saved. Continuing will leave the editor and lose them.</p>
+            </div>
+            <div className="grid gap-2 p-4 sm:grid-cols-2">
+              <Button type="button" variant="secondary" disabled={creating} onClick={() => setPendingWorkspaceAction(null)}>Keep Editing</Button>
+              <Button type="button" variant="destructive" disabled={creating} onClick={confirmWorkspaceAction}>{creating ? "Working…" : "Discard Changes"}</Button>
+            </div>
+          </section>
+        </div>
       )}
     </>
   );
