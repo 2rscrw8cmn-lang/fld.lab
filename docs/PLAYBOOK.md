@@ -78,7 +78,7 @@ A coach may drag players after choosing a preset.
 - The player count is structural to the selected Playbook format; the editor does not expose ad-hoc Add Player or Remove Player controls.
 - The play stores position roles, not athlete identity. Personnel mapping is a separate roster layer.
 - Standard position roles use stable, distinct colors so routes remain easy to follow when they cross.
-- The primary target overrides its normal position color with fld.LAB purple.
+- The target overrides its normal position color with fld.LAB purple.
 - Color is supplemental; player labels remain visible so state never depends on color alone.
 
 ### Routes
@@ -122,7 +122,7 @@ Motion remains a separate pre-snap concept and is still constrained to the playe
 
 A player has at most one primary route assignment. Choosing another route replaces that player's current route.
 
-Route ink follows the assigned player's color at restrained opacity. The primary target and its route use purple. Motion remains visually quieter and dashed. Arrowheads must stay large enough to read route direction at a glance even when the route stroke itself is thin.
+Route ink follows the assigned player's color at restrained opacity. The target and its route use purple. Motion remains visually quieter and dashed. Arrowheads must stay large enough to read route direction at a glance even when the route stroke itself is thin.
 
 ### Motion
 
@@ -132,9 +132,9 @@ When a player has Motion, the editor keeps the solid pre-snap player marker at t
 
 During playback, a player's route begins from the completed motion endpoint so the animated player and displayed route remain aligned.
 
-### Primary target
+### Target
 
-An offensive play may identify one primary target. This is semantic play data, not decorative markup. The editor action is labeled **Target** while the stored semantic field remains `primary_target_player_id`.
+An offensive play may identify one target. This is semantic play data, not decorative markup. The editor action is labeled **Target** while the stored semantic field remains `primary_target_player_id` for compatibility.
 
 ### Editing controls
 
@@ -246,7 +246,7 @@ Rules:
 
 Each selected Playbook has two working states with deliberately different jobs:
 
-- **Editor** — build and change the football structure: formation, player placement, routes, motion, primary target, metadata, notes, duplicate, and flip
+- **Editor** — build and change the football structure: formation, player placement, routes, motion, target, metadata, notes, duplicate, and flip
 - **Library** — consume the finished play: clean viewer, animation, and roster personnel assignment
 
 This is separate from archival. A Library play is still a normal saved play. Its football diagram and setup are locked; move it back to Editor when the concept itself needs to change. Personnel is intentionally managed in Library because it is a team/use layer over a reusable football concept.
@@ -260,7 +260,7 @@ Editor cards open directly into the editor. Library cards open into the play vie
 Opening a Library play should prioritize consuming and assigning the play, not diagram editing.
 
 - the field is the dominant surface
-- player markers use stable position colors; the primary target is purple
+- player markers use stable position colors; the target is purple
 - route traces inherit their player's color at restrained opacity
 - motion is quieter and dashed
 - a route following motion is rendered from the completed motion position
@@ -345,7 +345,7 @@ Call sheets and wristbands use a game-day-specific static renderer derived from 
 
 - dynamically crop unused field space
 - preserve LOS and route direction while dropping nonessential full-field decoration
-- routes remain color-matched to roles and the primary target stays purple
+- routes remain color-matched to roles and the target stays purple
 - player markers are smaller than in the editor so route geometry remains dominant
 - motion stays dashed and a route following motion begins from the completed motion position
 - Wheel uses the same smoothing renderer as the editor/viewer, and curved samples are included when calculating print crop bounds
