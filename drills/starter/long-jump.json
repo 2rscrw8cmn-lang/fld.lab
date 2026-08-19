@@ -5,10 +5,10 @@
   "category": "Explosive",
   "icon": "jump",
   "description": "Measure the athlete's maximum valid jump distance.",
-  "instructions": "Measure from the takeoff line to the nearest landing mark and record the distance in inches.",
+  "instructions": "Measure from the takeoff line to the nearest landing mark and record the distance in feet.",
   "measurement": {
     "type": "distance",
-    "unit": "in",
+    "unit": "ft",
     "direction": "higher"
   },
   "attempts": {

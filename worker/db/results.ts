@@ -42,6 +42,7 @@ export type AthleteResultGroup = {
     id: string;
     name: string;
     category: string;
+    icon: string | null;
   };
   metric: ResultMetric | null;
   summary: ResultSummary;
@@ -80,6 +81,7 @@ export type DrillLeaderboard = {
     id: string;
     name: string;
     category: string;
+    icon: string | null;
   };
   metric: ResultMetric | null;
   entries: LeaderboardEntry[];
@@ -101,6 +103,7 @@ type ResultDbRow = {
   session_status: "active" | "completed" | "abandoned";
   drill_name: string;
   drill_category: string;
+  drill_icon: string | null;
   definition_json: string;
   current_definition_json: string;
   attempt_id: string;
@@ -135,6 +138,7 @@ type SessionBucket = {
   session_status: "active" | "completed" | "abandoned";
   drill_name: string;
   drill_category: string;
+  drill_icon: string | null;
   definition: DrillDefinition;
   current_definition: DrillDefinition;
   attempts: Map<string, AttemptRecord>;
@@ -292,7 +296,9 @@ async function queryRows(
     to?: string;
   },
 ): Promise<ResultDbRow[]> {
-  const where = ["a.valid = 1"];
+  // Performance surfaces only use completed sessions. Active and abandoned sessions
+  // remain available through session history/detail but never affect PB/latest/ranking.
+  const where = ["a.valid = 1", "s.status = 'completed'"];
   const bindings: string[] = [];
   if (filters.athleteId) {
     where.push("a.athlete_id = ?");
@@ -333,6 +339,7 @@ async function queryRows(
         s.status AS session_status,
         d.name AS drill_name,
         d.category AS drill_category,
+        d.icon AS drill_icon,
         dv.definition_json,
         current_dv.definition_json AS current_definition_json,
         a.id AS attempt_id,
@@ -380,6 +387,7 @@ function sessionBuckets(rows: ResultDbRow[]): SessionBucket[] {
         session_status: row.session_status,
         drill_name: row.drill_name,
         drill_category: row.drill_category,
+        drill_icon: row.drill_icon,
         definition: JSON.parse(row.definition_json) as DrillDefinition,
         current_definition: JSON.parse(row.current_definition_json) as DrillDefinition,
         attempts: new Map(),
@@ -432,7 +440,12 @@ export async function getAthleteResults(
       const metric = metricForDefinition(bucket.current_definition);
       const comparable = metric ? results.filter((result) => sameMetric(result.metric, metric)) : [];
       return {
-        drill: { id: bucket.drill_id, name: bucket.drill_name, category: bucket.drill_category },
+        drill: {
+          id: bucket.drill_id,
+          name: bucket.drill_name,
+          category: bucket.drill_category,
+          icon: bucket.drill_icon,
+        },
         metric,
         summary: summarize(results, metric),
         results: comparable.sort((a, b) => b.started_at.localeCompare(a.started_at)),
@@ -446,19 +459,26 @@ export async function getAthleteResults(
 export async function getDrillLeaderboard(db: D1Database, drillId: string, teamId: string): Promise<DrillLeaderboard> {
   const drill = await db
     .prepare(
-      `SELECT d.id, d.name, d.category, dv.definition_json
+      `SELECT d.id, d.name, d.category, d.icon, dv.definition_json
        FROM drills d
        JOIN drill_versions dv ON dv.id = d.current_version_id
        WHERE d.id = ?`,
     )
     .bind(drillId)
-    .first<{ id: string; name: string; category: string; definition_json: string }>();
+    .first<{ id: string; name: string; category: string; icon: string | null; definition_json: string }>();
   if (!drill) throw new RepositoryError("not_found", "Drill not found.");
+
+  const activeMemberships = await db
+    .prepare("SELECT athlete_id FROM team_memberships WHERE team_id = ? AND active = 1")
+    .bind(teamId)
+    .all<{ athlete_id: string }>();
+  const activeAthleteIds = new Set(activeMemberships.results.map((row) => row.athlete_id));
 
   const metric = metricForDefinition(JSON.parse(drill.definition_json) as DrillDefinition);
   const buckets = sessionBuckets(await queryRows(db, { teamId, drillId }));
   const byAthlete = new Map<string, { bucket: SessionBucket; results: DerivedSessionResult[] }>();
   for (const bucket of buckets) {
+    if (!activeAthleteIds.has(bucket.athlete_id)) continue;
     const result = deriveSessionResult(bucket);
     if (!result || (metric && !sameMetric(result.metric, metric))) continue;
     const current = byAthlete.get(bucket.athlete_id) ?? { bucket, results: [] };
@@ -501,7 +521,7 @@ export async function getDrillLeaderboard(db: D1Database, drillId: string, teamI
   }
 
   return {
-    drill: { id: drill.id, name: drill.name, category: drill.category },
+    drill: { id: drill.id, name: drill.name, category: drill.category, icon: drill.icon },
     metric,
     entries,
   };

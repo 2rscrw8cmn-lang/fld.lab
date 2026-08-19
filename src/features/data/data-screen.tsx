@@ -10,6 +10,7 @@ import {
   X,
 } from "lucide-react";
 
+import { DrillIcon } from "@/components/drill-icon";
 import { SearchSelect } from "@/components/search-select";
 import { Button } from "@/components/ui/button";
 import {
@@ -140,7 +141,7 @@ function TeamTrendCard({ trend }: { trend: TeamDrillTrend | null }) {
     <section className="overflow-hidden rounded-xl border border-border bg-surface">
       <div className="border-b border-border px-4 py-3">
         <div className="text-sm font-extrabold">Team trend</div>
-        <div className="mt-0.5 text-[10px] text-text-muted">Average result by session</div>
+        <div className="mt-0.5 text-[10px] text-text-muted">Average result by completed session</div>
       </div>
       <div className="p-3">
         {!trend?.metric || points.length < 2 ? (
@@ -279,7 +280,7 @@ export function DataScreen({ team }: { team: Team | null }) {
       const [nextRoster, nextDrills, nextSessions] = await Promise.all([
         getRoster(team.id),
         listDrills(),
-        listTeamSessions(team.id, 16),
+        listTeamSessions(team.id, 5),
       ]);
       setRoster(nextRoster);
       setDrills(nextDrills);
@@ -357,11 +358,11 @@ export function DataScreen({ team }: { team: Team | null }) {
   const drillOptions = drills.map((drill) => ({ value: drill.id, label: drill.name, meta: `${drill.category} · ${drill.measurement_type.replaceAll("_", " ")}` }));
 
   return (
-    <section className="mx-auto max-w-[1220px] px-3 pb-8 pt-4 sm:px-4 md:px-6 md:pt-6">
+    <section className="mx-auto max-w-[1220px] px-3 pb-8 pt-[18px] sm:px-4 md:px-6 md:pt-[22px]">
       <div className="mb-4 flex items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-extrabold tracking-tight">Data</h1>
-          <p className="mt-0.5 text-sm text-text-muted">Progress, sessions, and ranking from saved training results.</p>
+          <h1 className="text-[23px] font-extrabold leading-[1.08] tracking-[-0.035em] md:text-[29px]">Data</h1>
+          <p className="mt-1 text-[13px] text-text-muted">Progress, sessions, and ranking from saved training results.</p>
         </div>
         {(loadingBase || loadingResults) && <RefreshCw size={17} className="animate-spin text-text-muted" />}
       </div>
@@ -435,7 +436,7 @@ export function DataScreen({ team }: { team: Team | null }) {
               <div className="overflow-hidden rounded-xl border border-border bg-surface">
                 <div className="border-b border-border px-4 py-3 text-sm font-extrabold">Result history</div>
                 {!group?.results.length ? (
-                  <div className="p-5 text-sm text-text-muted">No history for this athlete and drill.</div>
+                  <div className="p-5 text-sm text-text-muted">No completed-session history for this athlete and drill.</div>
                 ) : (
                   <div>
                     {group.results.map((result, index) => {
@@ -443,7 +444,7 @@ export function DataScreen({ team }: { team: Team | null }) {
                       return (
                         <button key={result.session_id} type="button" onClick={() => void openSession(result.session_id)} className="grid min-h-[58px] w-full grid-cols-[minmax(0,1fr)_auto_16px] items-center gap-3 border-b border-border px-4 text-left transition-colors last:border-b-0 hover:bg-surface-elevated">
                           <span className="min-w-0">
-                            <span className="flex flex-wrap items-center gap-2 text-xs font-bold"><span>{formatDateTime(result.started_at)}</span>{result.session_status === "abandoned" && statusBadge("abandoned")}</span>
+                            <span className="text-xs font-bold">{formatDateTime(result.started_at)}</span>
                             <span className="mt-0.5 block text-[10px] text-text-muted">{result.attempt_count} saved attempt{result.attempt_count === 1 ? "" : "s"}</span>
                           </span>
                           <span className="flex items-center gap-2 text-right">
@@ -465,12 +466,12 @@ export function DataScreen({ team }: { team: Team | null }) {
                 <div className="flex items-center justify-between border-b border-border px-4 py-3">
                   <div>
                     <div className="flex items-center gap-2 text-sm font-extrabold"><Trophy size={16} /> Leaderboard</div>
-                    <div className="mt-0.5 text-[10px] text-text-muted">Personal best · {team.name}</div>
+                    <div className="mt-0.5 text-[10px] text-text-muted">Personal best · active {team.name} roster</div>
                   </div>
                   {leaderboard?.metric?.direction === "none" && <span className="text-[10px] font-bold text-text-muted">Unranked</span>}
                 </div>
                 {!leaderboard?.entries.length ? (
-                  <div className="p-5 text-sm text-text-muted">No team results for this drill yet.</div>
+                  <div className="p-5 text-sm text-text-muted">No active-roster results for this drill yet.</div>
                 ) : (
                   <div>
                     {leaderboard.entries.map((entry) => {
@@ -500,7 +501,7 @@ export function DataScreen({ team }: { team: Team | null }) {
             <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
               <div>
                 <div className="text-sm font-extrabold">Recent sessions</div>
-                <div className="mt-0.5 text-[10px] text-text-muted">Open a session to inspect athlete results and attempts.</div>
+                <div className="mt-0.5 text-[10px] text-text-muted">Latest 5 operational sessions. Open one to inspect athlete results and attempts.</div>
               </div>
               <Clock3 size={16} className="text-text-muted" />
             </div>
@@ -509,7 +510,10 @@ export function DataScreen({ team }: { team: Team | null }) {
             ) : (
               <div>
                 {sessions.map((session) => (
-                  <button key={session.id} type="button" onClick={() => void openSession(session.id)} className="grid min-h-[62px] w-full grid-cols-[minmax(0,1fr)_auto_16px] items-center gap-3 border-b border-border px-4 text-left last:border-b-0 hover:bg-surface-elevated">
+                  <button key={session.id} type="button" onClick={() => void openSession(session.id)} className="grid min-h-[62px] w-full grid-cols-[36px_minmax(0,1fr)_auto_16px] items-center gap-3 border-b border-border px-4 text-left last:border-b-0 hover:bg-surface-elevated">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-md border border-border bg-background text-text-muted">
+                      <DrillIcon drill={{ icon: session.drill_icon, category: session.drill_category }} size={16} />
+                    </span>
                     <span className="min-w-0">
                       <span className="flex flex-wrap items-center gap-2"><strong className="truncate text-xs">{session.drill_name}</strong>{statusBadge(session.status)}</span>
                       <span className="mt-0.5 block text-[10px] text-text-muted">{formatDateTime(session.started_at)} · {session.attempt_count} attempts</span>

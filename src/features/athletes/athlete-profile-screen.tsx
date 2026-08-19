@@ -12,6 +12,7 @@ import {
   UserRound,
 } from "lucide-react";
 
+import { DrillIcon } from "@/components/drill-icon";
 import { Button } from "@/components/ui/button";
 import { getRoster, type RosterRow, type Team } from "@/lib/api";
 import {
@@ -231,9 +232,14 @@ export function AthleteProfileScreen({
                 const change = changeLabel(group);
                 return (
                   <div key={group.drill.id} className="grid gap-3 border-b border-border p-4 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_110px_110px_150px] sm:items-center">
-                    <div className="min-w-0">
-                      <div className="truncate text-sm font-extrabold">{group.drill.name}</div>
-                      <div className="mt-0.5 text-[10px] text-text-muted">{group.drill.category} · {group.summary.result_count} result{group.summary.result_count === 1 ? "" : "s"}</div>
+                    <div className="flex min-w-0 items-center gap-3">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border bg-background text-text-muted">
+                        <DrillIcon drill={group.drill} size={15} />
+                      </span>
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-extrabold">{group.drill.name}</div>
+                        <div className="mt-0.5 text-[10px] text-text-muted">{group.drill.category} · {group.summary.result_count} result{group.summary.result_count === 1 ? "" : "s"}</div>
+                      </div>
                     </div>
                     <Metric label="PB" value={formatResult(group.summary.pb, group.metric)} emphasis />
                     <Metric label="Latest" value={formatResult(group.summary.latest, group.metric)} />
@@ -255,7 +261,7 @@ export function AthleteProfileScreen({
             <div className="flex min-h-[48px] items-center justify-between border-b border-border px-4">
               <div>
                 <h2 className="text-sm font-extrabold">Recent results</h2>
-                <p className="text-[10px] text-text-muted">Across all drills</p>
+                <p className="text-[10px] text-text-muted">Completed sessions across all drills</p>
               </div>
               <CalendarDays size={17} className="text-text-muted" />
             </div>
@@ -263,16 +269,17 @@ export function AthleteProfileScreen({
               {recentResults.map((result) => {
                 const isPb = result.pb !== null && result.value === result.pb;
                 return (
-                  <div key={`${result.session_id}-${result.drill_id}`} className={`border-b border-border px-4 py-3 last:border-b-0 ${result.session_status === "abandoned" ? "opacity-60" : ""}`}>
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="truncate text-xs font-extrabold">{result.drill.name}</div>
-                        <div className="mt-0.5 text-[10px] text-text-muted">{formatDateTime(result.started_at)}{result.session_status === "abandoned" ? " · abandoned" : ""}</div>
-                      </div>
-                      <div className="shrink-0 text-right">
-                        <div className="text-sm font-extrabold tabular-nums">{formatResult(result.value, result.metric)}</div>
-                        {isPb && <div className="mt-0.5 text-[9px] font-bold uppercase tracking-[0.06em] text-[#c4b5fd]">PB</div>}
-                      </div>
+                  <div key={`${result.session_id}-${result.drill_id}`} className="grid grid-cols-[36px_minmax(0,1fr)_auto] items-center gap-3 border-b border-border px-4 py-3 last:border-b-0">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-md border border-border bg-background text-text-muted">
+                      <DrillIcon drill={result.drill} size={16} />
+                    </span>
+                    <div className="min-w-0">
+                      <div className="truncate text-xs font-extrabold">{result.drill.name}</div>
+                      <div className="mt-0.5 text-[10px] text-text-muted">{formatDateTime(result.started_at)}</div>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <div className="text-sm font-extrabold tabular-nums">{formatResult(result.value, result.metric)}</div>
+                      {isPb && <div className="mt-0.5 text-[9px] font-bold uppercase tracking-[0.06em] text-[#c4b5fd]">PB</div>}
                     </div>
                   </div>
                 );

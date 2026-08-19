@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
-import { Archive, Pencil, Plus, RotateCcw, Search, X } from "lucide-react";
+import { Archive, Check, Pencil, Plus, RotateCcw, Search, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -60,6 +60,7 @@ export function RosterScreen({ team, onNavigate }: { team: Team | null; onNaviga
   const [search, setSearch] = useState("");
   const [showArchived, setShowArchived] = useState(false);
   const [editorRow, setEditorRow] = useState<RosterRow | null | undefined>(undefined);
+  const [archiveCandidate, setArchiveCandidate] = useState<RosterRow | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -89,6 +90,7 @@ export function RosterScreen({ team, onNavigate }: { team: Team | null; onNaviga
   useEffect(() => {
     setSearch("");
     setEditorRow(undefined);
+    setArchiveCandidate(null);
   }, [team?.id]);
 
   const filteredRows = useMemo(() => {
@@ -180,14 +182,16 @@ export function RosterScreen({ team, onNavigate }: { team: Team | null; onNaviga
     }
   };
 
-  const toggleMembership = async (row: RosterRow) => {
+  const toggleMembership = async (row: RosterRow, confirmed = false) => {
     const archiving = row.membership.active;
-    if (archiving && !window.confirm(`Archive ${row.athlete.first_name} ${row.athlete.last_name} from this roster? Historical results will be preserved.`)) {
+    if (archiving && !confirmed) {
+      setArchiveCandidate(row);
       return;
     }
 
     try {
       await patchMembership(row.membership.id, { active: !archiving });
+      setArchiveCandidate(null);
       await loadRoster();
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "Could not update roster status.");
@@ -226,15 +230,18 @@ export function RosterScreen({ team, onNavigate }: { team: Team | null; onNaviga
                 className="h-10 w-full rounded-lg border border-border bg-background pl-9 pr-3 text-sm outline-none placeholder:text-text-muted focus-visible:ring-2 focus-visible:ring-accent"
               />
             </label>
-            <label className="flex min-h-10 cursor-pointer items-center gap-2 text-xs font-semibold text-text-muted">
-              <input
-                type="checkbox"
-                checked={showArchived}
-                onChange={(event) => setShowArchived(event.target.checked)}
-                className="h-4 w-4 accent-accent"
-              />
+            <button
+              type="button"
+              role="checkbox"
+              aria-checked={showArchived}
+              onClick={() => setShowArchived((current) => !current)}
+              className="inline-flex min-h-10 items-center gap-2 rounded-lg px-2 text-xs font-semibold text-text-muted transition-colors hover:bg-surface-elevated hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            >
+              <span className={`grid h-5 w-5 place-items-center rounded border ${showArchived ? "border-accent bg-accent text-accent-foreground" : "border-border bg-background"}`} aria-hidden={true}>
+                {showArchived && <Check size={14} strokeWidth={3} />}
+              </span>
               Show archived
-            </label>
+            </button>
           </div>
 
           {loading ? (
@@ -329,6 +336,20 @@ export function RosterScreen({ team, onNavigate }: { team: Team | null; onNaviga
                 <Button type="submit" disabled={saving}>{saving ? "Saving…" : editorRow ? "Save Changes" : "Add Athlete"}</Button>
               </div>
             </form>
+          </section>
+        </div>
+      )}
+
+      {archiveCandidate && (
+        <div className="fixed inset-0 z-[60] grid place-items-center bg-black/60 p-4" role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target) setArchiveCandidate(null); }}>
+          <section className="w-full max-w-[420px] rounded-xl border border-border bg-surface p-5 shadow-2xl" role="alertdialog" aria-modal="true" aria-labelledby="archive-athlete-title" aria-describedby="archive-athlete-copy">
+            <span className="grid h-11 w-11 place-items-center rounded-lg border border-danger/35 bg-danger/10 text-danger"><Archive size={19} /></span>
+            <h2 id="archive-athlete-title" className="mt-4 text-lg font-extrabold">Archive {archiveCandidate.athlete.first_name} {archiveCandidate.athlete.last_name}?</h2>
+            <p id="archive-athlete-copy" className="mt-2 text-sm leading-5 text-text-muted">They’ll leave the active roster and current leaderboards. Historical sessions and results stay preserved.</p>
+            <div className="mt-5 flex justify-end gap-2">
+              <Button type="button" variant="secondary" onClick={() => setArchiveCandidate(null)}>Cancel</Button>
+              <Button type="button" variant="destructive" onClick={() => void toggleMembership(archiveCandidate, true)}><Archive size={16} /> Archive</Button>
+            </div>
           </section>
         </div>
       )}

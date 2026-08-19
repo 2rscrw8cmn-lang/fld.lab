@@ -45,6 +45,16 @@ describe("drill definition validation", () => {
     ]);
   });
 
+  it("measures long jump and throw distance in feet", () => {
+    const longJump = readJson("../drills/starter/long-jump.json") as DrillDefinition;
+    const throwDistance = readJson("../drills/starter/throw-distance.json") as DrillDefinition;
+
+    expect(longJump.measurement.unit).toBe("ft");
+    expect(throwDistance.measurement.unit).toBe("ft");
+    expect(longJump.instructions).toMatch(/feet/i);
+    expect(throwDistance.instructions).toMatch(/feet/i);
+  });
+
   it("seeds only starter slugs that are not already present", () => {
     const missing = missingStarterDrills([
       { slug: "quick-catch-10" },

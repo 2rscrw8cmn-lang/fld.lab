@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Activity, ChevronRight, Clock3, RefreshCw } from "lucide-react";
 
+import { DrillIcon } from "@/components/drill-icon";
 import { Button } from "@/components/ui/button";
 import { recentDrillsFromSessions, type RecentDrill } from "@/features/home/recent-drills";
 import {
@@ -61,16 +62,16 @@ export function HomeScreen({ onNavigate, team }: { onNavigate: (path: string) =>
       listDrills(),
     ])
       .then(async ([rows, detail, sessions, drills]) => {
-        const completedOrAbandoned = sessions.filter((session) => session.status !== "active");
+        const completed = sessions.filter((session) => session.status === "completed");
         const availableIds = new Set(drills.map((drill) => drill.id));
-        const recent = recentDrillsFromSessions(sessions, 4).filter((drill) => availableIds.has(drill.id));
+        const recent = recentDrillsFromSessions(completed, 4).filter((drill) => availableIds.has(drill.id));
         const preferredDrillId = recent[0]?.id ?? drills[0]?.id ?? null;
         const preferredDetail = !detail && preferredDrillId ? await getDrill(preferredDrillId) : null;
 
         if (cancelled) return;
         setRoster(rows.slice(0, 5));
         setActiveSession(detail);
-        setRecentSessions(completedOrAbandoned.slice(0, 3));
+        setRecentSessions(completed.slice(0, 3));
         setRecentDrills(recent);
         setQuickDrill(preferredDetail);
       })
@@ -235,7 +236,7 @@ export function HomeScreen({ onNavigate, team }: { onNavigate: (path: string) =>
             <span className="flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background text-text-muted"><Clock3 size={15} /></span>
             <span>
               <span className="block text-xs font-bold">No completed sessions recorded yet.</span>
-              <span className="mt-0.5 block text-[11px] text-text-muted">Completed and abandoned sessions will appear here after training.</span>
+              <span className="mt-0.5 block text-[11px] text-text-muted">Completed sessions will appear here after training.</span>
             </span>
           </div>
         ) : (
@@ -244,13 +245,13 @@ export function HomeScreen({ onNavigate, team }: { onNavigate: (path: string) =>
               key={session.id}
               type="button"
               onClick={() => onNavigate("/data")}
-              className="grid min-h-[60px] w-full grid-cols-[minmax(0,1fr)_auto_18px] items-center gap-3 border-b border-border px-[15px] text-left last:border-b-0 hover:bg-surface-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
+              className="grid min-h-[60px] w-full grid-cols-[36px_minmax(0,1fr)_auto_18px] items-center gap-3 border-b border-border px-[15px] text-left last:border-b-0 hover:bg-surface-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
             >
+              <span className="flex h-9 w-9 items-center justify-center rounded-md border border-border bg-background text-text-muted">
+                <DrillIcon drill={{ icon: session.drill_icon, category: session.drill_category }} size={16} />
+              </span>
               <span className="min-w-0">
-                <span className="flex items-center gap-2">
-                  <span className="truncate text-xs font-bold">{session.drill_name}</span>
-                  {session.status === "abandoned" && <span className="rounded-full border border-border bg-background px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-[0.06em] text-text-muted">Abandoned</span>}
-                </span>
+                <span className="block truncate text-xs font-bold">{session.drill_name}</span>
                 <span className="mt-0.5 block text-[10px] text-text-muted">{formatSessionTime(session.started_at)} · {session.attempt_count} saved attempt{session.attempt_count === 1 ? "" : "s"}</span>
               </span>
               <span className="text-right text-[10px] text-text-muted"><strong className="block text-xs text-text-secondary">{session.completed_count} complete</strong>{session.skipped_count ? `${session.skipped_count} skipped` : `${session.athlete_count} athletes`}</span>
