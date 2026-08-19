@@ -20,7 +20,13 @@ import {
 
 import { Button } from "@/components/ui/button";
 import type { Team } from "@/lib/api";
-import { createTeamPlay, listTeamPlays, updateTeamPlay } from "@/lib/playbook-api";
+import {
+  createTeamPlay,
+  listTeamPlays,
+  updateTeamPlay,
+  type PlaySituation,
+  type PlayType,
+} from "@/lib/playbook-api";
 import {
   FORMATIONS,
   ROUTE_TEMPLATES,
@@ -51,6 +57,10 @@ type Play = {
   side: PlaySide;
   formation_id: string | null;
   formation: string;
+  play_type: PlayType;
+  concept: string;
+  situation: PlaySituation;
+  active_play: boolean;
   notes: string;
   diagram: PlayDiagram;
   created_at: string;
@@ -58,9 +68,26 @@ type Play = {
 };
 
 type Filter = "all" | PlaySide;
+type LibraryView = "active" | "library";
 type PersistenceMode = "loading" | "database" | "local";
 type EditorSnapshot = Pick<Play, "side" | "formation_id" | "formation" | "diagram">;
 type DragState = { kind: "player" | "assignment"; id: string } | null;
+
+const PLAY_TYPES: Array<{ value: PlayType; label: string }> = [
+  { value: "pass", label: "Pass" },
+  { value: "run", label: "Run" },
+  { value: "option", label: "Option" },
+];
+
+const SITUATIONS: Array<{ value: PlaySituation; label: string }> = [
+  { value: "any", label: "Any" },
+  { value: "short", label: "Short" },
+  { value: "medium", label: "Medium" },
+  { value: "deep", label: "Deep" },
+  { value: "no-run", label: "No-run" },
+  { value: "goal-line", label: "Goal line" },
+  { value: "conversion", label: "Conversion" },
+];
 
 const id = (prefix: string) => `${prefix}_${crypto.randomUUID()}`;
 const clamp = (value: number) => Math.max(5, Math.min(95, value));
@@ -88,6 +115,10 @@ function newPlay(teamId: string, formationId = "spread"): Play {
     side: formation.side,
     formation_id: formation.id,
     formation: formation.name,
+    play_type: "pass",
+    concept: "",
+    situation: "any",
+    active_play: true,
     notes: "",
     diagram: diagramForFormation(formation.id),
     created_at: timestamp,
@@ -164,6 +195,10 @@ function normalizePlay(value: unknown, teamId: string): Play | null {
   const storedFormationId = typeof raw.formation_id === "string" ? raw.formation_id : null;
   const inferred = FORMATIONS.find((formation) => formation.side === side && formation.name.toLowerCase() === formationText.toLowerCase()) ?? null;
   const formationId = formationById(storedFormationId)?.side === side ? storedFormationId : inferred?.id ?? null;
+  const playType: PlayType = raw.play_type === "run" || raw.play_type === "option" ? raw.play_type : "pass";
+  const situation: PlaySituation = SITUATIONS.some((option) => option.value === raw.situation)
+    ? raw.situation as PlaySituation
+    : "any";
   const timestamp = new Date().toISOString();
   return {
     id: raw.id,
@@ -172,6 +207,10 @@ function normalizePlay(value: unknown, teamId: string): Play | null {
     side,
     formation_id: formationId,
     formation: formationText || formationById(formationId)?.name || (side === "offense" ? "Custom" : "Defense"),
+    play_type: playType,
+    concept: typeof raw.concept === "string" ? raw.concept : "",
+    situation,
+    active_play: typeof raw.active_play === "boolean" ? raw.active_play : true,
     notes: typeof raw.notes === "string" ? raw.notes : "",
     diagram,
     created_at: typeof raw.created_at === "string" ? raw.created_at : timestamp,
@@ -204,13 +243,18 @@ function playInput(play: Play) {
     side: play.side,
     formation_id: play.formation_id,
     formation: play.formation.trim(),
+    play_type: play.play_type,
+    concept: play.concept.trim(),
+    situation: play.situation,
+    active_play: play.active_play,
     notes: play.notes.trim(),
     diagram: play.diagram,
   };
 }
 
-async function reconcileDatabasePlays(teamId: string, localPlays: Play[]): Promise<Play[]> {
+async function reconcileDatabasePlays(teamId: string): Promise<Play[]> {
   const remoteValues = await listTeamPlays(teamId);
+  const localPlays = parseStoredPlays(teamId);
   const remotePlays = remoteValues.flatMap((value) => {
     const play = normalizePlay(value, teamId);
     return play ? [play] : [];
@@ -242,6 +286,10 @@ async function reconcileDatabasePlays(teamId: string, localPlays: Play[]): Promi
 
 function formatUpdated(value: string) {
   return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(value));
+}
+
+function situationLabel(value: PlaySituation) {
+  return SITUATIONS.find((option) => option.value === value)?.label ?? "Any";
 }
 
 function polylinePoints(points: Point[]) {
@@ -343,6 +391,11 @@ function PlayCard({ play, onOpen }: { play: Play; onOpen: () => void }) {
           </div>
           <span className="shrink-0 rounded-full border border-border bg-background px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.06em] text-text-muted">{play.side}</span>
         </div>
+        <div className="mt-2 flex flex-wrap gap-1">
+          <span className="rounded border border-border bg-background px-1.5 py-0.5 text-[8px] font-bold uppercase text-text-muted">{play.play_type}</span>
+          {play.concept && <span className="max-w-[100px] truncate rounded border border-border bg-background px-1.5 py-0.5 text-[8px] font-bold text-text-muted">{play.concept}</span>}
+          {play.situation !== "any" && <span className="rounded border border-border bg-background px-1.5 py-0.5 text-[8px] font-bold text-text-muted">{situationLabel(play.situation)}</span>}
+        </div>
         <div className="mt-2 text-[9px] text-text-muted">Updated {formatUpdated(play.updated_at)}</div>
       </div>
     </button>
@@ -414,6 +467,7 @@ function FormationPicker({
 export function PlaybookScreen({ team }: { team: Team | null }) {
   const [plays, setPlays] = useState<Play[]>([]);
   const [filter, setFilter] = useState<Filter>("all");
+  const [view, setView] = useState<LibraryView>("active");
   const [draft, setDraft] = useState<Play | null>(null);
   const [newPlayPickerOpen, setNewPlayPickerOpen] = useState(false);
   const [pickerSide, setPickerSide] = useState<PlaySide>("offense");
@@ -423,6 +477,7 @@ export function PlaybookScreen({ team }: { team: Team | null }) {
     let cancelled = false;
     setDraft(null);
     setFilter("all");
+    setView("active");
     setNewPlayPickerOpen(false);
     setPersistenceMode("loading");
 
@@ -434,7 +489,7 @@ export function PlaybookScreen({ team }: { team: Team | null }) {
     const localPlays = parseStoredPlays(team.id);
     setPlays(localPlays);
 
-    void reconcileDatabasePlays(team.id, localPlays)
+    void reconcileDatabasePlays(team.id)
       .then((databasePlays) => {
         if (cancelled) return;
         setPlays(databasePlays);
@@ -443,7 +498,7 @@ export function PlaybookScreen({ team }: { team: Team | null }) {
       })
       .catch(() => {
         if (cancelled) return;
-        setPlays(localPlays);
+        setPlays(parseStoredPlays(team.id));
         setPersistenceMode("local");
       });
 
@@ -480,6 +535,7 @@ export function PlaybookScreen({ team }: { team: Team | null }) {
         : [persisted, ...plays];
       persistLocal(next);
       setDraft(null);
+      setView(persisted.active_play ? "active" : "library");
     } catch {
       persistLocal(localNext);
       setPersistenceMode("local");
@@ -513,9 +569,15 @@ export function PlaybookScreen({ team }: { team: Team | null }) {
   };
 
   const filtered = useMemo(
-    () => plays.filter((play) => filter === "all" || play.side === filter).sort((a, b) => b.updated_at.localeCompare(a.updated_at)),
-    [filter, plays],
+    () => plays
+      .filter((play) => view === "active" ? play.active_play : !play.active_play)
+      .filter((play) => filter === "all" || play.side === filter)
+      .sort((a, b) => b.updated_at.localeCompare(a.updated_at)),
+    [filter, plays, view],
   );
+
+  const activeCount = plays.filter((play) => play.active_play).length;
+  const libraryCount = plays.length - activeCount;
 
   if (!team) {
     return <section className="p-6 text-sm text-text-muted">Create or select a team to build a playbook.</section>;
@@ -538,22 +600,27 @@ export function PlaybookScreen({ team }: { team: Team | null }) {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-[24px] font-extrabold leading-none tracking-[-0.035em] md:text-[30px]">Playbook</h1>
-          <p className="mt-1.5 text-[13px] text-text-muted">Build clean, readable plays for {team.name}.</p>
+          <p className="mt-1.5 text-[13px] text-text-muted">Keep the plays this team is running now separate from the larger library.</p>
         </div>
         <Button onClick={() => { setPickerSide("offense"); setNewPlayPickerOpen(true); }}><FilePlus2 size={16} />New Play</Button>
       </div>
 
-      <div className="mt-5 flex items-center justify-between gap-3">
+      <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3">
+        <div className="inline-grid grid-cols-2 rounded-lg border border-border bg-background p-1 text-xs font-bold">
+          <button type="button" onClick={() => setView("active")} className={`min-h-9 rounded-md px-4 ${view === "active" ? "bg-[rgba(124,58,237,0.16)] text-[#c4b5fd]" : "text-text-muted"}`}>Active · {activeCount}</button>
+          <button type="button" onClick={() => setView("library")} className={`min-h-9 rounded-md px-4 ${view === "library" ? "bg-surface-elevated text-text-primary" : "text-text-muted"}`}>Library · {libraryCount}</button>
+        </div>
         <SegmentedFilter value={filter} onChange={setFilter} />
-        <span className="text-[10px] font-bold text-text-muted">{filtered.length} play{filtered.length === 1 ? "" : "s"}</span>
       </div>
 
       {filtered.length === 0 ? (
-        <div className="mt-4 flex min-h-[360px] flex-col items-center justify-center rounded-xl border border-dashed border-border bg-surface/60 p-8 text-center">
+        <div className="mt-4 flex min-h-[330px] flex-col items-center justify-center rounded-xl border border-dashed border-border bg-surface/60 p-8 text-center">
           <Route size={34} className="text-text-muted" />
-          <h2 className="mt-4 text-lg font-extrabold">{plays.length ? `No ${filter} plays yet` : "Start the playbook"}</h2>
-          <p className="mt-1 max-w-sm text-sm leading-5 text-text-muted">Choose a formation, assign real football routes, then adjust the geometry on the field.</p>
-          <Button className="mt-5" onClick={() => { setPickerSide("offense"); setNewPlayPickerOpen(true); }}><Plus size={16} />Create first play</Button>
+          <h2 className="mt-4 text-lg font-extrabold">{view === "active" ? "No active plays yet" : "Library is empty"}</h2>
+          <p className="mt-1 max-w-sm text-sm leading-5 text-text-muted">
+            {view === "active" ? "New plays start active. Move plays to the Library when they are not in the current install." : "Edit an active play and turn off Active Play to keep it here for later."}
+          </p>
+          {view === "active" && <Button className="mt-5" onClick={() => { setPickerSide("offense"); setNewPlayPickerOpen(true); }}><Plus size={16} />Create first play</Button>}
         </div>
       ) : (
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
@@ -620,7 +687,6 @@ function PlayEditor({
   const svgRef = useRef<SVGSVGElement | null>(null);
 
   const selectedPlayer = draft.diagram.players.find((player) => player.id === selectedPlayerId) ?? null;
-  const selectedAssignment = draft.diagram.assignments.find((assignment) => assignment.id === selectedAssignmentId) ?? null;
   const selectedRoute = selectedPlayer
     ? draft.diagram.assignments.find((assignment) => assignment.player_id === selectedPlayer.id && assignment.kind === "route") ?? null
     : null;
@@ -860,6 +926,7 @@ function PlayEditor({
       ...draft,
       name: draft.name.trim() || "Untitled Play",
       formation: draft.formation.trim(),
+      concept: draft.concept.trim(),
       notes: draft.notes.trim(),
       updated_at: timestamp,
     });
@@ -980,6 +1047,41 @@ function PlayEditor({
               onRemove={removeSelectedPlayer}
               onAddPlayer={addPlayer}
             />
+          </section>
+
+          <section className="rounded-xl border border-border bg-surface p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="text-sm font-extrabold">Play details</div>
+                <div className="mt-0.5 text-[10px] text-text-muted">Used to keep the playbook small and game-ready.</div>
+              </div>
+              <button type="button" onClick={() => setDraft((current) => ({ ...current, active_play: !current.active_play }))} className={`rounded-lg border px-2.5 py-1.5 text-[10px] font-extrabold ${draft.active_play ? "border-[rgba(124,58,237,0.5)] bg-[rgba(124,58,237,0.16)] text-[#c4b5fd]" : "border-border bg-background text-text-muted"}`}>
+                {draft.active_play ? "ACTIVE PLAY" : "IN LIBRARY"}
+              </button>
+            </div>
+
+            <div className="mt-4 text-[10px] font-bold uppercase tracking-[0.08em] text-text-muted">Type</div>
+            <div className="mt-2 grid grid-cols-3 gap-1.5">
+              {PLAY_TYPES.map((option) => (
+                <button key={option.value} type="button" onClick={() => setDraft((current) => ({ ...current, play_type: option.value }))} className={`min-h-9 rounded-lg border text-[10px] font-extrabold ${draft.play_type === option.value ? "border-[rgba(124,58,237,0.5)] bg-[rgba(124,58,237,0.16)] text-[#c4b5fd]" : "border-border bg-background text-text-secondary"}`}>
+                  {option.label}
+                </button>
+              ))}
+            </div>
+
+            <label className="mt-3 grid gap-1 text-[10px] font-bold uppercase tracking-[0.08em] text-text-muted">
+              Concept
+              <input value={draft.concept} onChange={(event) => setDraft((current) => ({ ...current, concept: event.target.value.slice(0, 80) }))} placeholder="Flood, Mesh, Slant…" className="h-10 rounded-lg border border-border bg-background px-3 text-sm font-semibold normal-case tracking-normal text-text-primary outline-none placeholder:text-text-muted focus:border-accent" />
+            </label>
+
+            <div className="mt-3 text-[10px] font-bold uppercase tracking-[0.08em] text-text-muted">Situation</div>
+            <div className="mt-2 grid grid-cols-2 gap-1.5">
+              {SITUATIONS.map((option) => (
+                <button key={option.value} type="button" onClick={() => setDraft((current) => ({ ...current, situation: option.value }))} className={`min-h-9 rounded-lg border px-2 text-[10px] font-bold ${draft.situation === option.value ? "border-[rgba(124,58,237,0.5)] bg-[rgba(124,58,237,0.16)] text-[#c4b5fd]" : "border-border bg-background text-text-secondary"}`}>
+                  {option.label}
+                </button>
+              ))}
+            </div>
           </section>
 
           <section className="rounded-xl border border-border bg-surface p-4">
