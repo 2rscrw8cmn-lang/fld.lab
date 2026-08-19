@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { routePathData, sampledRoutePoints } from "@/features/playbook/playbook-path";
 import { LOS_Y, type DiagramAssignment, type DiagramPlayer, type PlayDiagram, type Point } from "@/features/playbook/playbook-model";
 import {
   isPrimaryPlayer,
@@ -74,10 +75,6 @@ function chunk<T>(values: T[], size: number): T[][] {
   return groups;
 }
 
-function polylinePoints(points: Point[]) {
-  return points.map((point) => `${point.x},${point.y}`).join(" ");
-}
-
 function assignmentFor(diagram: PlayDiagram, playerId: string, kind: DiagramAssignment["kind"]) {
   return diagram.assignments.find((assignment) => assignment.player_id === playerId && assignment.kind === kind) ?? null;
 }
@@ -132,7 +129,10 @@ function expandAxis(minValue: number, maxValue: number, minimumSize: number) {
 function diagramBounds(play: PlaybookGameDayPlay): DiagramBounds {
   const points: Point[] = [
     ...play.diagram.players.map((player) => ({ x: player.x, y: player.y })),
-    ...play.diagram.assignments.flatMap((assignment) => renderedAssignmentPoints(play.diagram, assignment)),
+    ...play.diagram.assignments.flatMap((assignment) => {
+      const rendered = renderedAssignmentPoints(play.diagram, assignment);
+      return sampledRoutePoints(assignment.template, rendered);
+    }),
     { x: 50, y: LOS_Y },
   ];
   const xs = points.map((point) => point.x);
@@ -191,10 +191,11 @@ function CompactPlayDiagram({
         const player = playerForAssignment(play.diagram, assignment.player_id);
         const primary = player ? isPrimaryPlayer(play.diagram, player.id) : false;
         const color = player ? playerColor(player, primary) : "#64748b";
+        const renderedPoints = renderedAssignmentPoints(play.diagram, assignment);
         return (
-          <polyline
+          <path
             key={assignment.id}
-            points={polylinePoints(renderedAssignmentPoints(play.diagram, assignment))}
+            d={routePathData(assignment.template, renderedPoints)}
             fill="none"
             stroke={color}
             strokeWidth={tiny ? (assignment.kind === "route" ? 0.82 : 0.58) : assignment.kind === "route" ? 0.95 : 0.65}
