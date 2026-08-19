@@ -25,7 +25,7 @@ SELECT
   strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 FROM teams;
 
-ALTER TABLE plays ADD COLUMN playbook_id TEXT;
+ALTER TABLE plays ADD COLUMN playbook_id TEXT REFERENCES playbooks(id);
 
 UPDATE plays
 SET playbook_id = 'playbook_default_' || team_id
