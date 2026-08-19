@@ -13,6 +13,7 @@ describe("application scaffold", () => {
       "/roster",
       "/train",
       "/data",
+      "/playbook",
       "/drills",
       "/settings"
     ]);
