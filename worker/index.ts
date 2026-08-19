@@ -6,75 +6,12 @@ import { handleSessionRosterApi } from "./sessions/roster-routes";
 import { handleSessionApi } from "./sessions/routes";
 import { handleTeamAdminApi } from "./teams/admin-routes";
 
-type AuthRuntimeBindings = {
-  AUTH_MODE?: unknown;
-  ACCESS_TEAM_DOMAIN?: unknown;
-  ACCESS_AUD?: unknown;
-  AUTHORIZED_COACH_EMAILS?: unknown;
-};
-
-type AuthRuntimeStatus = {
-  diagnostic: "auth-runtime-v1";
-  configured: boolean;
-  mode: string | null;
-  missing: string[];
-  invalid: string[];
-};
-
 export type HealthPayload = {
   ok: true;
-  auth: AuthRuntimeStatus;
 };
 
-function nonEmptyString(value: unknown): string | null {
-  return typeof value === "string" && value.trim() ? value.trim() : null;
-}
-
-function authRuntimeStatus(env?: Env): AuthRuntimeStatus {
-  const runtime = (env ?? {}) as Env & AuthRuntimeBindings;
-  const mode = nonEmptyString(runtime.AUTH_MODE);
-  const teamDomain = nonEmptyString(runtime.ACCESS_TEAM_DOMAIN);
-  const audience = nonEmptyString(runtime.ACCESS_AUD);
-  const coaches = nonEmptyString(runtime.AUTHORIZED_COACH_EMAILS);
-
-  const missing: string[] = [];
-  if (!mode) missing.push("AUTH_MODE");
-  if (!teamDomain) missing.push("ACCESS_TEAM_DOMAIN");
-  if (!audience) missing.push("ACCESS_AUD");
-  if (!coaches) missing.push("AUTHORIZED_COACH_EMAILS");
-
-  const invalid: string[] = [];
-  if (mode && mode !== "access") invalid.push("AUTH_MODE");
-
-  if (teamDomain) {
-    try {
-      const parsed = new URL(teamDomain.replace(/\/$/, ""));
-      if (parsed.protocol !== "https:" || !parsed.hostname.endsWith(".cloudflareaccess.com")) {
-        invalid.push("ACCESS_TEAM_DOMAIN");
-      }
-    } catch {
-      invalid.push("ACCESS_TEAM_DOMAIN");
-    }
-  }
-
-  if (coaches) {
-    const entries = coaches.split(",").map((email) => email.trim()).filter(Boolean);
-    if (!entries.length || entries.some((email) => !email.includes("@"))) {
-      invalid.push("AUTHORIZED_COACH_EMAILS");
-    }
-  }
-
-  return {
-    diagnostic: "auth-runtime-v1",
-    configured: missing.length === 0 && invalid.length === 0,
-    mode,
-    missing,
-    invalid,
-  };
-}
-
-export function createHealthPayload(env?: Env): HealthPayload {
-  return { ok: true, auth: authRuntimeStatus(env) };
+export function createHealthPayload(): HealthPayload {
+  return { ok: true };
 }
 
 const worker = {
@@ -82,9 +19,7 @@ const worker = {
     const url = new URL(request.url);
 
     if (request.method === "GET" && url.pathname === "/api/health") {
-      return Response.json(createHealthPayload(env), {
-        headers: { "Cache-Control": "no-store" },
-      });
+      return Response.json(createHealthPayload());
     }
 
     if (url.pathname.startsWith("/api/")) {
