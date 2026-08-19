@@ -8,6 +8,7 @@ export type SessionSummary = {
   drill_version_id: string;
   drill_name: string;
   drill_category: string;
+  drill_icon: string | null;
   started_at: string;
   completed_at: string | null;
   status: "active" | "completed" | "abandoned";
