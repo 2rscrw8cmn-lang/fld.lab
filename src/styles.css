@@ -138,8 +138,34 @@ select {
 }
 
 /* Playbook diagrams use neutral football ink. Purple is reserved for selection/interaction. */
-svg[aria-label="Play editor field"] polyline.stroke-accent {
+svg:has(marker[id$="-route"]) polyline.stroke-accent {
   stroke: var(--text-secondary);
+}
+
+svg:has(marker[id$="-route"]) marker[id$="-route"] path {
+  fill: var(--text-secondary);
+  transform: scale(0.72);
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+svg:has(marker[id$="-motion"]) marker[id$="-motion"] path {
+  fill: var(--text-muted);
+  transform: scale(0.72);
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+svg:has(marker[id^="card-"]) polyline.stroke-accent {
+  stroke-width: 0.72;
+}
+
+svg:has(marker[id^="card-"]) polyline.stroke-text-muted {
+  stroke-width: 0.64;
+  stroke-dasharray: 2 2;
+}
+
+svg[aria-label="Play editor field"] polyline.stroke-accent {
   stroke-width: 1.15;
 }
 
@@ -147,19 +173,6 @@ svg[aria-label="Play editor field"] polyline.stroke-text-muted {
   stroke: color-mix(in srgb, var(--text-muted) 78%, transparent);
   stroke-width: 0.95;
   stroke-dasharray: 2.4 2.2;
-}
-
-svg[aria-label="Play editor field"] marker[id$="-route"] path {
-  fill: var(--text-secondary);
-}
-
-svg[aria-label="Play editor field"] marker[id$="-motion"] path {
-  fill: var(--text-muted);
-}
-
-svg[aria-label="Play editor field"] marker {
-  marker-width: 3.7;
-  marker-height: 3.7;
 }
 
 svg[aria-label="Play editor field"] > line.stroke-border,
