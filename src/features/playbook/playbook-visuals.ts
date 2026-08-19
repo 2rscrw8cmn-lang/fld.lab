@@ -6,6 +6,7 @@ const POSITION_COLORS: Record<string, string> = {
   X: "#38BDF8",
   Y: "#34D399",
   Z: "#FB923C",
+  H: "#FB7185",
   C: "#60A5FA",
   QB: "#FBBF24",
 };
