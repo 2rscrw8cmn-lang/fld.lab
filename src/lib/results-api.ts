@@ -11,6 +11,13 @@ export type ResultMetric = {
   max: number | null;
 };
 
+export type DerivedAttemptResult = {
+  id: string;
+  attempt_number: number;
+  created_at: string;
+  value: number;
+};
+
 export type DerivedSessionResult = {
   session_id: string;
   team_id: string;
@@ -22,6 +29,7 @@ export type DerivedSessionResult = {
   session_status: "active" | "completed" | "abandoned";
   value: number;
   attempt_count: number;
+  attempts: DerivedAttemptResult[];
   metric: ResultMetric;
 };
 
