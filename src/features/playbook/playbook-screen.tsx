@@ -306,17 +306,17 @@ function FieldLines() {
   ];
   return (
     <>
-      <rect x="3" y="3" width="94" height="94" rx="1.5" fill="none" className="stroke-border" strokeWidth="0.6" opacity="0.76" />
+      <rect x="3" y="3" width="94" height="94" rx="1.5" fill="none" className="stroke-border" strokeWidth="0.5" opacity="0.68" />
       {guides.map((guide) => (
         <g key={guide.y}>
-          <line x1="3" y1={guide.y} x2="97" y2={guide.y} className="stroke-border" strokeWidth="0.38" opacity="0.5" />
-          <text x="5" y={guide.y - 1.35} className="fill-text-muted text-[2.05px] font-bold" opacity="0.68">{guide.label}</text>
+          <line x1="3" y1={guide.y} x2="97" y2={guide.y} className="stroke-border" strokeWidth="0.32" opacity="0.44" />
+          <text x="5" y={guide.y - 1.35} className="fill-text-muted text-[2px] font-bold" opacity="0.62">{guide.label}</text>
         </g>
       ))}
-      <line x1="3" y1="55" x2="97" y2="55" className="stroke-text-muted" strokeWidth="0.42" strokeDasharray="1.8 1.8" opacity="0.46" />
-      <text x="95" y="53.3" textAnchor="end" className="fill-text-muted text-[2px] font-bold" opacity="0.68">7YD RUSH</text>
-      <line x1="3" y1="76" x2="97" y2="76" className="stroke-text-secondary" strokeWidth="0.78" opacity="0.82" />
-      <text x="5" y="74.1" className="fill-text-muted text-[2.2px] font-bold">LOS</text>
+      <line x1="3" y1="55" x2="97" y2="55" className="stroke-text-muted" strokeWidth="0.36" strokeDasharray="1.8 1.8" opacity="0.4" />
+      <text x="95" y="53.3" textAnchor="end" className="fill-text-muted text-[2px] font-bold" opacity="0.62">7YD RUSH</text>
+      <line x1="3" y1="76" x2="97" y2="76" className="stroke-text-secondary" strokeWidth="0.68" opacity="0.78" />
+      <text x="5" y="74.1" className="fill-text-muted text-[2.15px] font-bold">LOS</text>
     </>
   );
 }
@@ -335,13 +335,13 @@ function AssignmentLines({
   return (
     <>
       <defs>
-        <marker id={`${markerPrefix}-route`} viewBox="0 0 10 10" refX="8.2" refY="5" markerWidth={compact ? "2.7" : "3.1"} markerHeight={compact ? "2.7" : "3.1"} orient="auto-start-reverse">
+        <marker id={`${markerPrefix}-route`} viewBox="0 0 10 10" refX="8.2" refY="5" markerWidth={compact ? "2.35" : "2.75"} markerHeight={compact ? "2.35" : "2.75"} orient="auto-start-reverse">
           <path d="M 0 0 L 10 5 L 0 10 z" className="fill-text-secondary" />
         </marker>
-        <marker id={`${markerPrefix}-route-selected`} viewBox="0 0 10 10" refX="8.2" refY="5" markerWidth="3.2" markerHeight="3.2" orient="auto-start-reverse">
+        <marker id={`${markerPrefix}-route-selected`} viewBox="0 0 10 10" refX="8.2" refY="5" markerWidth="2.9" markerHeight="2.9" orient="auto-start-reverse">
           <path d="M 0 0 L 10 5 L 0 10 z" className="fill-accent" />
         </marker>
-        <marker id={`${markerPrefix}-motion`} viewBox="0 0 10 10" refX="8.2" refY="5" markerWidth={compact ? "2.4" : "2.8"} markerHeight={compact ? "2.4" : "2.8"} orient="auto-start-reverse">
+        <marker id={`${markerPrefix}-motion`} viewBox="0 0 10 10" refX="8.2" refY="5" markerWidth={compact ? "2.1" : "2.45"} markerHeight={compact ? "2.1" : "2.45"} orient="auto-start-reverse">
           <path d="M 0 0 L 10 5 L 0 10 z" className="fill-text-muted" />
         </marker>
       </defs>
@@ -356,11 +356,11 @@ function AssignmentLines({
             fill="none"
             markerEnd={`url(#${marker})`}
             className={selected ? "stroke-accent" : isRoute ? "stroke-text-secondary" : "stroke-text-muted"}
-            strokeWidth={compact ? (isRoute ? 0.72 : 0.54) : selected ? 1.05 : isRoute ? 0.9 : 0.68}
-            strokeDasharray={assignment.kind === "motion" ? "2.4 1.9" : undefined}
+            strokeWidth={compact ? (isRoute ? 0.62 : 0.47) : selected ? 0.94 : isRoute ? 0.78 : 0.58}
+            strokeDasharray={assignment.kind === "motion" ? "2.3 1.9" : undefined}
             strokeLinecap="round"
             strokeLinejoin="round"
-            opacity={selected ? 1 : isRoute ? 0.9 : 0.72}
+            opacity={selected ? 1 : isRoute ? 0.88 : 0.68}
           />
         );
       })}
@@ -377,9 +377,9 @@ function FieldDiagram({ diagram, compact = false, markerPrefix = "play" }: { dia
         const primary = diagram.primary_target_player_id === player.id;
         return (
           <g key={player.id}>
-            {primary && <circle cx={player.x} cy={player.y} r={compact ? 4.35 : 5.45} fill="none" className="stroke-accent" strokeWidth={compact ? 0.62 : 0.78} opacity="0.82" />}
-            <circle cx={player.x} cy={player.y} r={compact ? 2.85 : 3.85} className="fill-surface stroke-text-secondary" strokeWidth={compact ? 0.78 : 0.9} />
-            {!compact && <text x={player.x} y={player.y + 1.05} textAnchor="middle" className="fill-text-primary text-[2.85px] font-black">{player.label}</text>}
+            <circle cx={player.x} cy={player.y} r={compact ? 2.75 : 3.75} className="fill-surface stroke-text-secondary" strokeWidth={compact ? 0.72 : 0.86} />
+            {!compact && <text x={player.x} y={player.y + 1.02} textAnchor="middle" className="fill-text-primary text-[2.8px] font-black">{player.label}</text>}
+            {primary && <circle cx={player.x + (compact ? 3.4 : 4.5)} cy={player.y - (compact ? 3.4 : 4.5)} r={compact ? 0.9 : 1.3} className="fill-accent stroke-background" strokeWidth="0.4" />}
           </g>
         );
       })}
@@ -654,11 +654,11 @@ export function PlaybookScreen({ team }: { team: Team | null }) {
 
       <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-5 text-xs font-bold">
-          <button type="button" onClick={() => setView("active")} className={`relative min-h-9 px-0.5 ${view === "active" ? "text-text-primary" : "text-text-muted hover:text-text-primary"}`}>
+          <button type="button" onClick={() => setView("active")} className={`relative min-h-9 px-0.5 focus-visible:outline-none focus-visible:underline focus-visible:underline-offset-4 ${view === "active" ? "text-text-primary" : "text-text-muted hover:text-text-primary"}`}>
             Active <span className="ml-1 text-[10px] text-text-muted">{activeCount}</span>
             {view === "active" && <span className="absolute inset-x-0 -bottom-[7px] h-0.5 bg-accent" />}
           </button>
-          <button type="button" onClick={() => setView("library")} className={`relative min-h-9 px-0.5 ${view === "library" ? "text-text-primary" : "text-text-muted hover:text-text-primary"}`}>
+          <button type="button" onClick={() => setView("library")} className={`relative min-h-9 px-0.5 focus-visible:outline-none focus-visible:underline focus-visible:underline-offset-4 ${view === "library" ? "text-text-primary" : "text-text-muted hover:text-text-primary"}`}>
             Library <span className="ml-1 text-[10px] text-text-muted">{libraryCount}</span>
             {view === "library" && <span className="absolute inset-x-0 -bottom-[7px] h-0.5 bg-accent" />}
           </button>
@@ -667,26 +667,26 @@ export function PlaybookScreen({ team }: { team: Team | null }) {
       </div>
 
       {filtered.length === 0 ? (
-        <div className="mt-4 flex min-h-[280px] flex-col items-center justify-center border border-dashed border-border bg-surface/40 p-8 text-center">
-          <Route size={30} className="text-text-muted" />
-          <h2 className="mt-3 text-base font-extrabold">{view === "active" ? "No active plays yet" : "Library is empty"}</h2>
+        <div className="mt-5 flex min-h-[200px] flex-col items-center justify-center py-8 text-center">
+          <Route size={24} className="text-text-muted" />
+          <h2 className="mt-3 text-sm font-extrabold">{view === "active" ? "No active plays" : "Library is empty"}</h2>
           <p className="mt-1 max-w-sm text-xs leading-5 text-text-muted">
-            {view === "active" ? "New plays start active. Move plays to the Library when they leave the current install." : "Move an active play to the Library when it is not in the current install."}
+            {view === "active" ? "Your current install is empty. New plays start here." : "Move an active play to the Library when it leaves the current install."}
           </p>
-          {view === "active" && <Button className="mt-4" onClick={() => { setPickerSide("offense"); setNewPlayPickerOpen(true); }}><Plus size={16} />Create first play</Button>}
+          {view === "active" && <Button className="mt-4" onClick={() => { setPickerSide("offense"); setNewPlayPickerOpen(true); }}><Plus size={16} />Create play</Button>}
         </div>
       ) : (
-        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+        <div className="mt-4 grid grid-cols-[repeat(auto-fill,minmax(250px,290px))] justify-start gap-3">
           {filtered.map((play) => <PlayCard key={play.id} play={play} onOpen={() => setViewer(structuredClone(play))} />)}
         </div>
       )}
 
-      <div className={`mt-5 border-t border-border pt-3 text-[10px] leading-4 ${persistenceMode === "local" ? "text-warning" : "text-text-muted"}`}>
+      <div className="mt-5 text-[10px] leading-4 text-text-muted">
         {persistenceMode === "database"
-          ? "Saved to the team database · available on signed-in team devices"
+          ? <span><span className="mr-1 text-success">●</span>Saved to team database</span>
           : persistenceMode === "local"
-            ? "Team database unavailable · changes are cached on this device and will reconcile when it reconnects"
-            : "Loading team playbook…"}
+            ? <span title="Changes are cached on this device and will reconcile automatically when the team database reconnects."><span className="mr-1 text-warning">●</span>Saved locally — database unavailable</span>
+            : <span>Loading team playbook…</span>}
       </div>
 
       {newPlayPickerOpen && (
@@ -1038,9 +1038,9 @@ function PlayEditor({
                     key={`handle-${assignment.id}`}
                     cx={end.x}
                     cy={end.y}
-                    r="2.6"
+                    r="2.45"
                     className="fill-background stroke-accent cursor-grab active:cursor-grabbing"
-                    strokeWidth="1"
+                    strokeWidth="0.9"
                     onPointerDown={(event) => handleAssignmentPointerDown(event, assignment.id)}
                   />
                 );
@@ -1050,10 +1050,15 @@ function PlayEditor({
                 const primary = draft.diagram.primary_target_player_id === player.id;
                 return (
                   <g key={player.id} onPointerDown={(event) => handlePlayerPointerDown(event, player.id)} className="cursor-grab active:cursor-grabbing">
-                    {primary && <circle cx={player.x} cy={player.y} r="6.1" fill="none" className="stroke-accent" strokeWidth="0.82" strokeDasharray="2 1.5" opacity="0.9" />}
-                    {selected && <circle cx={player.x} cy={player.y} r="5.25" fill="none" className="stroke-accent" strokeWidth="1" opacity="0.82" />}
-                    <circle cx={player.x} cy={player.y} r="4" className={selected ? "fill-accent stroke-background" : "fill-surface stroke-text-secondary"} strokeWidth="1" />
-                    <text x={player.x} y={player.y + 1.05} textAnchor="middle" className={selected ? "fill-white text-[2.9px] font-black" : "fill-text-primary text-[2.9px] font-black"}>{player.label}</text>
+                    {selected && <circle cx={player.x} cy={player.y} r="5.2" fill="none" className="stroke-accent" strokeWidth="0.9" opacity="0.82" />}
+                    <circle cx={player.x} cy={player.y} r="3.9" className={selected ? "fill-accent stroke-background" : "fill-surface stroke-text-secondary"} strokeWidth="0.92" />
+                    <text x={player.x} y={player.y + 1.03} textAnchor="middle" className={selected ? "fill-white text-[2.85px] font-black" : "fill-text-primary text-[2.85px] font-black"}>{player.label}</text>
+                    {primary && (
+                      <g>
+                        <circle cx={player.x + 4.9} cy={player.y - 4.9} r="1.45" className="fill-accent stroke-background" strokeWidth="0.45" />
+                        <text x={player.x + 4.9} y={player.y - 4.38} textAnchor="middle" className="fill-white text-[1.35px] font-black">1</text>
+                      </g>
+                    )}
                   </g>
                 );
               })}
@@ -1083,7 +1088,7 @@ function PlayEditor({
           </div>
         </div>
 
-        <aside className="space-y-3">
+        <aside className="space-y-4">
           <section className="hidden rounded-xl border border-border bg-surface p-4 xl:block">
             <PlayerControls
               side={draft.side}
@@ -1102,48 +1107,48 @@ function PlayEditor({
             />
           </section>
 
-          <section className="rounded-xl border border-border bg-surface p-4">
-            <div className="flex items-center justify-between gap-3">
+          <section className="border-t border-border pt-4">
+            <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="text-sm font-extrabold">Play details</div>
-                <div className="mt-0.5 text-[10px] text-text-muted">Used to keep the playbook small and game-ready.</div>
+                <div className="mt-0.5 text-[10px] text-text-muted">Current install and game-use metadata.</div>
               </div>
-              <button type="button" onClick={() => setDraft((current) => ({ ...current, active_play: !current.active_play }))} className={`rounded-lg border px-2.5 py-1.5 text-[10px] font-extrabold ${draft.active_play ? "border-[rgba(124,58,237,0.5)] bg-[rgba(124,58,237,0.16)] text-[#c4b5fd]" : "border-border bg-background text-text-muted"}`}>
-                {draft.active_play ? "ACTIVE PLAY" : "IN LIBRARY"}
+              <button type="button" onClick={() => setDraft((current) => ({ ...current, active_play: !current.active_play }))} className={`rounded-md border px-2 py-1 text-[9px] font-extrabold ${draft.active_play ? "border-[rgba(124,58,237,0.45)] bg-[rgba(124,58,237,0.12)] text-[#c4b5fd]" : "border-border bg-background text-text-muted"}`}>
+                {draft.active_play ? "ACTIVE" : "LIBRARY"}
               </button>
             </div>
 
-            <div className="mt-4 text-[10px] font-bold uppercase tracking-[0.08em] text-text-muted">Type</div>
+            <div className="mt-4 text-[9px] font-bold uppercase tracking-[0.08em] text-text-muted">Type</div>
             <div className="mt-2 grid grid-cols-3 gap-1.5">
               {PLAY_TYPES.map((option) => (
-                <button key={option.value} type="button" onClick={() => setDraft((current) => ({ ...current, play_type: option.value }))} className={`min-h-9 rounded-lg border text-[10px] font-extrabold ${draft.play_type === option.value ? "border-[rgba(124,58,237,0.5)] bg-[rgba(124,58,237,0.16)] text-[#c4b5fd]" : "border-border bg-background text-text-secondary"}`}>
+                <button key={option.value} type="button" onClick={() => setDraft((current) => ({ ...current, play_type: option.value }))} className={`min-h-8 rounded-md border text-[10px] font-extrabold ${draft.play_type === option.value ? "border-[rgba(124,58,237,0.45)] bg-[rgba(124,58,237,0.12)] text-[#c4b5fd]" : "border-border bg-background text-text-secondary"}`}>
                   {option.label}
                 </button>
               ))}
             </div>
 
-            <label className="mt-3 grid gap-1 text-[10px] font-bold uppercase tracking-[0.08em] text-text-muted">
+            <label className="mt-3 grid gap-1 text-[9px] font-bold uppercase tracking-[0.08em] text-text-muted">
               Concept
-              <input value={draft.concept} onChange={(event) => setDraft((current) => ({ ...current, concept: event.target.value.slice(0, 80) }))} placeholder="Flood, Mesh, Slant…" className="h-10 rounded-lg border border-border bg-background px-3 text-sm font-semibold normal-case tracking-normal text-text-primary outline-none placeholder:text-text-muted focus:border-accent" />
+              <input value={draft.concept} onChange={(event) => setDraft((current) => ({ ...current, concept: event.target.value.slice(0, 80) }))} placeholder="Flood, Mesh, Slant…" className="h-9 rounded-md border border-border bg-background px-3 text-sm font-semibold normal-case tracking-normal text-text-primary outline-none placeholder:text-text-muted focus:border-accent" />
             </label>
 
-            <div className="mt-3 text-[10px] font-bold uppercase tracking-[0.08em] text-text-muted">Situation</div>
+            <div className="mt-3 text-[9px] font-bold uppercase tracking-[0.08em] text-text-muted">Situation</div>
             <div className="mt-2 grid grid-cols-2 gap-1.5">
               {SITUATIONS.map((option) => (
-                <button key={option.value} type="button" onClick={() => setDraft((current) => ({ ...current, situation: option.value }))} className={`min-h-9 rounded-lg border px-2 text-[10px] font-bold ${draft.situation === option.value ? "border-[rgba(124,58,237,0.5)] bg-[rgba(124,58,237,0.16)] text-[#c4b5fd]" : "border-border bg-background text-text-secondary"}`}>
+                <button key={option.value} type="button" onClick={() => setDraft((current) => ({ ...current, situation: option.value }))} className={`min-h-8 rounded-md border px-2 text-[10px] font-bold ${draft.situation === option.value ? "border-[rgba(124,58,237,0.45)] bg-[rgba(124,58,237,0.12)] text-[#c4b5fd]" : "border-border bg-background text-text-secondary"}`}>
                   {option.label}
                 </button>
               ))}
             </div>
           </section>
 
-          <section className="rounded-xl border border-border bg-surface p-4">
+          <section className="border-t border-border pt-4">
             <div className="text-sm font-extrabold">Notes</div>
-            <textarea value={draft.notes} onChange={(event) => setDraft((current) => ({ ...current, notes: event.target.value }))} placeholder="Read, progression, coaching point…" rows={5} className="mt-3 w-full resize-none rounded-lg border border-border bg-background p-3 text-sm leading-5 text-text-primary outline-none placeholder:text-text-muted focus:border-accent" />
+            <textarea value={draft.notes} onChange={(event) => setDraft((current) => ({ ...current, notes: event.target.value }))} placeholder="Read, progression, coaching point…" rows={4} className="mt-3 w-full resize-none rounded-md border border-border bg-background p-3 text-sm leading-5 text-text-primary outline-none placeholder:text-text-muted focus:border-accent" />
           </section>
 
-          <section className="rounded-xl border border-border bg-surface p-4 text-xs leading-5 text-text-muted">
-            <strong className="text-text-primary">Smart routes:</strong> select a player, tap a route, then drag the route endpoint. fld.LAB keeps the route geometry clean while you change depth and direction.
+          <section className="border-t border-border pt-4 text-[11px] leading-5 text-text-muted">
+            <strong className="text-text-primary">Smart routes:</strong> select a player, tap a route, then drag the endpoint. fld.LAB keeps the route geometry clean.
           </section>
         </aside>
       </div>
@@ -1222,7 +1227,7 @@ function PlayerControls({
             {ROUTE_TEMPLATES.map((template) => {
               const active = route?.template === template.id;
               return (
-                <button key={template.id} type="button" onClick={() => onChooseRoute(template.id)} className={`min-h-11 rounded-lg border px-1 text-[10px] font-extrabold transition-colors ${active ? "border-[rgba(124,58,237,0.55)] bg-[rgba(124,58,237,0.18)] text-[#c4b5fd]" : "border-border bg-background text-text-secondary hover:bg-surface-elevated"}`}>
+                <button key={template.id} type="button" onClick={() => onChooseRoute(template.id)} className={`min-h-10 rounded-md border px-1 text-[10px] font-extrabold transition-colors ${active ? "border-[rgba(124,58,237,0.5)] bg-[rgba(124,58,237,0.14)] text-[#c4b5fd]" : "border-border bg-background text-text-secondary hover:bg-surface-elevated"}`}>
                   {template.label}
                 </button>
               );
@@ -1230,8 +1235,8 @@ function PlayerControls({
           </div>
 
           <div className="mt-3 grid grid-cols-2 gap-2">
-            <Button variant={motion ? "default" : "secondary"} className="min-h-10 px-3 text-xs" onClick={onToggleMotion}><MoveRight size={15} />{motion ? "Motion on" : "Motion"}</Button>
-            <Button variant={primary ? "default" : "secondary"} className="min-h-10 px-3 text-xs" onClick={onTogglePrimary}><Target size={15} />{primary ? "Primary" : "Set primary"}</Button>
+            <Button variant={motion ? "default" : "secondary"} className="min-h-9 px-3 text-xs" onClick={onToggleMotion}><MoveRight size={15} />{motion ? "Motion on" : "Motion"}</Button>
+            <Button variant={primary ? "default" : "secondary"} className="min-h-9 px-3 text-xs" onClick={onTogglePrimary}><Target size={15} />{primary ? "Primary" : "Set primary"}</Button>
           </div>
           {motion && <button type="button" onClick={() => onSelectAssignment(motion.id)} className="mt-2 w-full text-center text-[10px] font-bold text-text-muted hover:text-text-primary">Adjust motion endpoint</button>}
         </>
@@ -1242,8 +1247,8 @@ function PlayerControls({
       )}
 
       <div className="mt-3 grid grid-cols-2 gap-2">
-        <Button variant="secondary" className="min-h-10 px-3 text-xs" onClick={onClear}><Eraser size={15} />Clear</Button>
-        <Button variant="secondary" className="min-h-10 px-3 text-xs" onClick={onAddPlayer}><Plus size={15} />Player</Button>
+        <Button variant="secondary" className="min-h-9 px-3 text-xs" onClick={onClear}><Eraser size={15} />Clear</Button>
+        <Button variant="secondary" className="min-h-9 px-3 text-xs" onClick={onAddPlayer}><Plus size={15} />Player</Button>
       </div>
     </div>
   );
