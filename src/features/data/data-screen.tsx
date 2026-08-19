@@ -71,10 +71,11 @@ function changeCopy(group: AthleteResultGroup | null) {
   const formatted = group.metric.type === "time"
     ? `${(absolute / 1000).toFixed(2)}s`
     : formatResult(absolute, { ...group.metric, total_attempts: null, max: null });
-  return {
-    improved: group.summary.improved_from_previous,
-    text: group.summary.improved_from_previous ? `${formatted} better than previous` : `${formatted} off previous`,
-  };
+  const improved = group.summary.improved_from_previous;
+  const text = group.metric.type === "time"
+    ? `${formatted} ${improved ? "faster" : "slower"} than previous`
+    : `${formatted} ${improved ? "better" : "worse"} than previous`;
+  return { improved, text };
 }
 
 function LineChart({
@@ -128,16 +129,16 @@ function ProgressChart({ group }: { group: AthleteResultGroup }) {
   const sessions = [...group.results].reverse();
   if (!sessions.length) {
     return (
-      <div className="flex min-h-[150px] items-center justify-center rounded-lg border border-border bg-background px-4 text-center text-xs text-text-muted">
+      <div className="flex min-h-[130px] items-center justify-center rounded-lg border border-border bg-background px-4 text-center text-xs text-text-muted">
         Complete this drill to start a progress chart.
       </div>
     );
   }
 
   const width = 640;
-  const height = 180;
+  const height = 150;
   const padX = 40;
-  const padY = 24;
+  const padY = 20;
   const attemptValues = sessions.flatMap((session) => session.attempts.map((attempt) => attempt.value));
   const allValues = [...attemptValues, ...sessions.map((session) => session.value)];
   const min = Math.min(...allValues);
@@ -162,7 +163,7 @@ function ProgressChart({ group }: { group: AthleteResultGroup }) {
 
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-background px-2 py-2">
-      <svg viewBox={`0 0 ${width} ${height}`} className="h-[180px] w-full" role="img" aria-label={`${group.drill.name} attempts grouped by session with session-result trend`}>
+      <svg viewBox={`0 0 ${width} ${height}`} className="h-[150px] w-full" role="img" aria-label={`${group.drill.name} attempts grouped by session with session-result trend`}>
         <line x1={padX} y1={height - padY} x2={width - padX} y2={height - padY} className="stroke-border" strokeWidth="1" />
         {sessions.map((session, sessionIndex) => (
           <line
@@ -495,7 +496,7 @@ export function DataScreen({ team }: { team: Team | null }) {
                     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                       <div className="rounded-lg border border-border bg-background p-3">
                         <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-text-muted">Personal best</div>
-                        <div className="mt-1 text-2xl font-black tabular-nums">{formatResult(group.summary.pb, group.metric)}</div>
+                        <div className="mt-1 text-2xl font-black tabular-nums text-success">{formatResult(group.summary.pb, group.metric)}</div>
                       </div>
                       <div className="rounded-lg border border-border bg-background p-3">
                         <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-text-muted">Latest</div>
