@@ -252,11 +252,54 @@ Library cards should surface the useful metadata without turning into tall gener
 
 ## Phase 3 — game day
 
-- play numbering
-- coach call sheet
-- wristband sheet generation
-- print/PDF layouts
-- fast sideline viewer
+Game Day turns finished Library plays into numbered sideline outputs. Numbering is an output-level selection/order in the first implementation rather than permanent play data.
+
+### Game-day set
+
+- choose which Library plays are included
+- reorder the selected plays and number them continuously from `1..N`
+- use the same numbering in call sheets and wristband inserts
+- switch between football-position labels and saved roster/jersey labels without changing play geometry
+
+### Coach call sheet
+
+The call sheet is a dense coaching reference, not a printout of the Library cards.
+
+- use a landscape letter page
+- target up to 12 plays per page in a three-column grid
+- keep play number, name, formation, type/concept/situation, notes, and a compact diagram together
+- crop the print diagram around the actual formation/routes rather than reproducing the full editor field
+- remove preparation-only status such as personnel completeness from the finished coaching artifact
+- repeat the fld.LAB wordmark, team identity, document label, and page count in a compact branded header
+
+### Wristband inserts
+
+Wristband output is a sheet of physical cut-ready inserts, not one oversized card per play.
+
+- one insert contains a numbered multi-play grid
+- supported densities are 6, 8, or 12 plays per insert
+- larger selected play sets continue onto additional numbered insert sets
+- each printed portrait page produces eight identical copies of the current insert set for players/coaches
+- every insert carries a small fld.LAB wordmark and team identity once; branding is not repeated inside every play cell
+- play cells prioritize number, short name, formation, and a tightly cropped diagram
+- cut boundaries stay visible but quiet
+
+### Print diagrams
+
+Call sheets and wristbands use a game-day-specific static renderer derived from the same structured play data.
+
+- dynamically crop unused field space
+- preserve LOS and route direction while dropping nonessential full-field decoration
+- routes remain color-matched to roles and the primary target stays purple
+- player markers are smaller than in the editor so route geometry remains dominant
+- motion stays dashed and a route following motion begins from the completed motion position
+
+Browser print remains the export path for the first implementation so coaches can print directly or choose **Save as PDF**.
+
+### Still in Phase 3
+
+- fast sideline viewer optimized for rapid play calling
+- field testing against specific physical wrist-coach window dimensions
 
 ## Deferred
 
