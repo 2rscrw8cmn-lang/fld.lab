@@ -140,6 +140,10 @@ Each stored play belongs to exactly one team and contains:
 - `side`
 - `formation_id`
 - `formation`
+- `play_type`
+- `concept`
+- `situation`
+- `active_play`
 - `notes`
 - `diagram_json`
 - `archived`
@@ -156,12 +160,35 @@ Rules:
 - new persistent IDs are generated server-side
 - browser storage may be retained temporarily only as a migration/cache fallback; it is not the authoritative source after D1 persistence is active
 
-## Phase 2 — real playbook organization
+## Phase 2 — playbook organization
 
-- formation, concept, and situation metadata
-- Active Plays vs Library
+### Active Plays vs Library
+
+The team playbook has two working states:
+
+- **Active Plays** — the small set the team is currently installing/running
+- **Library** — valid saved plays retained for later, but not in the current active set
+
+This is separate from archival. A Library play is still a normal editable play. Archived plays are removed from normal Playbook browsing.
+
+New plays default to Active. A coach may toggle `active_play` in the editor.
+
+### Football metadata
+
+Each play stores compact football-specific organization fields:
+
+- `play_type` — `pass | run | option`
+- `concept` — short coach-entered label such as `Flood`, `Mesh`, or `Slant`
+- `situation` — `any | short | medium | deep | no-run | goal-line | conversion`
+
+These fields are intentionally shallow. Do not introduce nested folders or a general tagging system before field use proves a need.
+
+Library cards should surface the useful metadata without turning into tall generic cards.
+
+### Still in Phase 2
+
 - roster personnel mapping to position roles
-- defensive assignment editor
+- defensive man/zone/rush assignment tools
 - archive/restore UI
 
 ## Phase 3 — game day
