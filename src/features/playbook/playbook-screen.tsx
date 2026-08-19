@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, useEffect } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import {
   ArrowLeft,
@@ -20,6 +20,12 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { PlayViewer } from "@/features/playbook/play-viewer";
+import {
+  isPrimaryPlayer,
+  playerColor,
+  playerForAssignment,
+  playerTextColor,
+} from "@/features/playbook/playbook-visuals";
 import type { Team } from "@/lib/api";
 import {
   createTeamPlay,
@@ -69,7 +75,7 @@ type Play = {
 };
 
 type Filter = "all" | PlaySide;
-type LibraryView = "active" | "library";
+type LibraryView = "editor" | "library";
 type PersistenceMode = "loading" | "database" | "local";
 type EditorSnapshot = Pick<Play, "side" | "formation_id" | "formation" | "diagram">;
 type DragState = { kind: "player" | "assignment"; id: string } | null;
@@ -335,32 +341,37 @@ function AssignmentLines({
   return (
     <>
       <defs>
-        <marker id={`${markerPrefix}-route`} viewBox="0 0 10 10" refX="8.2" refY="5" markerWidth={compact ? "2.35" : "2.75"} markerHeight={compact ? "2.35" : "2.75"} orient="auto-start-reverse">
-          <path d="M 0 0 L 10 5 L 0 10 z" className="fill-text-secondary" />
-        </marker>
-        <marker id={`${markerPrefix}-route-selected`} viewBox="0 0 10 10" refX="8.2" refY="5" markerWidth="2.9" markerHeight="2.9" orient="auto-start-reverse">
-          <path d="M 0 0 L 10 5 L 0 10 z" className="fill-accent" />
-        </marker>
-        <marker id={`${markerPrefix}-motion`} viewBox="0 0 10 10" refX="8.2" refY="5" markerWidth={compact ? "2.1" : "2.45"} markerHeight={compact ? "2.1" : "2.45"} orient="auto-start-reverse">
-          <path d="M 0 0 L 10 5 L 0 10 z" className="fill-text-muted" />
-        </marker>
+        {diagram.assignments.map((assignment) => {
+          const player = playerForAssignment(diagram, assignment.player_id);
+          const primary = player ? isPrimaryPlayer(diagram, player.id) : false;
+          const color = player ? playerColor(player, primary) : "var(--text-secondary)";
+          const selected = assignment.id === selectedAssignmentId;
+          const markerSize = compact ? 3.25 : selected ? 4.3 : assignment.kind === "route" ? 4.05 : 3.45;
+          return (
+            <marker key={assignment.id} id={`${markerPrefix}-${assignment.id}`} viewBox="0 0 10 10" refX="8" refY="5" markerWidth={markerSize} markerHeight={markerSize} orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill={color} />
+            </marker>
+          );
+        })}
       </defs>
       {diagram.assignments.map((assignment) => {
         const selected = assignment.id === selectedAssignmentId;
         const isRoute = assignment.kind === "route";
-        const marker = selected && isRoute ? `${markerPrefix}-route-selected` : `${markerPrefix}-${assignment.kind}`;
+        const player = playerForAssignment(diagram, assignment.player_id);
+        const primary = player ? isPrimaryPlayer(diagram, player.id) : false;
+        const color = player ? playerColor(player, primary) : "var(--text-secondary)";
         return (
           <polyline
             key={assignment.id}
             points={polylinePoints(assignment.points)}
             fill="none"
-            markerEnd={`url(#${marker})`}
-            className={selected ? "stroke-accent" : isRoute ? "stroke-text-secondary" : "stroke-text-muted"}
-            strokeWidth={compact ? (isRoute ? 0.62 : 0.47) : selected ? 0.94 : isRoute ? 0.78 : 0.58}
+            markerEnd={`url(#${markerPrefix}-${assignment.id})`}
+            stroke={color}
+            strokeWidth={compact ? (isRoute ? 0.68 : 0.5) : selected ? 0.98 : isRoute ? 0.8 : 0.6}
             strokeDasharray={assignment.kind === "motion" ? "2.3 1.9" : undefined}
             strokeLinecap="round"
             strokeLinejoin="round"
-            opacity={selected ? 1 : isRoute ? 0.88 : 0.68}
+            opacity={selected ? 1 : isRoute ? 0.78 : 0.58}
           />
         );
       })}
@@ -368,18 +379,31 @@ function AssignmentLines({
   );
 }
 
-function FieldDiagram({ diagram, compact = false, markerPrefix = "play" }: { diagram: PlayDiagram; compact?: boolean; markerPrefix?: string }) {
+function FieldDiagram({
+  diagram,
+  compact = false,
+  markerPrefix = "play",
+  showLabels = false,
+}: {
+  diagram: PlayDiagram;
+  compact?: boolean;
+  markerPrefix?: string;
+  showLabels?: boolean;
+}) {
   return (
     <svg viewBox="0 0 100 100" className="h-full w-full" aria-hidden={true}>
       <FieldLines />
       <AssignmentLines diagram={diagram} compact={compact} markerPrefix={markerPrefix} />
       {diagram.players.map((player) => {
-        const primary = diagram.primary_target_player_id === player.id;
+        const primary = isPrimaryPlayer(diagram, player.id);
+        const color = playerColor(player, primary);
+        const radius = compact ? 3.15 : 3.85;
         return (
           <g key={player.id}>
-            <circle cx={player.x} cy={player.y} r={compact ? 2.75 : 3.75} className="fill-surface stroke-text-secondary" strokeWidth={compact ? 0.72 : 0.86} />
-            {!compact && <text x={player.x} y={player.y + 1.02} textAnchor="middle" className="fill-text-primary text-[2.8px] font-black">{player.label}</text>}
-            {primary && <circle cx={player.x + (compact ? 3.4 : 4.5)} cy={player.y - (compact ? 3.4 : 4.5)} r={compact ? 0.9 : 1.3} className="fill-accent stroke-background" strokeWidth="0.4" />}
+            <circle cx={player.x} cy={player.y} r={radius} fill={color} className="stroke-background" strokeWidth={compact ? 0.72 : 0.86} />
+            {(!compact || showLabels) && (
+              <text x={player.x} y={player.y + (compact ? 0.88 : 1.02)} textAnchor="middle" fill={playerTextColor(primary)} className={`${compact ? "text-[2.25px]" : "text-[2.8px]"} font-black`}>{player.label}</text>
+            )}
           </g>
         );
       })}
@@ -407,7 +431,7 @@ function PlayCard({ play, onOpen }: { play: Play; onOpen: () => void }) {
   return (
     <button type="button" onClick={onOpen} className="group overflow-hidden rounded-lg border border-border bg-surface text-left transition-colors hover:border-text-muted hover:bg-surface-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
       <div className="aspect-[4/3] bg-background p-3">
-        <FieldDiagram diagram={play.diagram} compact markerPrefix={`card-${play.id}`} />
+        <FieldDiagram diagram={play.diagram} compact showLabels markerPrefix={`card-${play.id}`} />
       </div>
       <div className="border-t border-border px-3 py-2.5">
         <div className="flex items-start justify-between gap-3">
@@ -491,7 +515,7 @@ function FormationPicker({
 export function PlaybookScreen({ team }: { team: Team | null }) {
   const [plays, setPlays] = useState<Play[]>([]);
   const [filter, setFilter] = useState<Filter>("all");
-  const [view, setView] = useState<LibraryView>("active");
+  const [view, setView] = useState<LibraryView>("editor");
   const [viewer, setViewer] = useState<Play | null>(null);
   const [draft, setDraft] = useState<Play | null>(null);
   const [newPlayPickerOpen, setNewPlayPickerOpen] = useState(false);
@@ -503,7 +527,7 @@ export function PlaybookScreen({ team }: { team: Team | null }) {
     setViewer(null);
     setDraft(null);
     setFilter("all");
-    setView("active");
+    setView("editor");
     setNewPlayPickerOpen(false);
     setPersistenceMode("loading");
 
@@ -547,7 +571,7 @@ export function PlaybookScreen({ team }: { team: Team | null }) {
       persistLocal(localNext);
       setPersistenceMode("local");
       setDraft(null);
-      setView(saved.active_play ? "active" : "library");
+      setView(saved.active_play ? "editor" : "library");
       return;
     }
 
@@ -562,12 +586,12 @@ export function PlaybookScreen({ team }: { team: Team | null }) {
         : [persisted, ...plays];
       persistLocal(next);
       setDraft(null);
-      setView(persisted.active_play ? "active" : "library");
+      setView(persisted.active_play ? "editor" : "library");
     } catch {
       persistLocal(localNext);
       setPersistenceMode("local");
       setDraft(null);
-      setView(saved.active_play ? "active" : "library");
+      setView(saved.active_play ? "editor" : "library");
     }
   };
 
@@ -598,14 +622,14 @@ export function PlaybookScreen({ team }: { team: Team | null }) {
 
   const filtered = useMemo(
     () => plays
-      .filter((play) => view === "active" ? play.active_play : !play.active_play)
+      .filter((play) => view === "editor" ? play.active_play : !play.active_play)
       .filter((play) => filter === "all" || play.side === filter)
       .sort((a, b) => b.updated_at.localeCompare(a.updated_at)),
     [filter, plays, view],
   );
 
-  const activeCount = plays.filter((play) => play.active_play).length;
-  const libraryCount = plays.length - activeCount;
+  const editorCount = plays.filter((play) => play.active_play).length;
+  const libraryCount = plays.length - editorCount;
 
   if (!team) {
     return <section className="p-6 text-sm text-text-muted">Create or select a team to build a playbook.</section>;
@@ -621,7 +645,7 @@ export function PlaybookScreen({ team }: { team: Team | null }) {
           setViewer(null);
           setDraft(structuredClone(viewer));
         } : undefined}
-        onMoveToActive={!viewer.active_play ? () => {
+        onMoveToEditor={!viewer.active_play ? () => {
           const promoted = { ...structuredClone(viewer), active_play: true, updated_at: new Date().toISOString() };
           setViewer(null);
           void savePlay(promoted);
@@ -647,16 +671,16 @@ export function PlaybookScreen({ team }: { team: Team | null }) {
       <div className="flex flex-wrap items-end justify-between gap-3 border-b border-border pb-4">
         <div>
           <h1 className="text-[24px] font-extrabold leading-none tracking-[-0.035em] md:text-[30px]">Playbook</h1>
-          <p className="mt-1.5 text-[12px] text-text-muted">Current install up front. Everything else stays in the Library.</p>
+          <p className="mt-1.5 text-[12px] text-text-muted">Build and manage plays in Editor. Library is for clean viewing and playback.</p>
         </div>
         <Button onClick={() => { setPickerSide("offense"); setNewPlayPickerOpen(true); }}><FilePlus2 size={16} />New Play</Button>
       </div>
 
       <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-5 text-xs font-bold">
-          <button type="button" onClick={() => setView("active")} className={`relative min-h-9 px-0.5 focus-visible:outline-none focus-visible:underline focus-visible:underline-offset-4 ${view === "active" ? "text-text-primary" : "text-text-muted hover:text-text-primary"}`}>
-            Active <span className="ml-1 text-[10px] text-text-muted">{activeCount}</span>
-            {view === "active" && <span className="absolute inset-x-0 -bottom-[7px] h-0.5 bg-accent" />}
+          <button type="button" onClick={() => setView("editor")} className={`relative min-h-9 px-0.5 focus-visible:outline-none focus-visible:underline focus-visible:underline-offset-4 ${view === "editor" ? "text-text-primary" : "text-text-muted hover:text-text-primary"}`}>
+            Editor <span className="ml-1 text-[10px] text-text-muted">{editorCount}</span>
+            {view === "editor" && <span className="absolute inset-x-0 -bottom-[7px] h-0.5 bg-accent" />}
           </button>
           <button type="button" onClick={() => setView("library")} className={`relative min-h-9 px-0.5 focus-visible:outline-none focus-visible:underline focus-visible:underline-offset-4 ${view === "library" ? "text-text-primary" : "text-text-muted hover:text-text-primary"}`}>
             Library <span className="ml-1 text-[10px] text-text-muted">{libraryCount}</span>
@@ -669,11 +693,11 @@ export function PlaybookScreen({ team }: { team: Team | null }) {
       {filtered.length === 0 ? (
         <div className="mt-5 flex min-h-[200px] flex-col items-center justify-center py-8 text-center">
           <Route size={24} className="text-text-muted" />
-          <h2 className="mt-3 text-sm font-extrabold">{view === "active" ? "No active plays" : "Library is empty"}</h2>
+          <h2 className="mt-3 text-sm font-extrabold">{view === "editor" ? "No plays in Editor" : "Library is empty"}</h2>
           <p className="mt-1 max-w-sm text-xs leading-5 text-text-muted">
-            {view === "active" ? "Your current install is empty. New plays start here." : "Move an active play to the Library when it leaves the current install."}
+            {view === "editor" ? "New plays start here. Move finished or reference plays to Library." : "Move a play from Editor to Library when you only need to view and run it."}
           </p>
-          {view === "active" && <Button className="mt-4" onClick={() => { setPickerSide("offense"); setNewPlayPickerOpen(true); }}><Plus size={16} />Create play</Button>}
+          {view === "editor" && <Button className="mt-4" onClick={() => { setPickerSide("offense"); setNewPlayPickerOpen(true); }}><Plus size={16} />Create play</Button>}
         </div>
       ) : (
         <div className="mt-4 grid grid-cols-[repeat(auto-fill,minmax(250px,290px))] justify-start gap-3">
@@ -1033,32 +1057,32 @@ function PlayEditor({
               {draft.diagram.assignments.map((assignment) => {
                 if (assignment.id !== selectedAssignmentId) return null;
                 const end = assignmentEnd(assignment);
+                const player = playerForAssignment(draft.diagram, assignment.player_id);
+                const primary = player ? isPrimaryPlayer(draft.diagram, player.id) : false;
+                const color = player ? playerColor(player, primary) : "var(--text-primary)";
                 return (
                   <circle
                     key={`handle-${assignment.id}`}
                     cx={end.x}
                     cy={end.y}
-                    r="2.45"
-                    className="fill-background stroke-accent cursor-grab active:cursor-grabbing"
-                    strokeWidth="0.9"
+                    r="2.55"
+                    fill="var(--background)"
+                    stroke={color}
+                    className="cursor-grab active:cursor-grabbing"
+                    strokeWidth="0.95"
                     onPointerDown={(event) => handleAssignmentPointerDown(event, assignment.id)}
                   />
                 );
               })}
               {draft.diagram.players.map((player) => {
                 const selected = player.id === selectedPlayerId;
-                const primary = draft.diagram.primary_target_player_id === player.id;
+                const primary = isPrimaryPlayer(draft.diagram, player.id);
+                const color = playerColor(player, primary);
                 return (
                   <g key={player.id} onPointerDown={(event) => handlePlayerPointerDown(event, player.id)} className="cursor-grab active:cursor-grabbing">
-                    {selected && <circle cx={player.x} cy={player.y} r="5.2" fill="none" className="stroke-accent" strokeWidth="0.9" opacity="0.82" />}
-                    <circle cx={player.x} cy={player.y} r="3.9" className={selected ? "fill-accent stroke-background" : "fill-surface stroke-text-secondary"} strokeWidth="0.92" />
-                    <text x={player.x} y={player.y + 1.03} textAnchor="middle" className={selected ? "fill-white text-[2.85px] font-black" : "fill-text-primary text-[2.85px] font-black"}>{player.label}</text>
-                    {primary && (
-                      <g>
-                        <circle cx={player.x + 4.9} cy={player.y - 4.9} r="1.45" className="fill-accent stroke-background" strokeWidth="0.45" />
-                        <text x={player.x + 4.9} y={player.y - 4.38} textAnchor="middle" className="fill-white text-[1.35px] font-black">1</text>
-                      </g>
-                    )}
+                    {selected && <circle cx={player.x} cy={player.y} r="5.25" fill="none" className="stroke-text-primary" strokeWidth="0.85" opacity="0.82" />}
+                    <circle cx={player.x} cy={player.y} r="3.95" fill={color} className="stroke-background" strokeWidth="0.95" />
+                    <text x={player.x} y={player.y + 1.03} textAnchor="middle" fill={playerTextColor(primary)} className="text-[2.85px] font-black">{player.label}</text>
                   </g>
                 );
               })}
@@ -1111,14 +1135,19 @@ function PlayEditor({
             <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="text-sm font-extrabold">Play details</div>
-                <div className="mt-0.5 text-[10px] text-text-muted">Current install and game-use metadata.</div>
+                <div className="mt-0.5 text-[10px] text-text-muted">Editor plays can be changed. Library plays are view-only.</div>
               </div>
-              <button type="button" onClick={() => setDraft((current) => ({ ...current, active_play: !current.active_play }))} className={`rounded-md border px-2 py-1 text-[9px] font-extrabold ${draft.active_play ? "border-[rgba(124,58,237,0.45)] bg-[rgba(124,58,237,0.12)] text-[#c4b5fd]" : "border-border bg-background text-text-muted"}`}>
-                {draft.active_play ? "ACTIVE" : "LIBRARY"}
+              <button type="button" onClick={() => setDraft((current) => ({ ...current, active_play: !current.active_play }))} className="shrink-0 text-[10px] font-bold text-text-muted underline decoration-border underline-offset-4 transition-colors hover:text-text-primary">
+                {draft.active_play ? "Move to Library" : "Move to Editor"}
               </button>
             </div>
 
-            <div className="mt-4 text-[9px] font-bold uppercase tracking-[0.08em] text-text-muted">Type</div>
+            <div className="mt-4 flex items-center justify-between border-b border-border pb-3 text-[10px]">
+              <span className="font-bold uppercase tracking-[0.08em] text-text-muted">Location</span>
+              <span className="font-extrabold text-text-primary">{draft.active_play ? "Editor" : "Library"}</span>
+            </div>
+
+            <div className="mt-3 text-[9px] font-bold uppercase tracking-[0.08em] text-text-muted">Type</div>
             <div className="mt-2 grid grid-cols-3 gap-1.5">
               {PLAY_TYPES.map((option) => (
                 <button key={option.value} type="button" onClick={() => setDraft((current) => ({ ...current, play_type: option.value }))} className={`min-h-8 rounded-md border text-[10px] font-extrabold ${draft.play_type === option.value ? "border-[rgba(124,58,237,0.45)] bg-[rgba(124,58,237,0.12)] text-[#c4b5fd]" : "border-border bg-background text-text-secondary"}`}>
