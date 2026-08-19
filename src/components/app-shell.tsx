@@ -5,6 +5,7 @@ import {
   Dumbbell,
   Home,
   Library,
+  Route,
   Settings,
   Timer,
   UsersRound,
@@ -32,6 +33,7 @@ const routeIcons: Record<string, LucideIcon> = {
   "/roster": UsersRound,
   "/train": Timer,
   "/data": BarChart3,
+  "/playbook": Route,
   "/drills": Library,
   "/settings": Settings,
 };
@@ -161,7 +163,7 @@ export function AppShell({
         {children}
       </main>
 
-      <nav className="fixed inset-x-0 bottom-0 z-30 grid min-h-[64px] grid-cols-5 border-t border-border bg-sidebar/95 px-1 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden" aria-label="Mobile navigation">
+      <nav className="fixed inset-x-0 bottom-0 z-30 grid min-h-[64px] grid-cols-6 border-t border-border bg-sidebar/95 px-1 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden" aria-label="Mobile navigation">
         {mobileRoutes.map((route) => {
           const Icon = routeIcons[route.path] ?? Dumbbell;
           const active = pathname === route.path;
@@ -175,12 +177,12 @@ export function AppShell({
               }}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "flex min-h-[64px] min-w-0 flex-col items-center justify-center gap-1 px-1 text-[10px] font-semibold text-text-muted transition-colors",
+                "flex min-h-[64px] min-w-0 flex-col items-center justify-center gap-1 px-0.5 text-[9px] font-semibold text-text-muted transition-colors",
                 active && "text-[#c4b5fd]",
               )}
             >
-              <Icon aria-hidden={true} size={19} strokeWidth={1.8} />
-              <span className="truncate">{route.label}</span>
+              <Icon aria-hidden={true} size={18} strokeWidth={1.8} />
+              <span className="truncate">{route.mobileLabel ?? route.label}</span>
             </a>
           );
         })}

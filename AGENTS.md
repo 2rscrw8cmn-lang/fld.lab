@@ -11,6 +11,7 @@ fld.LAB is a tablet-first web app for a coach to:
 3. capture athlete results quickly on the field
 4. move between athletes without slowing practice
 5. review athlete/team progress over time
+6. build and reference a compact flag-football playbook
 
 Do not turn fld.LAB into a general youth-sports administration platform.
 
@@ -21,14 +22,15 @@ When documents overlap, use this precedence:
 1. `AGENTS.md` — repository-level implementation rules
 2. `docs/PRODUCT.md` — product scope and behavior
 3. `docs/UX_FLOWS.md` — screen states and interaction behavior
-4. `docs/DATA_MODEL.md` — entity ownership and database relationships
-5. `docs/API_CONTRACT.md` — HTTP request/response behavior
-6. `docs/DRILL_SPEC.md` — human-readable drill format
-7. `schemas/drill-definition.schema.json` — machine-readable drill validation
-8. `docs/DESIGN_SYSTEM.md` — visual/component rules
-9. `docs/TECHNICAL.md` — architecture and implementation guardrails
-10. `docs/CLOUDFLARE.md` — Cloudflare/D1 operating procedure
-11. `docs/BUILD_PLAN.md` — sequence and phase scope
+4. `docs/PLAYBOOK.md` — Playbook scope, diagram model, and editor behavior
+5. `docs/DATA_MODEL.md` — entity ownership and database relationships
+6. `docs/API_CONTRACT.md` — HTTP request/response behavior
+7. `docs/DRILL_SPEC.md` — human-readable drill format
+8. `schemas/drill-definition.schema.json` — machine-readable drill validation
+9. `docs/DESIGN_SYSTEM.md` — visual/component rules
+10. `docs/TECHNICAL.md` — architecture and implementation guardrails
+11. `docs/CLOUDFLARE.md` — Cloudflare/D1 operating procedure
+12. `docs/BUILD_PLAN.md` — sequence and phase scope
 
 If two authoritative docs conflict, do not silently choose a third interpretation. Fix the documentation in the same PR or call out the conflict clearly.
 
@@ -48,6 +50,7 @@ Do not reinterpret these during implementation:
 - Roster = people
 - Train = capture
 - Data = analyze
+- Playbook = design/reference
 - Drills = configure
 - roster/data interfaces are dense
 - active training controls are large
@@ -144,7 +147,20 @@ docs/DRILL_SPEC.md
 schemas/drill-definition.schema.json
 ```
 
-## 9. API rules
+## 9. Playbook rules
+
+- Playbook is football-structured, not a generic freehand canvas.
+- Default offensive play creation starts from a formation preset.
+- Route templates generate clean route geometry; freehand sampled points are not the primary interaction.
+- Keep route, motion, target, and future defensive assignments semantically distinct.
+- Store plays as structured data so the same play can support editing, mirroring, thumbnails, wristbands, and later animation.
+- Position roles (`X`, `Y`, `Z`, `C`, `QB`) are separate from athlete identity; roster personnel mapping is a later layer.
+- Browser storage is allowed only for the interaction prototype described in `docs/PLAYBOOK.md`; approved production persistence must move to authenticated team-scoped D1.
+- Do not add game scheduling, opponent scouting, messaging, or complex practice planning through Playbook.
+
+Follow `docs/PLAYBOOK.md`.
+
+## 10. API rules
 
 - browser talks to `/api/*`; browser never administers D1 directly
 - return structured errors defined by `docs/API_CONTRACT.md`
@@ -152,7 +168,7 @@ schemas/drill-definition.schema.json
 - destructive/archive behavior must be explicit
 - do not expose production athlete data from unauthenticated endpoints
 
-## 10. Privacy and production access
+## 11. Privacy and production access
 
 This is a public repository and the product will contain youth-athlete information.
 
@@ -168,7 +184,7 @@ Local/mock development can be unauthenticated.
 
 Do **not** put real youth-athlete names/results into an internet-accessible production deployment until the access-control requirements in `docs/SECURITY.md` are implemented.
 
-## 11. Change discipline
+## 12. Change discipline
 
 For each issue:
 
@@ -181,7 +197,7 @@ For each issue:
 
 Avoid large PRs spanning multiple phases.
 
-## 12. Highest-value tests
+## 13. Highest-value tests
 
 Prioritize:
 
@@ -193,5 +209,6 @@ Prioritize:
 6. failed-result persistence/retry behavior
 7. roster CRUD and membership ownership
 8. responsive roster behavior
+9. structured route geometry / play mirroring
 
 Do not optimize for an arbitrary coverage percentage.

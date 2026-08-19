@@ -13,6 +13,7 @@ The data model must support:
 - multiple attempts per athlete
 - timed splits and non-timed measurements
 - durable historical results
+- structured team-owned flag-football plays
 
 The database target is Cloudflare D1.
 
@@ -59,6 +60,12 @@ split_20yd
 
 This keeps timed and non-timed result data in one extensible measurement model.
 
+### Plays are structured team-owned documents
+
+A `Play` belongs to one season-specific Team. The football diagram is stored as validated structured JSON rather than a screenshot, SVG blob, or collection of freehand drawing rows.
+
+Position labels such as `X`, `Y`, `Z`, `C`, and `QB` are role labels inside the diagram. They are not Athlete identifiers. Roster personnel mapping is a separate future layer.
+
 ---
 
 ## 3. Core entities
@@ -104,7 +111,7 @@ UNIQUE(team_id, coach_id)
 Role rules:
 
 - `owner` can use the team and manage team details/sharing
-- `coach` can use roster, Train, Data, and team-scoped history but cannot edit/archive/share the team
+- `coach` can use roster, Train, Data, Playbook, and team-scoped history but cannot edit/archive/share the team
 - team access removal is a soft deactivation
 - a team must retain at least one active owner
 
@@ -176,6 +183,42 @@ UNIQUE(team_id, athlete_id)
 ```
 
 An athlete changing jersey number or position updates the membership record for that team. Historical session/result records continue to reference the stable athlete and session context.
+
+### Play
+
+One structured flag-football play owned by one Team.
+
+Fields:
+
+- `id`
+- `team_id`
+- `name`
+- `side` — `offense | defense`
+- `formation_id` — optional stable application preset key
+- `formation` — display label captured with the play
+- `play_type` — `pass | run | option`
+- `concept` — short coach-entered concept label
+- `situation` — `any | short | medium | deep | no-run | goal-line | conversion`
+- `active_play` — whether the play is in the team's current Active Plays set
+- `notes`
+- `diagram_json` — validated Playbook schema-v2 document
+- `archived`
+- `created_at`
+- `updated_at`
+
+`diagram_json` contains normalized player coordinates, structured route/motion assignments, route-template semantics, and the optional primary target. It remains one versioned document for v1 rather than creating separate player/path/segment tables.
+
+`active_play` and `archived` are intentionally different. `active_play = 0` means a normal editable play retained in the Library. `archived = 1` removes the play from normal Playbook browsing.
+
+Rules:
+
+- Team owns the play; a Play never grants access independently of TeamCoach authorization
+- server validation is authoritative before `diagram_json` is stored
+- player/assignment IDs are stable only inside the play document and are not Athlete IDs
+- new persistent Play IDs are server-generated
+- new plays default to `active_play = 1`
+- archive instead of hard-delete
+- browser storage may be used as a temporary migration/cache fallback but is not authoritative once D1 persistence is available
 
 ### Drill
 
@@ -317,7 +360,8 @@ For timed drills, `elapsed_ms` may duplicate the primary total-time measurement 
 ```text
 Coach
   └── TeamCoach ── Team
-                    └── TeamMembership ── Athlete
+                    ├── TeamMembership ── Athlete
+                    └── Play
 
 Drill
   └── DrillVersion
@@ -341,6 +385,7 @@ Every team-scoped read or mutation must establish the authenticated Coach's acti
 Important derived-resource checks:
 
 - roster → authorize team
+- playbook/list/create/update/archive → authorize team
 - membership mutation → resolve membership's team, then authorize
 - athlete results → require explicit accessible `team_id` and athlete membership in that team
 - session/attempt/status routes → resolve session's team, then authorize
@@ -397,11 +442,12 @@ Prefer archival over deletion whenever history exists.
 - coach team access → deactivate TeamCoach
 - athlete with history → mark inactive
 - membership → mark inactive/end membership
+- play → set `archived = 1`
 - drill with history → archive
 - team with history → archive
 - completed session → delete only as an explicit corrective action
 
-Never silently cascade-delete performance history.
+Never silently cascade-delete performance history or team Playbook content.
 
 ## 9. Privacy minimization
 
@@ -412,6 +458,7 @@ Needed:
 - roster/team context
 - optional birth year
 - training results
+- team playbook diagrams and coach-entered play notes
 
 Not needed initially:
 
@@ -434,6 +481,8 @@ Current/likely indexes:
 - `team_coaches(team_id, role, active)`
 - `team_memberships(team_id, active)`
 - `team_memberships(athlete_id)`
+- `plays(team_id, archived, updated_at)`
+- `plays(team_id, archived, active_play, updated_at)`
 - `training_sessions(team_id, started_at)`
 - `training_sessions(drill_id, started_at)`
 - `session_athletes(session_id, order_index)`
@@ -456,5 +505,6 @@ These can wait until a real requirement appears:
 - parent/player accounts
 - result correction audit log
 - multi-drill practice containers
+- normalized play-assignment tables unless a proven query need appears
 
 Do not turn the minimal team-authorization layer into a larger organization/account system until field use proves the need.

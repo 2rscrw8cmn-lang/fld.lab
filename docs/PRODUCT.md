@@ -8,6 +8,7 @@ The product should help a coach answer:
 
 1. **What happened in today's drill?**
 2. **Is this athlete getting better over time?**
+3. **What are we running, and can I show it clearly?**
 
 The app must be fast enough to use while standing on a field with an iPad or phone.
 
@@ -15,7 +16,7 @@ The app must be fast enough to use while standing on a field with an iPad or pho
 
 **Coach / trainer**
 
-The coach controls the device, selects drills, switches athletes, starts/stops timers, records attempts, and reviews results.
+The coach controls the device, selects drills, switches athletes, starts/stops timers, records attempts, reviews results, and maintains the team's working playbook.
 
 Athletes do not need accounts for MVP.
 
@@ -27,6 +28,7 @@ Athletes do not need accounts for MVP.
 - **Dense browsing, large active controls.** Roster/Data are compact; Train is intentionally oversized.
 - **Drills are configurable.** Adding a new drill should normally not require application code.
 - **History is trustworthy.** Prior results remain tied to the athlete, session, and exact drill version that produced them.
+- **Play diagrams are structured.** Football formations/routes should be modeled as football data, not generic freehand artwork.
 - **Tablet first.** Design primarily for iPad landscape, then adapt to phone.
 - **Store minimal youth-athlete information.** Only collect what the product needs.
 
@@ -141,6 +143,24 @@ Filters may include:
 
 Prefer one clear trend chart with underlying result history nearby.
 
+### Playbook
+
+Purpose: build and reference the small set of flag-football plays the current team actually uses.
+
+Playbook should:
+
+- start plays from football formation presets
+- use clean structured route templates instead of generic freehand drawing
+- allow direct player and route-endpoint adjustment on the field
+- support motion and a primary target as separate football assignments
+- support flip, duplicate, and duplicate + flip
+- remain readable on a phone during practice or game day
+- eventually produce wristband diagrams and a coach call sheet from the same structured play data
+
+Do not turn Playbook into opponent scouting, game scheduling, messaging, or complex practice planning.
+
+Detailed Playbook behavior is defined in `PLAYBOOK.md`.
+
 ### Drills
 
 - drill library
@@ -243,6 +263,7 @@ See `UX_FLOWS.md` and `TECHNICAL.md`.
 - dense tables
 - multi-column layouts where useful
 - Train retains large controls
+- Playbook editor can use field + contextual controls side by side
 
 ### Phone
 
@@ -250,11 +271,12 @@ See `UX_FLOWS.md` and `TECHNICAL.md`.
 - roster becomes dense rows rather than tall cards
 - secondary metadata may hide
 - Train controls remain large
+- Playbook keeps the field dominant and moves contextual controls below it
 - no horizontal roster dependence
 
 ## 10. MVP
 
-First usable release:
+First usable training release:
 
 - one or more season-specific teams
 - roster CRUD
@@ -268,6 +290,8 @@ First usable release:
 - personal best calculation
 - simple progress chart
 - drill leaderboard
+
+Playbook is an active post-MVP product surface and follows `PLAYBOOK.md` rather than expanding the training MVP definition above.
 
 ## 11. Explicit non-goals for MVP
 
@@ -306,10 +330,14 @@ Because real use involves youth-athlete names/results, do not place real athlete
 
 Production access requirements are defined in `SECURITY.md`.
 
-## 14. MVP success test
+## 14. Success test
 
-The app succeeds when a coach can:
+The training system succeeds when a coach can:
 
 > open fld.LAB on an iPad, choose a drill, cycle through a roster, record every athlete's result without slowing practice, and later see who improved.
 
-If a feature does not help that workflow, question it before adding it.
+Playbook succeeds when a coach can:
+
+> choose a formation, build a clean readable play in under a minute, mirror or duplicate it without redrawing, and pull it up quickly on a phone during practice or a game.
+
+If a feature does not help one of those workflows, question it before adding it.

@@ -137,6 +137,58 @@ select {
   color: var(--text-secondary);
 }
 
+/* Playbook diagrams use neutral football ink. Purple is reserved for selection/interaction. */
+svg:has(marker[id$="-route"]) polyline.stroke-accent {
+  stroke: var(--text-secondary);
+}
+
+svg:has(marker[id$="-route"]) marker[id$="-route"] path {
+  fill: var(--text-secondary);
+  transform: scale(0.72);
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+svg:has(marker[id$="-motion"]) marker[id$="-motion"] path {
+  fill: var(--text-muted);
+  transform: scale(0.72);
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+svg:has(marker[id^="card-"]) polyline.stroke-accent {
+  stroke-width: 0.72;
+}
+
+svg:has(marker[id^="card-"]) polyline.stroke-text-muted {
+  stroke-width: 0.64;
+  stroke-dasharray: 2 2;
+}
+
+svg[aria-label="Play editor field"] polyline.stroke-accent {
+  stroke-width: 1.15;
+}
+
+svg[aria-label="Play editor field"] polyline.stroke-text-muted {
+  stroke: color-mix(in srgb, var(--text-muted) 78%, transparent);
+  stroke-width: 0.95;
+  stroke-dasharray: 2.4 2.2;
+}
+
+svg[aria-label="Play editor field"] > line.stroke-border,
+svg[aria-label="Play editor field"] > g > line.stroke-border {
+  opacity: 0.48;
+}
+
+svg[aria-label="Play editor field"] > line.stroke-text-muted {
+  opacity: 0.48;
+}
+
+svg[aria-label="Play editor field"] > line.stroke-text-secondary {
+  stroke-width: 0.9;
+  opacity: 0.82;
+}
+
 @media (max-width: 520px) {
   [aria-labelledby="drill-detail-title"] dl {
     grid-template-columns: 1fr;
