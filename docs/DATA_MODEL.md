@@ -4,6 +4,8 @@
 
 The data model must support:
 
+- multiple coaches with separate authenticated identities
+- explicit coach access to teams
 - multiple teams over time
 - athletes participating in different teams/seasons without losing history
 - configurable and versioned drills
@@ -12,21 +14,25 @@ The data model must support:
 - timed splits and non-timed measurements
 - durable historical results
 
-The initial database target is Cloudflare D1.
+The database target is Cloudflare D1.
 
-## 2. MVP decisions
+## 2. Current decisions
 
-These are no longer open questions for the first release.
+### Cloudflare Access owns login; D1 owns team authorization
+
+Cloudflare Access verifies who the coach is. fld.LAB stores a minimal `Coach` record keyed by normalized email and uses `TeamCoach` membership to determine which teams that identity may use.
+
+The production email allowlist is an eligibility gate, not permission to every team.
 
 ### Team is season-specific
 
-For MVP, a `Team` represents a roster for a specific season or period, for example:
+For the current product, a `Team` represents a roster for a specific season or period, for example:
 
 ```text
 U10 Purple — Fall 2026
 ```
 
-Do **not** create a separate `Season` entity yet. If future requirements need seasons to contain multiple teams, add that relationship deliberately later.
+Do **not** create a separate `Season` entity yet.
 
 ### Athlete owns identity; membership owns roster details
 
@@ -42,7 +48,7 @@ This prevents a future jersey or position change from rewriting prior roster his
 
 ### Splits are measurements
 
-Do **not** create a separate `splits` table for MVP.
+Do **not** create a separate `splits` table.
 
 Timed splits are stored as `Measurement` rows attached to an `Attempt`, using keys such as:
 
@@ -57,25 +63,78 @@ This keeps timed and non-timed result data in one extensible measurement model.
 
 ## 3. Core entities
 
+### Coach
+
+Minimal application identity created from a cryptographically verified Cloudflare Access identity.
+
+Fields:
+
+- `id`
+- `email` — normalized, case-insensitive unique
+- `display_name` — optional/future-friendly
+- `created_at`
+- `updated_at`
+
+Rules:
+
+- do not store passwords, OTPs, Access tokens, or signing keys
+- do not hard-code production coach emails in migrations or source
+- the verified Access email is the authoritative mapping key
+
+### TeamCoach
+
+Authorizes one Coach to one Team.
+
+Fields:
+
+- `id`
+- `team_id`
+- `coach_id`
+- `role` — `owner | coach`
+- `active`
+- `created_at`
+- `updated_at`
+
+Constraint:
+
+```text
+UNIQUE(team_id, coach_id)
+```
+
+Role rules:
+
+- `owner` can use the team and manage team details/sharing
+- `coach` can use roster, Train, Data, and team-scoped history but cannot edit/archive/share the team
+- team access removal is a soft deactivation
+- a team must retain at least one active owner
+
+Migration/bootstrap rule for Phase 6A:
+
+> Any Team that existed before `team_coaches` was introduced and has no TeamCoach rows is shared with every email currently in the production authorized-coach allowlist as `owner`.
+
+This preserves the existing shared-team behavior during the transition without embedding account-specific values in the public repository. New teams do **not** use this bootstrap; the creating Coach becomes the sole owner until access is explicitly shared.
+
 ### Team
 
 A season-specific roster group.
 
-Suggested fields:
+Fields:
 
 - `id`
-- `name` — e.g. `U10 Purple`
+- `name`
 - `age_group` — optional
-- `season_label` — e.g. `Fall 2026`
+- `season_label` — optional
 - `active`
 - `created_at`
 - `updated_at`
+
+Team does not contain an `owner_id`; ownership is many-to-many through `TeamCoach` so more than one owner can exist.
 
 ### Athlete
 
 One person independent of any team membership.
 
-Suggested fields:
+Fields:
 
 - `id`
 - `first_name`
@@ -88,13 +147,15 @@ Suggested fields:
 
 Do not use athlete name, jersey number, or team assignment as an identifier.
 
-Do not store the current jersey number or position directly on `Athlete` for MVP; those belong to `TeamMembership`.
+Do not store current jersey number or position directly on `Athlete`; those belong to `TeamMembership`.
+
+An Athlete may be referenced across multiple teams only when an authorized coach explicitly reuses that existing athlete record. Identity edits therefore affect every membership pointing at that Athlete.
 
 ### TeamMembership
 
 Associates an athlete with one team/season.
 
-Suggested fields:
+Fields:
 
 - `id`
 - `team_id`
@@ -108,19 +169,19 @@ Suggested fields:
 - `created_at`
 - `updated_at`
 
-Recommended constraint:
+Constraint:
 
 ```text
 UNIQUE(team_id, athlete_id)
 ```
 
-An athlete changing jersey number or position should update the membership record for that team. Historical session/result records continue to reference the stable athlete and session context.
+An athlete changing jersey number or position updates the membership record for that team. Historical session/result records continue to reference the stable athlete and session context.
 
 ### Drill
 
 Stable identity for a drill concept.
 
-Suggested fields:
+Fields:
 
 - `id`
 - `slug`
@@ -133,11 +194,13 @@ Suggested fields:
 
 `slug` is the stable imported-drill identity and should be unique.
 
+Drills remain deployment-wide configuration in Phase 6A rather than team-owned records.
+
 ### DrillVersion
 
 Immutable configuration used to render and score a drill.
 
-Suggested fields:
+Fields:
 
 - `id`
 - `drill_id`
@@ -147,15 +210,15 @@ Suggested fields:
 
 Rules:
 
-- Never mutate a `DrillVersion` after it has been used by a recorded session.
-- Importing a changed definition creates a new version.
-- `Drill.current_version_id` points at the latest active definition.
+- never mutate a `DrillVersion` after it has been used by a recorded session
+- importing a changed definition creates a new version
+- `Drill.current_version_id` points at the latest active definition
 
 ### TrainingSession
 
 One run of one drill with one team.
 
-Suggested fields:
+Fields:
 
 - `id`
 - `team_id`
@@ -165,21 +228,25 @@ Suggested fields:
 - `completed_at` — nullable
 - `status` — `active | completed | abandoned`
 - `notes` — optional
-- `created_by` — nullable until authentication is implemented
+- `created_by` — Coach id for sessions created after Phase 6A
 - `created_at`
 - `updated_at`
 
-MVP rule:
+`created_by` remains nullable for legacy rows because the column predates coach identity and historical sessions cannot always be attributed reliably.
+
+Rule:
 
 > One `TrainingSession` = one drill + one team.
 
 A session always retains the exact `drill_version_id` used when it began.
 
+The stored status `abandoned` corresponds to **Quit** in the coach-facing UI. Quit sessions remain stored but do not contribute to performance analytics.
+
 ### SessionAthlete
 
 Snapshot of the athlete queue/participation for a session.
 
-Suggested fields:
+Fields:
 
 - `id`
 - `session_id`
@@ -195,7 +262,7 @@ This supports fast athlete switching, `Save + Next`, skipping, and resuming a se
 
 One recorded attempt by one athlete in one session.
 
-Suggested fields:
+Fields:
 
 - `id`
 - `session_id`
@@ -217,7 +284,7 @@ Store authoritative timed values as integer milliseconds.
 
 Typed values attached to an attempt.
 
-Suggested fields:
+Fields:
 
 - `id`
 - `attempt_id`
@@ -237,7 +304,8 @@ Examples:
 | 20-Yard Sprint | `split_10yd` | 2210 | `ms` |
 | Catching | `successes` | 8 | `count` |
 | Catching | `attempts` | 10 | `count` |
-| Broad Jump | `distance` | 72 | `in` |
+| Long Jump | `distance` | 6.0 | `ft` |
+| Throw Distance | `distance` | 72 | `ft` |
 | Route Execution | `rating` | 4 | `score_1_5` |
 
 For timed drills, `elapsed_ms` may duplicate the primary total-time measurement for query convenience, but the application must treat the two consistently. Do not create a second split-specific storage model.
@@ -247,14 +315,16 @@ For timed drills, `elapsed_ms` may duplicate the primary total-time measurement 
 ## 4. Relationships
 
 ```text
-Team
-  └── TeamMembership ── Athlete
+Coach
+  └── TeamCoach ── Team
+                    └── TeamMembership ── Athlete
 
 Drill
   └── DrillVersion
 
 TrainingSession
   ├── Team
+  ├── Coach (created_by, nullable for legacy rows)
   ├── Drill
   ├── DrillVersion
   └── SessionAthlete ── Athlete
@@ -264,7 +334,26 @@ TrainingSession
 
 ---
 
-## 5. Result calculation
+## 5. Authorization boundary
+
+Every team-scoped read or mutation must establish the authenticated Coach's active `TeamCoach` membership before reading the resource.
+
+Important derived-resource checks:
+
+- roster → authorize team
+- membership mutation → resolve membership's team, then authorize
+- athlete results → require explicit accessible `team_id` and athlete membership in that team
+- session/attempt/status routes → resolve session's team, then authorize
+- leaderboard/trend/session history → authorize requested team
+- team edit/archive/sharing → require `owner`
+
+A browser-supplied resource ID never grants access by itself.
+
+Prefer `404` for a team-scoped resource outside the coach's accessible scope so IDs cannot be used to enumerate other teams.
+
+---
+
+## 6. Result calculation
 
 The authoritative stored layer is:
 
@@ -282,9 +371,11 @@ Derived values should initially be calculated rather than duplicated as authorit
 - leaderboard rank
 - percentage change
 
+Performance analytics use valid attempts from **completed sessions only**.
+
 Optimize only after real query patterns require it.
 
-## 6. Personal-best rules
+## 7. Personal-best rules
 
 The drill definition determines result direction:
 
@@ -293,14 +384,17 @@ The drill definition determines result direction:
 - throwing/jump distance → higher is better
 - subjective/no-ranking measurements → none
 
-Only valid attempts count toward PBs and leaderboards.
+Only valid completed-session results count toward PBs and leaderboards.
 
 When a drill defines multiple attempts, its configured aggregation (`best`, `average`, `latest`, or `total`) determines the athlete's displayed result for that session.
 
-## 7. Deletion and archival
+Archived team memberships stay in historical athlete/session data but do not appear in the current team leaderboard.
+
+## 8. Deletion and archival
 
 Prefer archival over deletion whenever history exists.
 
+- coach team access → deactivate TeamCoach
 - athlete with history → mark inactive
 - membership → mark inactive/end membership
 - drill with history → archive
@@ -309,10 +403,11 @@ Prefer archival over deletion whenever history exists.
 
 Never silently cascade-delete performance history.
 
-## 8. Privacy minimization
+## 9. Privacy minimization
 
-Needed for MVP:
+Needed:
 
+- coach email required for identity/authorization
 - athlete name
 - roster/team context
 - optional birth year
@@ -320,18 +415,23 @@ Needed for MVP:
 
 Not needed initially:
 
-- home address
+- coach passwords or OTPs
+- athlete home address
 - parent contact details
 - medical information
 - school information
 - full date of birth
 
-Real athlete data must not be placed on a publicly accessible production deployment until access control is implemented. See `SECURITY.md`.
+Real athlete data requires the production Access + Worker JWT gate and D1 team authorization described in `SECURITY.md`.
 
-## 9. Initial indexing priorities
+## 10. Indexing priorities
 
-Likely indexes:
+Current/likely indexes:
 
+- `coaches(email)`
+- `team_coaches(coach_id, active)`
+- `team_coaches(team_id, active)`
+- `team_coaches(team_id, role, active)`
 - `team_memberships(team_id, active)`
 - `team_memberships(athlete_id)`
 - `training_sessions(team_id, started_at)`
@@ -343,15 +443,18 @@ Likely indexes:
 
 Do not add speculative indexes beyond actual access patterns.
 
-## 10. Deferred decisions
+## 11. Deferred decisions
 
 These can wait until a real requirement appears:
 
 - separate `Season` entity
 - organizations/clubs above teams
+- automated email invitations
+- owner-transfer workflow
+- more granular team roles
 - athlete photos
 - parent/player accounts
 - result correction audit log
 - multi-drill practice containers
 
-Do not block the first usable release on these.
+Do not turn the minimal team-authorization layer into a larger organization/account system until field use proves the need.
