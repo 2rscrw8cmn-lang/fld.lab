@@ -3,6 +3,7 @@ import type { D1Database } from "@cloudflare/workers-types";
 import { getDrill, importDrill, listDrills } from "../db/drills";
 import { RepositoryError } from "../db/repository";
 import { validateDrillDefinition } from "./definition";
+import { seedMissingStarterDrills } from "./starters";
 
 function invalidDefinition(fields: Record<string, string>) {
   return Response.json(
@@ -31,7 +32,9 @@ export async function handleDrillApi(request: Request, db: D1Database): Promise<
 
   try {
     if (pathname === "/api/drills" && request.method === "GET") {
-      return Response.json({ drills: await listDrills(db) });
+      const drills = await listDrills(db);
+      const seeded = await seedMissingStarterDrills(db, drills);
+      return Response.json({ drills: seeded > 0 ? await listDrills(db) : drills });
     }
 
     if (pathname === "/api/drills/import" && request.method === "POST") {
