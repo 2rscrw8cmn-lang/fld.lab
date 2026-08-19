@@ -8,7 +8,7 @@ import { AthleteProfileScreen } from "@/features/athletes/athlete-profile-screen
 import { DataScreen } from "@/features/data/data-screen";
 import { DrillLibraryScreen } from "@/features/drills/drill-library-screen";
 import { HomeScreen } from "@/features/home/home-screen";
-import { PlaybookScreen } from "@/features/playbook/playbook-screen";
+import { PlaybookWorkspace } from "@/features/playbook/playbook-workspace";
 import { RosterScreen } from "@/features/roster/roster-screen";
 import { SettingsScreen } from "@/features/settings/settings-screen";
 import { FirstTeamSetup } from "@/features/teams/first-team-setup";
@@ -200,7 +200,7 @@ export default function App() {
   } else if (activePath === "/data") {
     screen = <DataScreen team={activeTeam} />;
   } else if (activePath === "/playbook") {
-    screen = <PlaybookScreen team={activeTeam} />;
+    screen = <PlaybookWorkspace team={activeTeam} />;
   } else if (activePath === "/drills") {
     screen = <DrillLibraryScreen />;
   } else if (activePath === "/settings") {
