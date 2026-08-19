@@ -98,11 +98,11 @@ Select a player, then choose a route template:
 
 Route choices use compact route-shape glyphs instead of a wall of equally weighted text buttons. The selected player's color provides contextual emphasis while purple remains reserved for the primary target.
 
-fld.LAB creates clean football geometry automatically. The coach may tap an existing route line to select it. A selected route exposes draggable handles so the line can be adjusted after it has been created.
+fld.LAB creates clean football geometry automatically. The coach may tap an existing route line to select it. Route lines use a larger invisible hit target than their visible stroke so thin routes are still easy to select on a tablet. A selected route exposes draggable handles so the line can be adjusted after it has been created.
 
-Dragging the endpoint of a template route preserves the expected football semantics while depth and direction change. Interior handles may be moved directly when the coach needs a custom adjustment.
+Dragging a route endpoint preserves the route's expected semantic direction while keeping any coach-adjusted interior handles exactly where the coach left them. Moving an endpoint must not regenerate or reset the middle bend of a Post, Corner, Hitch, Out, In, Wheel, or other multi-point route.
 
-Route semantics stay locked for smart endpoint adjustment. For example, an Out remains outside and square even if the coach drags the endpoint across the formation; changing to an In is an explicit route-template choice.
+Interior handles may be moved directly when the coach needs a custom adjustment. Choosing the already-active route template selects its existing route rather than recreating it.
 
 #### Wheel route
 
@@ -110,14 +110,15 @@ Wheel is a curved route, not pre-snap motion.
 
 - it begins by releasing flat/outside from the player's starting position
 - it bends smoothly upfield and may cross the LOS like any other route
-- it is stored as an eight-point sampled curve so the same structured data works in the editor, animation, thumbnails, call sheets, and wristbands
-- dragging the endpoint regenerates the curve while preserving outside/upfield Wheel semantics
-- the sampled interior points remain editable using the existing route handles
+- it stores four meaningful control points: start, flat release, turn, and endpoint
+- the editor exposes only the three useful movable handles rather than a cluster of sampled points
+- the renderer smooths those control points for editor display, animation, thumbnails, call sheets, and wristbands
+- dragging the endpoint preserves the existing flat-release and turn handles instead of rebuilding the curve
 - a backfield player may therefore remain behind the LOS during the initial part of the Wheel before turning upfield
 
 Motion remains a separate pre-snap concept and is still constrained to the player's pre-snap side of the LOS.
 
-A player has at most one primary route assignment. Choosing another route replaces that player's current route. Choosing the already-active route selects its existing line for adjustment instead of recreating it.
+A player has at most one primary route assignment. Choosing another route replaces that player's current route.
 
 Route ink follows the assigned player's color at restrained opacity. The primary target and its route use purple. Motion remains visually quieter and dashed. Arrowheads must stay large enough to read route direction at a glance even when the route stroke itself is thin.
 
@@ -147,6 +148,10 @@ The editor supports:
 Changing formation resets player placement and assignments.
 
 Editor controls should be visually grouped by purpose rather than presented as one undifferentiated control wall. Player/route tools, pre-snap/read tools, play setup, and coaching notes should read as separate groups.
+
+Play type uses icon-first controls for **Pass**, **Run**, and **Option**, with text retained as a secondary label for clarity and accessibility.
+
+The editor tracks unsaved changes. Attempting to leave the Play, switch Playbooks, change Teams, use primary application navigation, or use browser Back while edits are unsaved must show the same fld.LAB custom confirmation pattern used elsewhere in the app. Do not use a native browser confirm for in-app navigation. Browser/tab unload may additionally use the platform unload warning.
 
 ### Field
 
@@ -190,7 +195,7 @@ Rules:
 - assignment player IDs must reference an existing player
 - route/motion assignments contain at least two points and no more than eight in schema v2
 - route templates produce controlled football geometry rather than sampled freehand drawing
-- Wheel intentionally uses the full eight-point allowance to approximate a smooth curved path
+- Wheel uses four semantic control points and is sampled only at render/playback time
 - existing schema-v1 browser plays should be migrated when possible rather than silently discarded
 
 ## Persistence
@@ -255,7 +260,7 @@ Opening a Library play should prioritize consuming and assigning the play, not d
 - route traces inherit their player's color at restrained opacity
 - motion is quieter and dashed
 - a route following motion is rendered from the completed motion position
-- Wheel animation follows the same sampled curve stored in the Play
+- Wheel animation samples the same four control points used by the editor
 - field guides are intentionally subdued
 - playback controls sit outside the field so they do not cover route geometry
 - metadata is presented as compact text rather than a stack of badges/cards
@@ -339,7 +344,7 @@ Call sheets and wristbands use a game-day-specific static renderer derived from 
 - routes remain color-matched to roles and the primary target stays purple
 - player markers are smaller than in the editor so route geometry remains dominant
 - motion stays dashed and a route following motion begins from the completed motion position
-- sampled Wheel geometry is printed directly, so the curve remains consistent with editor/viewer behavior
+- Wheel uses the same smoothing renderer as the editor/viewer, and curved samples are included when calculating print crop bounds
 
 Browser print remains the export path for the first implementation so coaches can print directly or choose **Save as PDF**.
 
