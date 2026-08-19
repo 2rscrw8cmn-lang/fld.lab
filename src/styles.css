@@ -220,8 +220,8 @@ svg[aria-label="Play editor field"] > line.stroke-text-secondary {
     grid-column: 1 / -1;
   }
 
-  /* When Editor is empty, use the empty-state Create play CTA instead of repeating New Play above it. */
-  section:has(> div > svg.lucide-route) > div:first-child button {
+  /* When Editor is empty, use its Create play CTA instead of repeating New Play above it. */
+  section:has(> div > svg.lucide-route):has(> div > button) > div:first-child button {
     display: none;
   }
 
