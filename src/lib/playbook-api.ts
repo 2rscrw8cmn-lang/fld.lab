@@ -1,5 +1,8 @@
 import { apiRequest } from "@/lib/api";
 
+export type PlayType = "pass" | "run" | "option";
+export type PlaySituation = "any" | "short" | "medium" | "deep" | "no-run" | "goal-line" | "conversion";
+
 export type StoredPlay = {
   id: string;
   team_id: string;
@@ -7,6 +10,10 @@ export type StoredPlay = {
   side: "offense" | "defense";
   formation_id: string | null;
   formation: string;
+  play_type: PlayType;
+  concept: string;
+  situation: PlaySituation;
+  active_play: boolean;
   notes: string;
   diagram: unknown;
   archived: boolean;
@@ -19,6 +26,10 @@ export type PlayInput = {
   side: "offense" | "defense";
   formation_id: string | null;
   formation: string;
+  play_type: PlayType;
+  concept: string;
+  situation: PlaySituation;
+  active_play: boolean;
   notes: string;
   diagram: unknown;
 };
