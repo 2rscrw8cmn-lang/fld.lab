@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Check, Pause, Pencil, Play, RotateCcw, Search, Undo2, Users, X } from "lucide-react";
+import { ArrowLeft, Check, Pause, Play, RotateCcw, Search, Undo2, Users, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { LOS_Y, type DiagramAssignment, type DiagramPlayer, type PlayDiagram, type Point } from "@/features/playbook/playbook-model";
@@ -35,7 +35,6 @@ export type PlayViewerPlay = {
 type Props = {
   play: PlayViewerPlay;
   onBack: () => void;
-  onEdit?: () => void;
   onMoveToEditor?: () => void;
 };
 
@@ -436,7 +435,7 @@ function PersonnelEditor({
   );
 }
 
-export function PlayViewer({ play, onBack, onEdit, onMoveToEditor }: Props) {
+export function PlayViewer({ play, onBack, onMoveToEditor }: Props) {
   const [progress, setProgress] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [runId, setRunId] = useState(0);
@@ -549,7 +548,6 @@ export function PlayViewer({ play, onBack, onEdit, onMoveToEditor }: Props) {
         </button>
         <div className="flex items-center gap-2">
           {onMoveToEditor && <Button variant="secondary" className="min-h-9 px-3 text-xs" onClick={onMoveToEditor}><Undo2 size={15} />Move to Editor</Button>}
-          {onEdit && <Button variant="secondary" className="min-h-9 px-3 text-xs" onClick={onEdit}><Pencil size={15} />Edit</Button>}
         </div>
       </div>
 
@@ -600,12 +598,7 @@ export function PlayViewer({ play, onBack, onEdit, onMoveToEditor }: Props) {
           </dl>
 
           <div className="mt-5 border-t border-border pt-4">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.1em] text-text-muted"><Users size={12} />Personnel</div>
-              {!play.active_play && personnelStatus === "ready" && (
-                <button type="button" onClick={() => setPersonnelEditorOpen(true)} className="text-[10px] font-bold text-[#c4b5fd] hover:text-text-primary">Manage personnel</button>
-              )}
-            </div>
+            <div className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.1em] text-text-muted"><Users size={12} />Personnel</div>
 
             {personnelStatus === "loading" ? (
               <div className="mt-3 text-[10px] text-text-muted">Loading roster…</div>
@@ -613,18 +606,29 @@ export function PlayViewer({ play, onBack, onEdit, onMoveToEditor }: Props) {
               <div className="mt-3 text-[10px] leading-4 text-text-muted">Personnel mapping is unavailable until the team database is updated.</div>
             ) : (
               <>
-                <div className="mt-3 inline-grid grid-cols-2 rounded-md border border-border bg-background p-0.5 text-[9px] font-bold">
-                  <button type="button" onClick={() => setLabelMode("positions")} className={`min-h-7 rounded-[4px] px-2.5 ${labelMode === "positions" ? "bg-surface-elevated text-text-primary" : "text-text-muted"}`}>Positions</button>
-                  <button type="button" disabled={!hasPersonnel} onClick={() => setLabelMode("players")} className={`min-h-7 rounded-[4px] px-2.5 ${labelMode === "players" ? "bg-surface-elevated text-text-primary" : "text-text-muted"} disabled:opacity-35`}>Players</button>
+                {!play.active_play && (
+                  <button
+                    type="button"
+                    onClick={() => setPersonnelEditorOpen(true)}
+                    className="mt-3 flex min-h-9 w-full items-center justify-center gap-2 rounded-md border border-[rgba(124,58,237,0.48)] bg-[rgba(124,58,237,0.12)] px-3 text-[10px] font-extrabold text-[#c4b5fd] transition-colors hover:bg-[rgba(124,58,237,0.2)] hover:text-text-primary"
+                  >
+                    <Users size={14} />{hasPersonnel ? "Edit assignments" : "Assign players"}
+                  </button>
+                )}
+
+                <div className="mt-3 grid w-full grid-cols-2 rounded-md border border-border bg-background p-0.5 text-[9px] font-bold">
+                  <button type="button" onClick={() => setLabelMode("positions")} className={`min-h-7 rounded-[4px] px-2.5 ${labelMode === "positions" ? "bg-surface-elevated text-text-primary" : "text-text-muted hover:text-text-primary"}`}>Positions</button>
+                  <button type="button" disabled={!hasPersonnel} onClick={() => setLabelMode("players")} className={`min-h-7 rounded-[4px] px-2.5 ${labelMode === "players" ? "bg-surface-elevated text-text-primary" : "text-text-muted hover:text-text-primary"} disabled:opacity-35`}>Players</button>
                 </div>
 
-                <div className="mt-3 space-y-2">
+                <div className="mt-3 space-y-2.5">
                   {play.diagram.players.map((player) => {
                     const assignment = personnelByPlayer.get(player.id);
                     const primary = isPrimaryPlayer(play.diagram, player.id);
                     return (
-                      <div key={player.id} className="flex min-w-0 items-center gap-2 text-[10px]">
-                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[7px] font-black" style={{ backgroundColor: playerColor(player, primary), color: playerTextColor(primary) }}>{player.label}</span>
+                      <div key={player.id} className="grid min-w-0 grid-cols-[20px_24px_minmax(0,1fr)] items-center gap-2 text-[10px]">
+                        <span className="flex h-5 w-5 items-center justify-center rounded-full text-[7px] font-black" style={{ backgroundColor: playerColor(player, primary), color: playerTextColor(primary) }}>{player.label}</span>
+                        <span className="font-extrabold text-text-muted">{player.label}</span>
                         <span className={`min-w-0 truncate ${assignment ? "font-semibold text-text-secondary" : "text-text-muted"}`}>{assignment ? athleteName(assignment) : "Unassigned"}</span>
                       </div>
                     );
@@ -642,8 +646,8 @@ export function PlayViewer({ play, onBack, onEdit, onMoveToEditor }: Props) {
           )}
 
           {!play.active_play && (
-            <div className="mt-5 border-t border-border pt-4 text-[11px] leading-5 text-text-muted">
-              Library locks the diagram and play setup. Personnel is assigned here; move the play to Editor only when the football structure itself needs to change.
+            <div className="mt-5 border-t border-border pt-4 text-[10px] text-text-muted">
+              Football structure is locked in Library.
             </div>
           )}
         </aside>
