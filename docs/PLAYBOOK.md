@@ -59,6 +59,8 @@ Select a player, then choose a route template:
 
 fld.LAB creates clean football geometry automatically. The coach adjusts the route by dragging its endpoint; the template preserves the expected geometry while depth and direction change.
 
+Route semantics stay locked while adjusting. For example, an Out remains outside and square even if the coach drags the endpoint across the formation; changing to an In is an explicit route-template choice.
+
 A player has at most one primary route assignment. Choosing another route replaces that player's current route.
 
 ### Motion
