@@ -1,160 +1,164 @@
-# fld.LAB — Playbook v1
+# fld.LAB — Playbook Specification
 
 ## Purpose
 
-Playbook gives a flag-football coach a fast way to draw, organize, and reference plays inside fld.LAB without turning the product into a game-management platform.
+Playbook is a coach-facing flag-football diagram and game-day reference tool. It should help a coach build a small, usable team playbook quickly on a phone or tablet.
 
-The primary jobs are:
+Playbook is not a generic drawing canvas and should not become a broad practice-planning or league-management system.
 
-1. sketch a play quickly
-2. save it to the current team
-3. find it again during practice
-4. show the diagram clearly on a phone or tablet
+## Product principles
 
-## Scope
+- Football structure beats freehand drawing.
+- Start from a formation instead of a blank field.
+- The field stays visually dominant; controls stay compact and contextual.
+- A play is structured data, not an image or SVG blob.
+- The same structured play should eventually render as an editor diagram, library thumbnail, mirrored play, wristband card, and player-facing diagram.
+- Default workflows target 5v5 youth flag football while leaving room for custom player placement.
+- Team playbooks should stay intentionally small and easy to scan.
 
-### v1 includes
+## Phase 1 — editor interaction
 
-- a top-level Playbook surface
-- team-specific plays
-- offense and defense play types
-- play name
-- optional formation name
-- optional notes
-- draggable player markers
-- editable player labels
-- drawn routes
-- dashed motion paths
-- compact play-library previews
-- archive instead of destructive delete when persistence is added
+Phase 1 validates the editing model before permanent database persistence.
 
-### v1 does not include
+### New play
 
-- game scheduling
-- opponent scouting
-- play-calling statistics
-- messaging players/parents
-- video
-- animation/timeline playback
-- assignments tied to athlete accounts
-- formation packages or complex practice planning
-- public play sharing
+A new offensive play begins by choosing a formation preset. Initial presets:
 
-## Interaction model
+- Spread
+- Trips Right
+- Trips Left
+- Bunch Right
+- Bunch Left
+- Stack Right
+- Stack Left
+- Custom
 
-### Playbook library
+A coach may drag players after choosing a preset.
 
-The current team owns the visible playbook.
+### Players
 
-The library should support:
+- Position markers use football-role labels such as `X`, `Y`, `Z`, `C`, and `QB`.
+- Dragging a player moves that player and its assignments together.
+- Labels remain editable.
+- The play stores position roles, not athlete identity. Roster-to-position personnel mapping is a later layer.
 
-- All / Offense / Defense filtering
-- `New Play`
-- tap a play to edit it
-- a field-diagram preview on each play
-- play name, side, formation, and updated time
+### Routes
 
-Phone layouts remain compact. Avoid tall generic cards with large metadata blocks.
+Freehand drawing is not the default route workflow.
 
-### Editor
+Select a player, then choose a route template:
 
-The editor should prioritize the field.
+- Go
+- Slant
+- Out
+- In
+- Post
+- Corner
+- Hitch
+- Drag
 
-Core actions:
+fld.LAB creates clean football geometry automatically. The coach adjusts the route by dragging its endpoint; the template preserves the expected geometry while depth and direction change.
 
-- drag a player to reposition
-- tap a player to select it
-- edit the selected player label
-- draw a route for the selected player
-- draw a motion path for the selected player
-- clear the selected player's routes
-- add/remove player markers
-- edit play name, side, formation, and notes
-- save and return to the library
+A player has at most one primary route assignment. Choosing another route replaces that player's current route.
 
-A newly created offensive play starts with a useful 5v5 template:
+### Motion
 
-- QB
-- C
-- X
-- Y
-- Z
+Motion is a separate pre-snap assignment and renders as a dashed path. It is not stored as a route style.
 
-These are editable labels, not roster assignments.
+### Primary target
 
-## Diagram data
+An offensive play may identify one primary target. This is semantic play data, not decorative markup.
 
-Diagrams use normalized coordinates from `0` to `100`, never screen pixels. This keeps the same play usable on phone, tablet, and desktop.
+### Editing controls
+
+The editor supports:
+
+- undo
+- redo
+- flip horizontally
+- duplicate
+- duplicate + flip
+- clear selected assignments
+- change formation
+
+Changing formation resets player placement and assignments during the interaction prototype.
+
+### Field
+
+The field is a compact coaching diagram, not a full stadium field. It should show:
+
+- line of scrimmage
+- short yardage references
+- a 7-yard rush reference
+- enough vertical field to read route depth
+
+### Diagram data
+
+Coordinates are normalized from `0` to `100`, never screen pixels.
+
+Phase 1 uses structured diagram data similar to:
 
 ```ts
 type PlayDiagram = {
-  schema_version: 1;
+  schema_version: 2;
   players: Array<{
     id: string;
     label: string;
     x: number;
     y: number;
   }>;
-  paths: Array<{
+  assignments: Array<{
     id: string;
     player_id: string;
     kind: "route" | "motion";
+    template?: "go" | "slant" | "out" | "in" | "post" | "corner" | "hitch" | "drag";
     points: Array<{ x: number; y: number }>;
   }>;
+  primary_target_player_id: string | null;
 };
 ```
 
 Rules:
 
-- coordinates are finite numbers clamped to `0..100`
-- player IDs are unique within a play
-- paths reference an existing player
-- a saved path contains at least two points
-- route paths render solid with a directional arrow
-- motion paths render dashed with a directional arrow
+- coordinates are finite and clamped to the field
+- assignment player IDs must reference an existing player
+- route/motion assignments contain at least two points
+- route templates produce clean geometry rather than sampled freehand points
+- existing schema-v1 browser plays should be migrated in memory when possible rather than silently discarded
 
-## Field presentation
+### Storage during interaction prototype
 
-The field is an abstract coaching surface, not a photorealistic football field.
+Until the editor interaction is approved, browser storage may be used and must remain scoped by team ID.
 
-- line of scrimmage is visually clear
-- yard guides are quiet
-- player markers must remain readable over routes
-- no decorative field textures
-- use existing fld.LAB colors and typography
+After the interaction is approved, plays move to authenticated team-scoped D1 persistence.
 
-## Persistence plan
+## Phase 2 — real playbook
 
-The first editor prototype may use team-keyed browser storage so field interaction can be validated without a production schema change.
+- D1 play persistence
+- formation, concept, and situation metadata
+- Active Plays vs Library
+- roster personnel mapping to position roles
+- defensive assignment editor
+- archive/delete behavior
 
-After editor behavior is approved, persistence moves to D1 with a `plays` table and authenticated team-scoped API. Browser storage is then removed as the source of truth.
+## Phase 3 — game day
 
-Planned fields:
+- play numbering
+- coach call sheet
+- wristband sheet generation
+- print/PDF layouts
+- fast sideline viewer
 
-- `id`
-- `team_id`
-- `name`
-- `side` (`offense` or `defense`)
-- `formation`
-- `notes`
-- `diagram_json`
-- `archived`
-- `created_at`
-- `updated_at`
+## Deferred
 
-## Responsive behavior
+Do not prioritize these before the structured editor and game-day outputs work well:
 
-### Tablet / desktop
-
-- library can use a multi-column play grid
-- editor uses a field-first two-column layout with controls alongside the field
-
-### Phone
-
-- editor becomes a single-column full-width field
-- primary drawing controls stay within thumb reach
-- metadata may collapse below the field
-- the field must remain large enough to drag players accurately
+- animation
+- AI play generation
+- public play marketplace
+- video attachments
+- player accounts/quizzes
+- deep folder hierarchies
 
 ## Product boundary
 
