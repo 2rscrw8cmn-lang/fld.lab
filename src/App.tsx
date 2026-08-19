@@ -18,6 +18,10 @@ import { getActiveSession, listTeams, type Team } from "@/lib/api";
 
 const TEAM_STORAGE_KEY = "fld-lab:last-team-id";
 
+type PendingPlaybookExit =
+  | { kind: "path"; path: string }
+  | { kind: "team"; teamId: string };
+
 function sortTeams(teams: Team[]) {
   return [...teams].sort((a, b) => a.name.localeCompare(b.name) || (a.season_label ?? "").localeCompare(b.season_label ?? ""));
 }
@@ -34,6 +38,8 @@ export default function App() {
   const [activeSessionLock, setActiveSessionLock] = useState(false);
   const [pendingNavigationPath, setPendingNavigationPath] = useState<string | null>(null);
   const [checkingNavigation, setCheckingNavigation] = useState(false);
+  const [playbookEditorDirty, setPlaybookEditorDirty] = useState(false);
+  const [pendingPlaybookExit, setPendingPlaybookExit] = useState<PendingPlaybookExit | null>(null);
 
   const completeNavigation = useCallback((path: string) => {
     if (path === pathname) return;
@@ -57,6 +63,11 @@ export default function App() {
   useEffect(() => {
     const handlePopState = () => {
       const nextPath = window.location.pathname;
+      if (pathname === "/playbook" && nextPath !== pathname && playbookEditorDirty) {
+        window.history.pushState({}, "", pathname);
+        setPendingPlaybookExit({ kind: "path", path: nextPath });
+        return;
+      }
       if (isTrainPath(pathname) && !isTrainPath(nextPath) && activeSessionLock) {
         window.history.pushState({}, "", pathname);
         setCheckingNavigation(true);
@@ -71,7 +82,7 @@ export default function App() {
     };
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, [activeSessionLock, completeNavigation, pathname, reconcileActiveSession]);
+  }, [activeSessionLock, completeNavigation, pathname, playbookEditorDirty, reconcileActiveSession]);
 
   useEffect(() => {
     let cancelled = false;
@@ -123,8 +134,19 @@ export default function App() {
     if (!activeSessionLock) setPendingNavigationPath(null);
   }, [activeSessionLock]);
 
+  useEffect(() => {
+    if (pathname !== "/playbook") {
+      setPlaybookEditorDirty(false);
+      setPendingPlaybookExit(null);
+    }
+  }, [pathname]);
+
   const navigate = (path: string) => {
     if (path === pathname || checkingNavigation) return;
+    if (pathname === "/playbook" && playbookEditorDirty) {
+      setPendingPlaybookExit({ kind: "path", path });
+      return;
+    }
     if (isTrainPath(pathname) && !isTrainPath(path) && activeSessionLock) {
       setCheckingNavigation(true);
       void reconcileActiveSession().then((hasActiveSession) => {
@@ -137,10 +159,18 @@ export default function App() {
     completeNavigation(path);
   };
 
-  const selectTeam = (nextTeamId: string) => {
-    if (activeSessionLock) return;
+  const selectTeamImmediately = (nextTeamId: string) => {
     setTeamId(nextTeamId);
     if (nextTeamId) window.localStorage.setItem(TEAM_STORAGE_KEY, nextTeamId);
+  };
+
+  const selectTeam = (nextTeamId: string) => {
+    if (activeSessionLock || nextTeamId === teamId) return;
+    if (pathname === "/playbook" && playbookEditorDirty) {
+      setPendingPlaybookExit({ kind: "team", teamId: nextTeamId });
+      return;
+    }
+    selectTeamImmediately(nextTeamId);
   };
 
   const handleTeamCreated = (team: Team) => {
@@ -174,6 +204,15 @@ export default function App() {
     if (path) completeNavigation(path);
   };
 
+  const confirmDiscardPlayEdits = () => {
+    const pending = pendingPlaybookExit;
+    setPendingPlaybookExit(null);
+    setPlaybookEditorDirty(false);
+    if (!pending) return;
+    if (pending.kind === "path") completeNavigation(pending.path);
+    else selectTeamImmediately(pending.teamId);
+  };
+
   const athleteMatch = pathname.match(/^\/athletes\/([^/]+)$/);
   const athleteId = athleteMatch ? decodeURIComponent(athleteMatch[1]) : null;
   const trainStartMatch = pathname.match(/^\/train\/start\/([^/]+)$/);
@@ -200,7 +239,7 @@ export default function App() {
   } else if (activePath === "/data") {
     screen = <DataScreen team={activeTeam} />;
   } else if (activePath === "/playbook") {
-    screen = <PlaybookWorkspace team={activeTeam} />;
+    screen = <PlaybookWorkspace team={activeTeam} onEditingDirtyChange={setPlaybookEditorDirty} />;
   } else if (activePath === "/drills") {
     screen = <DrillLibraryScreen />;
   } else if (activePath === "/settings") {
@@ -240,6 +279,21 @@ export default function App() {
             <div className="mt-5 grid grid-cols-2 gap-2">
               <Button type="button" variant="secondary" className="min-h-11" onClick={() => setPendingNavigationPath(null)}>Stay</Button>
               <Button type="button" className="min-h-11" onClick={confirmLeaveSession}>Leave session</Button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {pendingPlaybookExit && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 p-4" role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target) setPendingPlaybookExit(null); }}>
+          <section className="w-full max-w-[430px] overflow-hidden rounded-xl border border-border bg-surface shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="discard-app-play-title">
+            <div className="border-b border-border px-5 py-4">
+              <h2 id="discard-app-play-title" className="text-lg font-extrabold">Discard unsaved changes?</h2>
+              <p className="mt-1 text-sm leading-5 text-text-muted">This play has changes that have not been saved. Leaving the editor now will lose them.</p>
+            </div>
+            <div className="grid gap-2 p-4 sm:grid-cols-2">
+              <Button type="button" variant="secondary" onClick={() => setPendingPlaybookExit(null)}>Keep Editing</Button>
+              <Button type="button" variant="destructive" onClick={confirmDiscardPlayEdits}>Discard Changes</Button>
             </div>
           </section>
         </div>
