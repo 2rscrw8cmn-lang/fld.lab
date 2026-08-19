@@ -92,7 +92,7 @@ export function PlaybookWorkspace({ team }: { team: Team | null }) {
       previousSelectedRef.current = selected.id;
       window.localStorage.setItem(selectedPlaybookKey(team.id), selected.id);
     }
-    setActivePlaybookContext({ id: selected.id, format: selected.format });
+    setActivePlaybookContext({ id: selected.id, name: selected.name, format: selected.format });
   } else {
     setActivePlaybookContext(null);
   }
@@ -174,6 +174,11 @@ export function PlaybookWorkspace({ team }: { team: Team | null }) {
     );
   }
 
+  const playbookTeam: Team = {
+    ...team,
+    season_label: [team.season_label, selected.name, selected.format].filter(Boolean).join(" · "),
+  };
+
   return (
     <>
       <div className="mx-auto max-w-[1220px] px-3 pt-3 sm:px-4 md:px-6 md:pt-4">
@@ -198,7 +203,7 @@ export function PlaybookWorkspace({ team }: { team: Team | null }) {
         </div>
       </div>
 
-      <PlaybookScreen key={`${team.id}-${selected.id}`} team={team} />
+      <PlaybookScreen key={`${team.id}-${selected.id}`} team={playbookTeam} />
 
       {createOpen && (
         <CreatePlaybookDialog
