@@ -1299,6 +1299,7 @@ const ROUTE_GLYPHS: Record<RouteTemplate, { line: string; arrow: string }> = {
   corner: { line: "22,27 22,18 9,7", arrow: "M16 9 L8 6 L11 14" },
   hitch: { line: "8,27 8,10 13,15", arrow: "M8 14 L14 16 L12 10" },
   drag: { line: "7,27 7,22 25,22", arrow: "M19 18 L26 22 L19 26" },
+  wheel: { line: "7,27 11,27 16,25 20,20 21,13 21,7", arrow: "M17 12 L21 6 L25 12" },
 };
 
 function RouteGlyph({ template }: { template: RouteTemplate }) {
@@ -1379,9 +1380,9 @@ function PlayerControls({
                 <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
                 <div className="text-[9px] font-black uppercase tracking-[0.1em] text-text-muted">Route</div>
               </div>
-              <div className="text-[9px] text-text-muted">Tap line to edit handles</div>
+              <div className="text-[9px] text-text-muted">Wheel curves automatically · tap line to edit</div>
             </div>
-            <div className="mt-2 grid grid-cols-4 gap-1.5">
+            <div className="mt-2 grid grid-cols-3 gap-1.5">
               {ROUTE_TEMPLATES.map((template) => {
                 const active = route?.template === template.id;
                 return (
