@@ -4,6 +4,7 @@ import {
   ArrowLeft,
   ArrowRight,
   CircleDot,
+  ClipboardList,
   Copy,
   Eraser,
   FilePlus2,
@@ -20,6 +21,7 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { PlaybookGameDay } from "@/features/playbook/playbook-gameday";
 import { PlayViewer } from "@/features/playbook/play-viewer";
 import {
   isPrimaryPlayer,
@@ -550,6 +552,7 @@ export function PlaybookScreen({ team }: { team: Team | null }) {
   const [view, setView] = useState<LibraryView>("editor");
   const [viewer, setViewer] = useState<Play | null>(null);
   const [draft, setDraft] = useState<Play | null>(null);
+  const [gameDayOpen, setGameDayOpen] = useState(false);
   const [newPlayPickerOpen, setNewPlayPickerOpen] = useState(false);
   const [pickerSide, setPickerSide] = useState<PlaySide>("offense");
   const [persistenceMode, setPersistenceMode] = useState<PersistenceMode>("loading");
@@ -558,6 +561,7 @@ export function PlaybookScreen({ team }: { team: Team | null }) {
     let cancelled = false;
     setViewer(null);
     setDraft(null);
+    setGameDayOpen(false);
     setFilter("all");
     setView("editor");
     setNewPlayPickerOpen(false);
@@ -683,10 +687,15 @@ export function PlaybookScreen({ team }: { team: Team | null }) {
   );
 
   const editorCount = plays.filter((play) => play.active_play).length;
-  const libraryCount = plays.length - editorCount;
+  const libraryPlays = plays.filter((play) => !play.active_play);
+  const libraryCount = libraryPlays.length;
 
   if (!team) {
     return <section className="p-6 text-sm text-text-muted">Create or select a team to build a playbook.</section>;
+  }
+
+  if (gameDayOpen) {
+    return <PlaybookGameDay team={team} plays={libraryPlays} onBack={() => setGameDayOpen(false)} />;
   }
 
   if (viewer) {
@@ -723,7 +732,12 @@ export function PlaybookScreen({ team }: { team: Team | null }) {
           <h1 className="text-[24px] font-extrabold leading-none tracking-[-0.035em] md:text-[30px]">Playbook</h1>
           <p className="mt-1.5 text-[12px] text-text-muted">Editor builds the football. Library assigns personnel and runs the play.</p>
         </div>
-        <Button onClick={() => { setPickerSide("offense"); setNewPlayPickerOpen(true); }}><FilePlus2 size={16} />New Play</Button>
+        <div className="flex items-center gap-2">
+          {view === "library" && libraryCount > 0 && (
+            <Button variant="secondary" onClick={() => setGameDayOpen(true)}><ClipboardList size={16} />Game Day</Button>
+          )}
+          <Button onClick={() => { setPickerSide("offense"); setNewPlayPickerOpen(true); }}><FilePlus2 size={16} />New Play</Button>
+        </div>
       </div>
 
       <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
