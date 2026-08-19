@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Pause, Pencil, Play, RotateCcw, Undo2 } from "lucide-react";
+import { ArrowLeft, Check, Pause, Pencil, Play, RotateCcw, Search, Undo2, Users, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import type { PlaySituation, PlayType } from "@/lib/playbook-api";
 import type { DiagramAssignment, DiagramPlayer, PlayDiagram, Point } from "@/features/playbook/playbook-model";
 import {
   isPrimaryPlayer,
@@ -10,9 +9,18 @@ import {
   playerForAssignment,
   playerTextColor,
 } from "@/features/playbook/playbook-visuals";
+import { getRoster, type RosterRow } from "@/lib/api";
+import {
+  getPlayPersonnel,
+  replacePlayPersonnel,
+  type PlayPersonnelAssignment,
+  type PlayPersonnelInput,
+} from "@/lib/playbook-personnel-api";
+import type { PlaySituation, PlayType } from "@/lib/playbook-api";
 
 export type PlayViewerPlay = {
   id: string;
+  team_id: string;
   name: string;
   side: "offense" | "defense";
   formation: string;
@@ -30,6 +38,9 @@ type Props = {
   onEdit?: () => void;
   onMoveToEditor?: () => void;
 };
+
+type LabelMode = "positions" | "players";
+type PersonnelStatus = "loading" | "ready" | "unavailable";
 
 const PLAY_DURATION_MS = 2500;
 const SNAP_HOLD_MS = 180;
@@ -115,6 +126,21 @@ function polylinePoints(points: Point[]) {
   return points.map((point) => `${point.x},${point.y}`).join(" ");
 }
 
+function athleteName(assignment: PlayPersonnelAssignment) {
+  return `${assignment.athlete.first_name} ${assignment.athlete.last_name}`.trim();
+}
+
+function rosterName(row: RosterRow) {
+  return `${row.athlete.first_name} ${row.athlete.last_name}`.trim();
+}
+
+function playerMarkerLabel(player: DiagramPlayer, assignment: PlayPersonnelAssignment | undefined, mode: LabelMode) {
+  if (mode === "positions" || !assignment) return player.label;
+  const jersey = assignment.membership.jersey_number?.trim();
+  if (jersey) return jersey.slice(0, 3);
+  return `${assignment.athlete.first_name[0] ?? ""}${assignment.athlete.last_name[0] ?? ""}`.toUpperCase() || player.label;
+}
+
 function FieldLines() {
   const guides = [
     { y: 16, label: "+20" },
@@ -143,11 +169,25 @@ function FieldLines() {
   );
 }
 
-function AnimatedField({ diagram, progress }: { diagram: PlayDiagram; progress: number }) {
+function AnimatedField({
+  diagram,
+  progress,
+  personnel,
+  labelMode,
+}: {
+  diagram: PlayDiagram;
+  progress: number;
+  personnel: PlayPersonnelAssignment[];
+  labelMode: LabelMode;
+}) {
   const hasMotion = diagram.assignments.some((assignment) => assignment.kind === "motion");
   const movementProgress = clamp01((progress - SNAP_HOLD_FRACTION) / (1 - SNAP_HOLD_FRACTION));
   const routeProgress = hasMotion ? clamp01((movementProgress - MOTION_PHASE) / (1 - MOTION_PHASE)) : movementProgress;
   const motionProgress = hasMotion ? clamp01(movementProgress / MOTION_PHASE) : 1;
+  const personnelByPlayer = useMemo(
+    () => new Map(personnel.map((assignment) => [assignment.player_id, assignment])),
+    [personnel],
+  );
 
   return (
     <svg viewBox="0 0 100 100" className="h-full w-full" role="img" aria-label="Animated play diagram">
@@ -204,10 +244,19 @@ function AnimatedField({ diagram, progress }: { diagram: PlayDiagram; progress: 
         const point = animatedPlayerPoint(player, diagram, movementProgress, hasMotion);
         const primary = isPrimaryPlayer(diagram, player.id);
         const color = playerColor(player, primary);
+        const personnelAssignment = personnelByPlayer.get(player.id);
+        const markerLabel = playerMarkerLabel(player, personnelAssignment, labelMode);
+        const showAthleteName = labelMode === "players" && personnelAssignment;
+        const athleteLabelY = point.y > 87 ? point.y - 5.8 : point.y + 6.3;
         return (
           <g key={player.id}>
             <circle cx={point.x} cy={point.y} r="3.75" fill={color} className="stroke-background" strokeWidth="0.9" />
-            <text x={point.x} y={point.y + 1.02} textAnchor="middle" fill={playerTextColor(primary)} className="text-[2.75px] font-black">{player.label}</text>
+            <text x={point.x} y={point.y + 1.02} textAnchor="middle" fill={playerTextColor(primary)} className="text-[2.75px] font-black">{markerLabel}</text>
+            {showAthleteName && (
+              <text x={point.x} y={athleteLabelY} textAnchor="middle" className="fill-text-secondary text-[2.15px] font-bold">
+                {personnelAssignment.athlete.first_name.slice(0, 10)}
+              </text>
+            )}
           </g>
         );
       })}
@@ -215,12 +264,185 @@ function AnimatedField({ diagram, progress }: { diagram: PlayDiagram; progress: 
   );
 }
 
+function PersonnelEditor({
+  diagram,
+  roster,
+  personnel,
+  onClose,
+  onSave,
+}: {
+  diagram: PlayDiagram;
+  roster: RosterRow[];
+  personnel: PlayPersonnelAssignment[];
+  onClose: () => void;
+  onSave: (assignments: PlayPersonnelInput[]) => Promise<void>;
+}) {
+  const initialAssignments = useMemo(
+    () => Object.fromEntries(personnel.map((assignment) => [assignment.player_id, assignment.athlete_id])) as Record<string, string>,
+    [personnel],
+  );
+  const [assignments, setAssignments] = useState<Record<string, string>>(initialAssignments);
+  const [selectedPlayerId, setSelectedPlayerId] = useState(diagram.players[0]?.id ?? "");
+  const [search, setSearch] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const selectedPlayer = diagram.players.find((player) => player.id === selectedPlayerId) ?? diagram.players[0] ?? null;
+  const usedByAthlete = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const [playerId, athleteId] of Object.entries(assignments)) {
+      if (athleteId) map.set(athleteId, playerId);
+    }
+    return map;
+  }, [assignments]);
+  const rosterByAthlete = useMemo(() => new Map(roster.map((row) => [row.athlete.id, row])), [roster]);
+  const needle = search.trim().toLowerCase();
+  const filteredRoster = roster.filter((row) => {
+    if (!needle) return true;
+    return [rosterName(row), row.membership.jersey_number, row.membership.primary_position, row.membership.secondary_position]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase()
+      .includes(needle);
+  });
+
+  const save = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      await onSave(
+        diagram.players.flatMap((player) => {
+          const athleteId = assignments[player.id];
+          return athleteId ? [{ player_id: player.id, athlete_id: athleteId }] : [];
+        }),
+      );
+      onClose();
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "Could not save personnel.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[120] flex items-end justify-center bg-black/65 p-3 pb-[calc(12px+env(safe-area-inset-bottom))] sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-label="Manage play personnel">
+      <button type="button" className="absolute inset-0 cursor-default" onClick={saving ? undefined : onClose} aria-label="Close personnel editor" />
+      <section className="relative z-10 flex max-h-[86dvh] w-full max-w-[780px] flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-2xl">
+        <div className="flex items-center justify-between border-b border-border px-4 py-3">
+          <div>
+            <div className="text-base font-extrabold">Personnel</div>
+            <div className="mt-0.5 text-[11px] text-text-muted">Map team athletes to this play’s football positions.</div>
+          </div>
+          <button type="button" onClick={onClose} disabled={saving} className="flex h-9 w-9 items-center justify-center rounded-md border border-border text-text-muted hover:bg-surface-elevated hover:text-text-primary disabled:opacity-40" aria-label="Close"><X size={17} /></button>
+        </div>
+
+        <div className="grid min-h-0 flex-1 md:grid-cols-[250px_minmax(0,1fr)]">
+          <div className="border-b border-border p-3 md:border-b-0 md:border-r">
+            <div className="text-[9px] font-bold uppercase tracking-[0.09em] text-text-muted">Positions</div>
+            <div className="mt-2 grid grid-cols-2 gap-2 md:grid-cols-1">
+              {diagram.players.map((player) => {
+                const primary = isPrimaryPlayer(diagram, player.id);
+                const athleteId = assignments[player.id];
+                const row = athleteId ? rosterByAthlete.get(athleteId) : null;
+                const active = selectedPlayer?.id === player.id;
+                return (
+                  <button
+                    key={player.id}
+                    type="button"
+                    onClick={() => setSelectedPlayerId(player.id)}
+                    className={`flex min-h-12 items-center gap-2.5 rounded-lg border px-2.5 text-left transition-colors ${active ? "border-text-muted bg-surface-elevated" : "border-border bg-background hover:bg-surface-elevated"}`}
+                  >
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-black" style={{ backgroundColor: playerColor(player, primary), color: playerTextColor(primary) }}>{player.label}</span>
+                    <span className="min-w-0">
+                      <span className="block text-[11px] font-extrabold text-text-primary">{player.label}</span>
+                      <span className="block truncate text-[9px] text-text-muted">{row ? rosterName(row) : "Unassigned"}</span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="min-h-0 overflow-y-auto p-3 sm:p-4">
+            {selectedPlayer ? (
+              <>
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-extrabold">Assign {selectedPlayer.label}</div>
+                    <div className="mt-0.5 text-[10px] text-text-muted">Each athlete can fill one position in this play.</div>
+                  </div>
+                  {assignments[selectedPlayer.id] && (
+                    <button type="button" onClick={() => setAssignments((current) => ({ ...current, [selectedPlayer.id]: "" }))} className="text-[10px] font-bold text-text-muted underline decoration-border underline-offset-4 hover:text-text-primary">Clear</button>
+                  )}
+                </div>
+
+                <label className="relative mt-3 block">
+                  <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
+                  <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search roster" className="h-9 w-full rounded-md border border-border bg-background pl-9 pr-3 text-xs text-text-primary outline-none placeholder:text-text-muted focus:border-accent" />
+                </label>
+
+                <div className="mt-3 space-y-1.5">
+                  {filteredRoster.map((row) => {
+                    const athleteId = row.athlete.id;
+                    const assignedPlayerId = usedByAthlete.get(athleteId);
+                    const assignedElsewhere = Boolean(assignedPlayerId && assignedPlayerId !== selectedPlayer.id);
+                    const selected = assignments[selectedPlayer.id] === athleteId;
+                    const assignedRole = diagram.players.find((player) => player.id === assignedPlayerId)?.label;
+                    return (
+                      <button
+                        key={athleteId}
+                        type="button"
+                        disabled={assignedElsewhere}
+                        onClick={() => setAssignments((current) => ({ ...current, [selectedPlayer.id]: athleteId }))}
+                        className={`flex min-h-12 w-full items-center justify-between gap-3 rounded-lg border px-3 text-left transition-colors ${selected ? "border-accent bg-[rgba(124,58,237,0.1)]" : "border-border bg-background hover:bg-surface-elevated"} disabled:cursor-not-allowed disabled:opacity-45`}
+                      >
+                        <span className="min-w-0">
+                          <span className="block truncate text-xs font-bold text-text-primary">{rosterName(row)}</span>
+                          <span className="mt-0.5 block truncate text-[9px] text-text-muted">
+                            {[row.membership.jersey_number ? `#${row.membership.jersey_number}` : null, row.membership.primary_position].filter(Boolean).join(" · ") || "Roster athlete"}
+                          </span>
+                        </span>
+                        {selected ? <Check size={16} className="shrink-0 text-accent" /> : assignedElsewhere ? <span className="shrink-0 text-[9px] font-bold text-text-muted">{assignedRole}</span> : null}
+                      </button>
+                    );
+                  })}
+                  {!filteredRoster.length && <div className="py-6 text-center text-xs text-text-muted">No roster athletes match that search.</div>}
+                </div>
+              </>
+            ) : (
+              <div className="py-8 text-center text-xs text-text-muted">This play has no positions to map.</div>
+            )}
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between gap-3 border-t border-border px-4 py-3">
+          <div className="min-w-0 text-[10px] text-text-muted">{error ?? `${Object.values(assignments).filter(Boolean).length} of ${diagram.players.length} positions assigned`}</div>
+          <div className="flex shrink-0 gap-2">
+            <Button variant="secondary" onClick={onClose} disabled={saving}>Cancel</Button>
+            <Button onClick={() => void save()} disabled={saving}>{saving ? "Saving…" : "Save Personnel"}</Button>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 export function PlayViewer({ play, onBack, onEdit, onMoveToEditor }: Props) {
   const [progress, setProgress] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [runId, setRunId] = useState(0);
+  const [roster, setRoster] = useState<RosterRow[]>([]);
+  const [personnel, setPersonnel] = useState<PlayPersonnelAssignment[]>([]);
+  const [personnelStatus, setPersonnelStatus] = useState<PersonnelStatus>("loading");
+  const [labelMode, setLabelMode] = useState<LabelMode>("positions");
+  const [personnelEditorOpen, setPersonnelEditorOpen] = useState(false);
   const progressRef = useRef(0);
   const hasMotion = play.diagram.assignments.some((assignment) => assignment.kind === "motion");
+  const personnelByPlayer = useMemo(
+    () => new Map(personnel.map((assignment) => [assignment.player_id, assignment])),
+    [personnel],
+  );
+  const hasPersonnel = personnel.length > 0;
 
   useEffect(() => {
     progressRef.current = progress;
@@ -246,6 +468,29 @@ export function PlayViewer({ play, onBack, onEdit, onMoveToEditor }: Props) {
     return () => cancelAnimationFrame(frame);
   }, [playing, runId]);
 
+  useEffect(() => {
+    let cancelled = false;
+    setRoster([]);
+    setPersonnel([]);
+    setPersonnelStatus("loading");
+    setLabelMode("positions");
+    setPersonnelEditorOpen(false);
+
+    void Promise.all([getRoster(play.team_id), getPlayPersonnel(play.team_id, play.id)])
+      .then(([nextRoster, nextPersonnel]) => {
+        if (cancelled) return;
+        setRoster(nextRoster);
+        setPersonnel(nextPersonnel.filter((assignment) => play.diagram.players.some((player) => player.id === assignment.player_id)));
+        setPersonnelStatus("ready");
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setPersonnelStatus("unavailable");
+      });
+
+    return () => { cancelled = true; };
+  }, [play.id, play.team_id, play.diagram]);
+
   const replay = () => {
     progressRef.current = 0;
     setProgress(0);
@@ -259,6 +504,13 @@ export function PlayViewer({ play, onBack, onEdit, onMoveToEditor }: Props) {
       return;
     }
     setPlaying((value) => !value);
+  };
+
+  const savePersonnel = async (assignments: PlayPersonnelInput[]) => {
+    const next = await replacePlayPersonnel(play.team_id, play.id, assignments);
+    setPersonnel(next.filter((assignment) => play.diagram.players.some((player) => player.id === assignment.player_id)));
+    setPersonnelStatus("ready");
+    if (next.length) setLabelMode("players");
   };
 
   const metadata = useMemo(() => [
@@ -309,7 +561,7 @@ export function PlayViewer({ play, onBack, onEdit, onMoveToEditor }: Props) {
       <div className="mt-4 grid gap-5 lg:grid-cols-[minmax(0,1fr)_230px]">
         <div className="min-w-0">
           <div className="aspect-[5/4] max-h-[650px] overflow-hidden rounded-lg border border-border bg-background p-1">
-            <AnimatedField diagram={play.diagram} progress={progress} />
+            <AnimatedField diagram={play.diagram} progress={progress} personnel={personnel} labelMode={labelMode} />
           </div>
 
           <div className="mt-3 flex items-center gap-3 border-b border-border pb-3">
@@ -338,6 +590,41 @@ export function PlayViewer({ play, onBack, onEdit, onMoveToEditor }: Props) {
             <div className="flex items-baseline justify-between gap-4 py-2.5"><dt className="text-text-muted">Situation</dt><dd className="text-right font-bold text-text-primary">{SITUATION_LABELS[play.situation]}</dd></div>
           </dl>
 
+          <div className="mt-5 border-t border-border pt-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.1em] text-text-muted"><Users size={12} />Personnel</div>
+              {play.active_play && personnelStatus === "ready" && (
+                <button type="button" onClick={() => setPersonnelEditorOpen(true)} className="text-[10px] font-bold text-text-muted underline decoration-border underline-offset-4 hover:text-text-primary">Manage</button>
+              )}
+            </div>
+
+            {personnelStatus === "loading" ? (
+              <div className="mt-3 text-[10px] text-text-muted">Loading roster…</div>
+            ) : personnelStatus === "unavailable" ? (
+              <div className="mt-3 text-[10px] leading-4 text-text-muted">Personnel mapping is unavailable until the team database is updated.</div>
+            ) : (
+              <>
+                <div className="mt-3 inline-grid grid-cols-2 rounded-md border border-border bg-background p-0.5 text-[9px] font-bold">
+                  <button type="button" onClick={() => setLabelMode("positions")} className={`min-h-7 rounded-[4px] px-2.5 ${labelMode === "positions" ? "bg-surface-elevated text-text-primary" : "text-text-muted"}`}>Positions</button>
+                  <button type="button" disabled={!hasPersonnel} onClick={() => setLabelMode("players")} className={`min-h-7 rounded-[4px] px-2.5 ${labelMode === "players" ? "bg-surface-elevated text-text-primary" : "text-text-muted"} disabled:opacity-35`}>Players</button>
+                </div>
+
+                <div className="mt-3 space-y-2">
+                  {play.diagram.players.map((player) => {
+                    const assignment = personnelByPlayer.get(player.id);
+                    const primary = isPrimaryPlayer(play.diagram, player.id);
+                    return (
+                      <div key={player.id} className="flex min-w-0 items-center gap-2 text-[10px]">
+                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[7px] font-black" style={{ backgroundColor: playerColor(player, primary), color: playerTextColor(primary) }}>{player.label}</span>
+                        <span className={`min-w-0 truncate ${assignment ? "font-semibold text-text-secondary" : "text-text-muted"}`}>{assignment ? athleteName(assignment) : "Unassigned"}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </div>
+
           {play.notes && (
             <div className="mt-5 border-t border-border pt-4">
               <div className="text-[9px] font-bold uppercase tracking-[0.1em] text-text-muted">Coaching notes</div>
@@ -347,11 +634,21 @@ export function PlayViewer({ play, onBack, onEdit, onMoveToEditor }: Props) {
 
           {!play.active_play && (
             <div className="mt-5 border-t border-border pt-4 text-[11px] leading-5 text-text-muted">
-              Library plays are view-only. Move this play to Editor before changing the diagram or assignments.
+              Library plays are view-only. Move this play to Editor before changing the diagram, assignments, or personnel.
             </div>
           )}
         </aside>
       </div>
+
+      {personnelEditorOpen && (
+        <PersonnelEditor
+          diagram={play.diagram}
+          roster={roster}
+          personnel={personnel}
+          onClose={() => setPersonnelEditorOpen(false)}
+          onSave={savePersonnel}
+        />
+      )}
     </section>
   );
 }
