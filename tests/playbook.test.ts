@@ -141,6 +141,24 @@ describe("smart route geometry", () => {
     expect(second.assignments).toHaveLength(1);
     expect(second.assignments[0].template).toBe("slant");
   });
+
+  it("authors a new route from the completed motion endpoint", () => {
+    const diagram: PlayDiagram = {
+      schema_version: 2,
+      players: [{ id: "player_y", label: "Y", x: 25, y: 84 }],
+      assignments: [{
+        id: "motion_1",
+        player_id: "player_y",
+        kind: "motion",
+        points: [{ x: 25, y: 84 }, { x: 72, y: 84 }],
+      }],
+      primary_target_player_id: null,
+    };
+    const next = replacePlayerRoute(diagram, "player_y", "post", () => "route_motion");
+    const route = next.assignments.find((assignment) => assignment.kind === "route");
+    expect(route?.points[0]).toEqual({ x: 72, y: 84 });
+    expect(route?.points.at(-1)?.x).toBeLessThan(72);
+  });
 });
 
 describe("play mirroring", () => {
