@@ -477,8 +477,9 @@ export function buildRoutePoints(template: RouteTemplate, start: Point, requeste
 
 export function updateRouteEndpoint(assignment: DiagramAssignment, start: Point, requestedEnd: Point): Point[] {
   if (assignment.kind !== "route" || assignment.points.length < 2) return assignment.points;
+  const semanticStart = assignment.points[0] ?? start;
   const end = assignment.template
-    ? semanticRouteEnd(assignment.template, start, point(requestedEnd.x, requestedEnd.y))
+    ? semanticRouteEnd(assignment.template, semanticStart, point(requestedEnd.x, requestedEnd.y))
     : point(requestedEnd.x, requestedEnd.y);
   const lastIndex = assignment.points.length - 1;
   return assignment.points.map((candidate, index) => index === lastIndex ? end : candidate);
@@ -527,12 +528,15 @@ export function replacePlayerRoute(
 ): PlayDiagram {
   const player = diagram.players.find((candidate) => candidate.id === playerId);
   if (!player) return diagram;
+  const motion = diagram.assignments.find((assignment) => assignment.player_id === playerId && assignment.kind === "motion");
+  const motionEnd = motion?.points[motion.points.length - 1];
+  const routeStart = motionEnd ?? player;
   const route: DiagramAssignment = {
     id: makeId("assignment"),
     player_id: playerId,
     kind: "route",
     template,
-    points: buildRoutePoints(template, player),
+    points: buildRoutePoints(template, routeStart),
   };
   return {
     ...diagram,
